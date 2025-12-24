@@ -1,4 +1,21 @@
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=promisethread
+      - POSTGRES_PASSWORD=hackfest2025
+      - POSTGRES_DB=promisethread
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U promisethread -d promisethread"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   frontend:
     build: ./frontend
     ports:
@@ -14,17 +31,27 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite:///./promisethread.db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=promisethread
+      - DB_USER=promisethread
+      - DB_PASSWORD=hackfest2025
       - SECRET_KEY=change-this-in-production
       - BLOCKCHAIN_RPC_URL=http://blockchain:8545
     volumes:
       - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   blockchain:
     build: ./blockchain
     ports:
       - "8545:8545"
+
+volumes:
+  postgres_data:
 
 networks:
   default:
