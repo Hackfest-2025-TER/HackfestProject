@@ -81,6 +81,14 @@ class MerkleTree:
         return current == self.root
 
 
+# ============= Demo Configuration =============
+# In production, each voter receives a unique secret from the Election Commission
+# (delivered via physical mail, secure SMS, or in-person verification).
+# The Merkle tree is built from hash(voter_id + secret) pairs.
+# For this demo/MVP, all voters use the same secret.
+DEMO_SECRET = "1234567890"
+
+
 class VoterRegistry:
     """Voter registry loaded from CSV with Merkle tree for membership proofs."""
     
@@ -332,11 +340,17 @@ manifestos_db: List[dict] = [
 comments_db: List[dict] = []
 votes_db: List[dict] = []
 credentials_db: dict = {}  # nullifier -> credential mapping
+expected_nullifiers_db: dict = {}  # Maps expected nullifier -> voter_id_hash (for verification)
 
 # ============= Utility Functions =============
 
 def generate_hash(data: str) -> str:
     return "0x" + hashlib.sha256(data.encode()).hexdigest()[:40]
+
+def compute_expected_nullifier(voter_id: str, secret: str = DEMO_SECRET) -> str:
+    """Compute the expected nullifier for a voter ID with the given secret."""
+    combined = f"{voter_id}:{secret}"
+    return "0x" + hashlib.sha256(combined.encode()).hexdigest()
 
 def generate_nullifier() -> str:
     return "0x" + secrets.token_hex(16)
@@ -358,7 +372,10 @@ async def get_merkle_root():
     return {
         "merkle_root": voter_registry.merkle_root,
         "total_voters": len(voter_registry.voter_ids),
-        "registry_status": "active" if voter_registry.merkle_root else "not_loaded"
+        "registry_status": "active" if voter_registry.merkle_root else "not_loaded",
+        "mode": "demo",
+        "demo_secret": DEMO_SECRET,
+        "demo_note": "In production, each voter receives a unique secret from Election Commission"
     }
 
 @app.get("/api/registry/stats")
@@ -401,6 +418,14 @@ async def lookup_voter(request: VoterLookupRequest):
     
     # Hash the voter ID for client-side use
     voter_id_hash = generate_hash(voter_id)
+    
+    # Compute and store the expected nullifier (using demo secret)
+    # This allows us to verify the proof was generated with correct secret
+    expected_nullifier = compute_expected_nullifier(voter_id)
+    expected_nullifiers_db[expected_nullifier] = {
+        "voter_id_hash": voter_id_hash,
+        "created_at": datetime.now().isoformat()
+    }
     
     # Mask the name for privacy (show first 2 chars only)
     name = voter_info.get("name", "")
@@ -458,10 +483,11 @@ async def verify_zk_proof(request: ZKProofRequest):
     Verify a zero-knowledge proof and issue anonymous credential.
     
     The "Blind Auditor" verification:
-    1. Verifies the Merkle proof (voter is in registry)
-    2. Checks commitment matches claimed values
-    3. Stores ONLY the nullifier (prevents double voting)
-    4. Never stores or logs the actual voter ID
+    1. Verifies the nullifier was computed with the correct secret
+    2. Verifies the Merkle proof (voter is in registry)
+    3. Checks commitment matches claimed values
+    4. Stores ONLY the nullifier (prevents double voting)
+    5. Never stores or logs the actual voter ID
     """
     # Check if nullifier already used (prevent double registration)
     if request.nullifier in credentials_db:
@@ -469,6 +495,17 @@ async def verify_zk_proof(request: ZKProofRequest):
             valid=False,
             message="This credential has already been registered. One person, one vote."
         )
+    
+    # CRITICAL: Verify nullifier was computed with correct secret (demo secret)
+    # In production, this would be done via zk-SNARK verification
+    if request.nullifier not in expected_nullifiers_db:
+        return ZKProofResponse(
+            valid=False,
+            message=f"Invalid secret. Please use the demo secret: {DEMO_SECRET}"
+        )
+    
+    # Clean up the expected nullifier entry (one-time use)
+    expected_data = expected_nullifiers_db.pop(request.nullifier)
     
     # Verify Merkle proof (in production, this would be done via zk-SNARK)
     # For MVP, we verify the proof structure is valid
@@ -484,12 +521,6 @@ async def verify_zk_proof(request: ZKProofRequest):
             valid=False,
             message="Invalid proof format - commitment or nullifier too short"
         )
-    
-    # In production: Verify zk-SNARK proof here using snarkjs
-    # The proof would cryptographically prove:
-    # 1. Prover knows a voter_id that hashes to voter_id_hash
-    # 2. voter_id is a leaf in the Merkle tree
-    # 3. nullifier = Hash(voter_id + secret)
     
     # Generate anonymous credential
     credential = generate_credential()

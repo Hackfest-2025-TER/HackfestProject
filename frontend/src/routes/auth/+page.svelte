@@ -212,7 +212,7 @@
         <div class="step-connector" class:active={currentStep !== 'search'}></div>
         <div class="step" class:active={currentStep === 'verify'} class:completed={currentStep === 'success'}>
           <span class="step-number">2</span>
-          <span class="step-label">Generate Proof</span>
+          <span class="step-label">Verify</span>
         </div>
         <div class="step-connector" class:active={currentStep === 'success'}></div>
         <div class="step" class:active={currentStep === 'success'}>
@@ -311,8 +311,8 @@
       <!-- Step 2: Enter Secret & Generate Proof -->
       {#if currentStep === 'verify'}
         <div class="auth-card-header">
-          <h1>Generate Your Proof</h1>
-          <p>Enter your secret to generate a unique anonymous credential.</p>
+          <h1>Verify Your Identity</h1>
+          <p>Enter your secret to verify and receive your anonymous credential.</p>
         </div>
         
         <!-- Voter Found Confirmation -->
@@ -333,14 +333,14 @@
               <input 
                 type="text"
                 class="form-input" 
-                placeholder="Enter your citizenship number or personal secret"
+                placeholder="Demo: Enter 1234567890"
                 bind:value={secretInput}
               />
             {:else}
               <input 
                 type="password"
                 class="form-input" 
-                placeholder="Enter your citizenship number or personal secret"
+                placeholder="Demo: Enter 1234567890"
                 bind:value={secretInput}
               />
             {/if}
@@ -353,8 +353,9 @@
             </button>
           </div>
           <p class="form-hint">
-            This could be your citizenship number (नागरिकता नं) or any secret only you know.
-            This is NEVER sent to our server - it's used locally to generate your unique nullifier.
+            <strong>Production:</strong> Your citizenship number (नागरिकता नं) securely delivered by Election Commission.
+            <br />
+            <strong>Demo:</strong> Use <code>1234567890</code> - pre-bound to all voters in demo registry.
           </p>
         </div>
         
@@ -380,10 +381,10 @@
           <button class="submit-btn" on:click={generateAndVerify} disabled={isLoading || !secretInput}>
             {#if isLoading}
               <Loader2 size={18} class="spinner" />
-              Generating Proof...
+              Verifying...
             {:else}
               <Fingerprint size={18} />
-              Generate ZK Proof
+              Verify Identity
             {/if}
           </button>
         </div>
