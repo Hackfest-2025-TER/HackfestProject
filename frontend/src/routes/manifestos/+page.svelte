@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { browser } from '$app/environment';
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import { Search, Filter, Download, CheckCircle, Clock, FileText, ChevronLeft, ChevronRight, Shield, Fingerprint, AlertCircle, Vote } from 'lucide-svelte';
   import { onMount } from 'svelte';
-  import { authStore, isAuthenticated, credential } from '$lib/stores/auth';
+  import { authStore, isAuthenticated, credential } from '$lib/stores';
   import { getManifestos, getMerkleRoot, getNetworkStats } from '$lib/api';
   
   // Reactive auth state
@@ -22,6 +23,8 @@
   
   // Load data on mount
   onMount(async () => {
+    if (!browser) return;
+    
     try {
       const [manifestoData, rootData, stats] = await Promise.all([
         getManifestos(),
@@ -32,11 +35,6 @@
       manifestos = manifestoData.manifestos || [];
       merkleRoot = rootData.merkle_root;
       networkStats = stats;
-      
-      // Refresh credential status if authenticated
-      if ($isAuthenticated) {
-        await authStore.refreshStatus();
-      }
     } catch (e) {
       error = 'Failed to load data. Please try again.';
       console.error(e);

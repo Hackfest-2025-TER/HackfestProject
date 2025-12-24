@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from '$app/environment';
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
@@ -6,7 +7,7 @@
   import { Shield, FileText, CheckCircle, Clock, Activity, TrendingUp, Eye, AlertCircle, Fingerprint } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { authStore, isAuthenticated, credential } from '$lib/stores/auth';
+  import { authStore, isAuthenticated, credential } from '$lib/stores';
   import { getManifestos } from '$lib/api';
   
   // Reactive auth state
@@ -19,6 +20,8 @@
   
   // Redirect if not authenticated
   onMount(async () => {
+    if (!browser) return;
+    
     if (!$isAuthenticated) {
       goto('/auth');
       return;

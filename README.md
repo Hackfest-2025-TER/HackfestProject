@@ -102,6 +102,7 @@ HackfestProject/
 ### Prerequisites
 - Node.js 18+
 - Python 3.10+
+- **PostgreSQL 15+** (for database)
 - Docker & Docker Compose (optional)
 
 ### Quick Start with Docker
@@ -122,27 +123,89 @@ Access:
 
 ### Manual Setup
 
-**Frontend:**
+**1. Database (PostgreSQL):**
+```bash
+# Install PostgreSQL
+brew install postgresql@15  # macOS
+# or
+sudo apt install postgresql postgresql-contrib  # Ubuntu
+
+# Start PostgreSQL service
+brew services start postgresql@15  # macOS
+# or
+sudo systemctl start postgresql  # Ubuntu
+
+# Create database and user
+psql postgres -c "CREATE USER promisethread WITH PASSWORD 'hackfest2025' CREATEDB;"
+psql postgres -c "CREATE DATABASE promisethread OWNER promisethread;"
+
+# Initialize database with migrations
+cd backend
+pip install -r requirements.txt
+python migrate.py init
+```
+
+**2. Backend:**
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+**3. Frontend:**
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-**Backend:**
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
-
-**Blockchain:**
+**4. Blockchain:**
 ```bash
 cd blockchain
 npm install
 npx hardhat node  # In one terminal
 npx hardhat run scripts/deploy.js --network localhost  # In another
 ```
+
+## 🗄️ Database Management
+
+PromiseThread uses **PostgreSQL** with **Alembic** for migrations.
+
+**Quick Commands:**
+```bash
+cd backend
+
+# Initialize database (first time)
+python migrate.py init
+
+# Check migration status
+python migrate.py status
+
+# Apply migrations
+python migrate.py upgrade
+
+# Import voter data
+python migrate.py import
+
+# Seed sample data
+python migrate.py seed
+
+# Reset database (⚠️ deletes all data)
+python migrate.py reset
+```
+
+**Database Schema:**
+- `voters` - 25,924 voter records from Dhulikhel election commission
+- `zk_credentials` - Anonymous authentication credentials
+- `politicians` - Political figures
+- `manifestos` - Political promises
+- `manifesto_votes` - Individual votes (anonymous via nullifier)
+- `comments` - Discussion threads
+- `comment_votes` - Upvote/downvote tracking
+- `audit_logs` - Blockchain simulation
+- `merkle_roots` - Merkle tree roots
+
+See [`backend/MIGRATIONS.md`](backend/MIGRATIONS.md) for detailed documentation.
 
 ## 📱 Pages & Features
 

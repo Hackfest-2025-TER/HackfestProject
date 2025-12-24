@@ -5,7 +5,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
-  import { authStore, isAuthenticated, credential } from '$lib/stores/auth';
+  import { authStore, isAuthenticated, credential } from '$lib/stores';
   import { getManifesto, submitVote, getMerkleRoot, getBlocks } from '$lib/api';
   
   // Get manifesto ID from URL

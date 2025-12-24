@@ -1,19 +1,36 @@
-from fastapi import FastAPI, HTTPException, Depends
+"""
+PromiseThread API - PostgreSQL Version
+======================================
+Decentralized Political Accountability Platform - Blind Auditor System
+
+Database Credentials:
+- Host: localhost
+- Port: 5432
+- Database: promisethread
+- Username: promisethread
+- Password: hackfest2025
+"""
+
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
-import json
-import csv
-import os
-from pathlib import Path
+from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
+
+from database import get_db, init_db, check_connection
+from models import (
+    Voter, ZKCredential, Politician, Manifesto as ManifestoModel,
+    ManifestoVote, Comment as CommentModel, CommentVote, AuditLog, MerkleRoot
+)
 
 app = FastAPI(
     title="PromiseThread API",
     description="Decentralized Political Accountability Platform - Blind Auditor System",
-    version="2.0.0"
+    version="2.1.0 (PostgreSQL)"
 )
 
 # ============= Merkle Tree Implementation =============
@@ -82,87 +99,33 @@ class MerkleTree:
 
 
 # ============= Demo Configuration =============
-# In production, each voter receives a unique secret from the Election Commission
-# (delivered via physical mail, secure SMS, or in-person verification).
-# The Merkle tree is built from hash(voter_id + secret) pairs.
-# For this demo/MVP, all voters use the same secret.
 DEMO_SECRET = "1234567890"
 
+# In-memory cache for expected nullifiers (temporary during auth flow)
+expected_nullifiers_cache: dict = {}
 
-class VoterRegistry:
-    """Voter registry loaded from CSV with Merkle tree for membership proofs."""
+# Cached Merkle tree (rebuilt from DB)
+_merkle_tree_cache: Optional[MerkleTree] = None
+_merkle_root_cache: str = ""
+_voter_ids_cache: List[str] = []
+
+
+def get_merkle_tree(db: Session) -> tuple[MerkleTree, str, List[str]]:
+    """Get or rebuild Merkle tree from database."""
+    global _merkle_tree_cache, _merkle_root_cache, _voter_ids_cache
     
-    def __init__(self, csv_path: str = None):
-        self.voters: Dict[str, Dict[str, Any]] = {}  # voter_id -> voter data
-        self.voter_ids: List[str] = []
-        self.merkle_tree: Optional[MerkleTree] = None
-        self.merkle_root: str = ""
+    if _merkle_tree_cache is None:
+        # Load voter IDs from database
+        voters = db.query(Voter.voter_id).order_by(Voter.id).all()
+        _voter_ids_cache = [v.voter_id for v in voters]
         
-        if csv_path and os.path.exists(csv_path):
-            self._load_csv(csv_path)
+        if _voter_ids_cache:
+            _merkle_tree_cache = MerkleTree(_voter_ids_cache)
+            _merkle_root_cache = _merkle_tree_cache.root
+            print(f"✓ Built Merkle tree with {len(_voter_ids_cache)} voters. Root: {_merkle_root_cache[:16]}...")
     
-    def _load_csv(self, csv_path: str):
-        """Load voter data from CSV file."""
-        try:
-            with open(csv_path, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    voter_id = row.get('मतदाता नं', '').strip()
-                    if voter_id:
-                        self.voter_ids.append(voter_id)
-                        self.voters[voter_id] = {
-                            "serial": row.get('सि.नं.', ''),
-                            "name": row.get('मतदाताको नाम', ''),
-                            "age": row.get('उमेर(वर्ष)', ''),
-                            "gender": row.get('लिङ्ग', ''),
-                            "ward": row.get('Ward', ''),
-                            "district": row.get('District', ''),
-                            "province": row.get('Province', '')
-                        }
-            
-            # Build Merkle tree from voter IDs
-            if self.voter_ids:
-                self.merkle_tree = MerkleTree(self.voter_ids)
-                self.merkle_root = self.merkle_tree.root
-                print(f"✓ Loaded {len(self.voter_ids)} voters. Merkle root: {self.merkle_root[:16]}...")
-        except Exception as e:
-            print(f"✗ Error loading CSV: {e}")
-    
-    def is_eligible(self, voter_id: str) -> bool:
-        """Check if voter ID exists in registry."""
-        return voter_id in self.voters
-    
-    def get_voter_info(self, voter_id: str) -> Optional[Dict[str, Any]]:
-        """Get voter info (for display only, not for verification)."""
-        return self.voters.get(voter_id)
-    
-    def get_voter_index(self, voter_id: str) -> int:
-        """Get index of voter ID in the list."""
-        try:
-            return self.voter_ids.index(voter_id)
-        except ValueError:
-            return -1
-    
-    def get_merkle_proof(self, voter_id: str) -> Optional[List[Dict[str, str]]]:
-        """Get Merkle proof for a voter ID."""
-        index = self.get_voter_index(voter_id)
-        if index == -1 or not self.merkle_tree:
-            return None
-        return self.merkle_tree.get_proof(index)
-    
-    def verify_membership(self, voter_id: str, proof: List[Dict[str, str]]) -> bool:
-        """Verify voter membership using Merkle proof."""
-        if not self.merkle_tree:
-            return False
-        return self.merkle_tree.verify_proof(voter_id, proof)
+    return _merkle_tree_cache, _merkle_root_cache, _voter_ids_cache
 
-
-# Initialize voter registry from CSV
-# In Docker, data is mounted at /app/data; locally it's at ../data
-DATA_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__).parent.parent / "data"
-CSV_PATH = DATA_DIR / "dhulikhel_voter_list_full.csv"
-print(f"Looking for voter CSV at: {CSV_PATH} (exists: {CSV_PATH.exists()})")
-voter_registry = VoterRegistry(str(CSV_PATH) if CSV_PATH.exists() else None)
 
 # CORS middleware
 app.add_middleware(
@@ -173,174 +136,86 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============= Models =============
 
-# ZK Proof Models - Updated for Blind Auditor System
+# ============= Pydantic Models =============
+
 class VoterLookupRequest(BaseModel):
     voter_id: str
 
 class VoterLookupResponse(BaseModel):
     found: bool
     voter_id_hash: Optional[str] = None
-    name_masked: Optional[str] = None  # First 2 chars + ***
+    name_masked: Optional[str] = None
     ward: Optional[str] = None
     merkle_proof: Optional[List[Dict[str, str]]] = None
     message: str
 
 class ZKProofRequest(BaseModel):
-    """Request for ZK proof verification."""
-    voter_id_hash: str  # Hash of voter ID (computed client-side)
-    nullifier: str      # Hash(voter_id + secret) - prevents double voting
-    merkle_proof: List[Dict[str, str]]  # Proof of membership
-    commitment: str     # Hash(voter_id_hash + nullifier) - for verification
+    voter_id_hash: str
+    nullifier: str
+    merkle_proof: List[Dict[str, str]]
+    commitment: str
 
 class ZKProofResponse(BaseModel):
     valid: bool
     credential: Optional[str] = None
     nullifier: Optional[str] = None
-    nullifier_short: Optional[str] = None  # Truncated for display
+    nullifier_short: Optional[str] = None
     message: str
     merkle_root: Optional[str] = None
 
-class Manifesto(BaseModel):
-    id: Optional[str] = None
+class ManifestoResponse(BaseModel):
+    id: int
     title: str
     description: str
     category: str
-    politician_id: str
+    politician_id: int
     politician_name: str
+    politician_party: Optional[str] = None
     deadline: str
-    status: str = "pending"
-    created_at: Optional[str] = None
+    status: str
+    created_at: str
     hash: Optional[str] = None
-    vote_kept: int = 0
-    vote_broken: int = 0
+    vote_kept: int
+    vote_broken: int
+    grace_period_end: str
+    voting_open: bool
 
 class ManifestoCreate(BaseModel):
     title: str
     description: str
     category: str
-    politician_id: str
+    politician_id: int
     deadline: str
     promises: List[str] = []
 
-class Vote(BaseModel):
-    manifesto_id: str
+class VoteRequest(BaseModel):
+    manifesto_id: int
     vote_type: str  # "kept" or "broken"
     nullifier: str
-    proof: str
+    proof: str = ""
 
 class VoteResponse(BaseModel):
     success: bool
     message: str
     vote_hash: Optional[str] = None
     block_height: Optional[int] = None
-
-class Comment(BaseModel):
-    id: Optional[str] = None
-    manifesto_id: str
-    content: str
-    nullifier: str
-    parent_id: Optional[str] = None
-    created_at: Optional[str] = None
-    upvotes: int = 0
-    downvotes: int = 0
+    changed: bool = False  # True if vote was changed
 
 class CommentCreate(BaseModel):
-    manifesto_id: str
+    manifesto_id: int
     content: str
     nullifier: str
-    parent_id: Optional[str] = None
+    parent_id: Optional[int] = None
+
+class CommentVoteRequest(BaseModel):
+    nullifier: str
+    vote_type: str  # "up" or "down"
 
 class Feedback(BaseModel):
-    type: str  # "bug", "suggestion", "general"
+    type: str
     content: str
 
-class AuditLog(BaseModel):
-    id: str
-    action: str
-    timestamp: str
-    block_height: int
-    tx_hash: str
-    status: str
-
-class NetworkStats(BaseModel):
-    active_nodes: int
-    total_votes: int
-    total_manifestos: int
-    integrity_score: float
-    uptime: float
-    last_block: int
-
-# ============= In-Memory Storage (Demo) =============
-
-manifestos_db: List[dict] = [
-    {
-        "id": "MAN-2023-0001",
-        "title": "Universal Healthcare Act",
-        "description": "Comprehensive healthcare reform ensuring coverage for all citizens",
-        "category": "Healthcare",
-        "politician_id": "POL-001",
-        "politician_name": "Jane Doe",
-        "deadline": "2024-06-30",
-        "status": "kept",
-        "created_at": "2023-01-15T10:00:00Z",
-        "hash": "0x7f8e9d0c1b2a3f4e5d6c7b8a9",
-        "vote_kept": 1247,
-        "vote_broken": 203,
-        "grace_period_end": "2024-01-15T10:00:00Z"
-    },
-    {
-        "id": "MAN-2023-0002",
-        "title": "North-South Rail Link",
-        "description": "Major infrastructure project to connect northern and southern regions",
-        "category": "Infrastructure",
-        "politician_id": "POL-001",
-        "politician_name": "Jane Doe",
-        "deadline": "2025-12-31",
-        "status": "pending",
-        "created_at": "2023-03-20T14:30:00Z",
-        "hash": "0x3c4d5e6f7a8b9c0d1e2f3a4b",
-        "vote_kept": 892,
-        "vote_broken": 156,
-        "grace_period_end": "2024-03-20T14:30:00Z"
-    },
-    {
-        "id": "MAN-2023-0003",
-        "title": "Green Energy Initiative",
-        "description": "Transition to 50% renewable energy sources by 2025",
-        "category": "Environment",
-        "politician_id": "POL-002",
-        "politician_name": "John Smith",
-        "deadline": "2025-06-30",
-        "status": "pending",
-        "created_at": "2023-05-10T09:00:00Z",
-        "hash": "0x9a0b1c2d3e4f5a6b7c8d9e0f",
-        "vote_kept": 2156,
-        "vote_broken": 89,
-        "grace_period_end": "2024-05-10T09:00:00Z"
-    },
-    {
-        "id": "MAN-2023-0004",
-        "title": "Education Reform Bill",
-        "description": "Modernize curriculum and increase teacher salaries",
-        "category": "Education",
-        "politician_id": "POL-001",
-        "politician_name": "Jane Doe",
-        "deadline": "2023-09-01",
-        "status": "broken",
-        "created_at": "2022-09-01T11:00:00Z",
-        "hash": "0x1d2e3f4a5b6c7d8e9f0a1b2c",
-        "vote_kept": 456,
-        "vote_broken": 1789,
-        "grace_period_end": "2023-09-01T11:00:00Z"
-    }
-]
-
-comments_db: List[dict] = []
-votes_db: List[dict] = []
-credentials_db: dict = {}  # nullifier -> credential mapping
-expected_nullifiers_db: dict = {}  # Maps expected nullifier -> voter_id_hash (for verification)
 
 # ============= Utility Functions =============
 
@@ -348,7 +223,6 @@ def generate_hash(data: str) -> str:
     return "0x" + hashlib.sha256(data.encode()).hexdigest()[:40]
 
 def compute_expected_nullifier(voter_id: str, secret: str = DEMO_SECRET) -> str:
-    """Compute the expected nullifier for a voter ID with the given secret."""
     combined = f"{voter_id}:{secret}"
     return "0x" + hashlib.sha256(combined.encode()).hexdigest()
 
@@ -359,115 +233,130 @@ def generate_credential() -> str:
     return secrets.token_urlsafe(16)
 
 def get_current_block() -> int:
-    # Simulated block height
     base_block = 18249000
     elapsed_seconds = (datetime.now() - datetime(2023, 10, 1)).total_seconds()
     return base_block + int(elapsed_seconds / 12)
 
+def generate_block_hash(data: str, prev_hash: str) -> str:
+    combined = f"{data}:{prev_hash}".encode('utf-8')
+    return '0x' + hashlib.sha256(combined).hexdigest()
+
+
 # ============= Voter Registry Endpoints =============
 
 @app.get("/api/registry/merkle-root")
-async def get_merkle_root():
+async def get_merkle_root(db: Session = Depends(get_db)):
     """Get the current Merkle root of the voter registry."""
+    _, merkle_root, voter_ids = get_merkle_tree(db)
+    
     return {
-        "merkle_root": voter_registry.merkle_root,
-        "total_voters": len(voter_registry.voter_ids),
-        "registry_status": "active" if voter_registry.merkle_root else "not_loaded",
+        "merkle_root": merkle_root,
+        "total_voters": len(voter_ids),
+        "registry_status": "active" if merkle_root else "not_loaded",
         "mode": "demo",
         "demo_secret": DEMO_SECRET,
         "demo_note": "In production, each voter receives a unique secret from Election Commission"
     }
 
 @app.get("/api/registry/stats")
-async def get_registry_stats():
+async def get_registry_stats(db: Session = Depends(get_db)):
     """Get voter registry statistics."""
-    if not voter_registry.voters:
+    total = db.query(func.count(Voter.id)).scalar()
+    
+    if total == 0:
         return {"error": "Registry not loaded"}
     
     # Aggregate stats by ward
-    ward_stats = {}
-    for voter in voter_registry.voters.values():
-        ward = voter.get("ward", "Unknown")
-        ward_stats[ward] = ward_stats.get(ward, 0) + 1
+    ward_stats = db.query(
+        Voter.ward, func.count(Voter.id)
+    ).group_by(Voter.ward).all()
+    
+    _, merkle_root, _ = get_merkle_tree(db)
+    
+    # Get district/vdc info from first voter
+    first_voter = db.query(Voter).first()
     
     return {
-        "total_voters": len(voter_registry.voter_ids),
-        "merkle_root": voter_registry.merkle_root[:16] + "..." if voter_registry.merkle_root else None,
-        "wards": ward_stats,
-        "district": "काभ्रेपलाञ्चोक",
-        "municipality": "धुलिखेल नगरपालिका"
+        "total_voters": total,
+        "merkle_root": merkle_root[:16] + "..." if merkle_root else None,
+        "wards": {str(ward): count for ward, count in ward_stats},
+        "district": first_voter.district if first_voter else "Unknown",
+        "municipality": first_voter.vdc if first_voter else "Unknown"
     }
 
 @app.post("/api/registry/lookup")
-async def lookup_voter(request: VoterLookupRequest):
-    """
-    Look up voter by ID and return Merkle proof.
-    This is used client-side to generate the ZK proof.
-    NOTE: The actual voter_id is NOT stored - only used to fetch proof.
-    """
+async def lookup_voter(request: VoterLookupRequest, db: Session = Depends(get_db)):
+    """Look up voter by ID and return Merkle proof."""
     voter_id = request.voter_id.strip()
     
-    if not voter_registry.is_eligible(voter_id):
+    voter = db.query(Voter).filter(Voter.voter_id == voter_id).first()
+    
+    if not voter:
         return VoterLookupResponse(
             found=False,
             message="Voter ID not found in registry"
         )
     
-    voter_info = voter_registry.get_voter_info(voter_id)
-    merkle_proof = voter_registry.get_merkle_proof(voter_id)
+    merkle_tree, _, voter_ids = get_merkle_tree(db)
     
-    # Hash the voter ID for client-side use
+    # Get voter index
+    try:
+        index = voter_ids.index(voter_id)
+    except ValueError:
+        index = -1
+    
+    merkle_proof = merkle_tree.get_proof(index) if merkle_tree and index >= 0 else None
+    
     voter_id_hash = generate_hash(voter_id)
     
-    # Compute and store the expected nullifier (using demo secret)
-    # This allows us to verify the proof was generated with correct secret
+    # Compute and store expected nullifier
     expected_nullifier = compute_expected_nullifier(voter_id)
-    expected_nullifiers_db[expected_nullifier] = {
+    expected_nullifiers_cache[expected_nullifier] = {
         "voter_id_hash": voter_id_hash,
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
     
-    # Mask the name for privacy (show first 2 chars only)
-    name = voter_info.get("name", "")
+    # Mask the name
+    name = voter.name or ""
     name_masked = name[:2] + "***" if len(name) > 2 else "***"
     
     return VoterLookupResponse(
         found=True,
         voter_id_hash=voter_id_hash,
         name_masked=name_masked,
-        ward=voter_info.get("ward"),
+        ward=str(voter.ward) if voter.ward else None,
         merkle_proof=merkle_proof,
         message="Voter found. Use this data to generate your ZK proof client-side."
     )
 
 @app.get("/api/registry/search")
-async def search_voters(query: str = "", ward: Optional[str] = None, limit: int = 20):
-    """
-    Search voters by name (partial match) for UI autocomplete.
-    Returns masked data only - no full voter IDs exposed.
-    """
+async def search_voters(
+    query: str = "",
+    ward: Optional[str] = None,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """Search voters by name."""
+    q = db.query(Voter)
+    
+    if query:
+        q = q.filter(Voter.name.ilike(f"%{query}%"))
+    
+    if ward:
+        q = q.filter(Voter.ward == int(ward))
+    
+    voters = q.limit(limit).all()
+    
     results = []
-    for voter_id, voter in voter_registry.voters.items():
-        if len(results) >= limit:
-            break
-        
-        name = voter.get("name", "")
-        voter_ward = voter.get("ward", "")
-        
-        # Filter by ward if specified
-        if ward and voter_ward != ward:
-            continue
-        
-        # Search by name (partial match)
-        if query.lower() in name.lower():
-            results.append({
-                "voter_id_partial": voter_id[:4] + "****" + voter_id[-2:],  # Mask middle digits
-                "voter_id_full": voter_id,  # Needed for lookup, but frontend should handle carefully
-                "name": name,
-                "ward": voter_ward,
-                "age": voter.get("age", ""),
-                "gender": voter.get("gender", "")
-            })
+    for voter in voters:
+        results.append({
+            "voter_id_partial": voter.voter_id[:4] + "****" + voter.voter_id[-2:],
+            "voter_id_full": voter.voter_id,
+            "name": voter.name,
+            "ward": str(voter.ward) if voter.ward else "",
+            "age": str(voter.age) if voter.age else "",
+            "gender": voter.gender or ""
+        })
     
     return {
         "results": results,
@@ -475,40 +364,35 @@ async def search_voters(query: str = "", ward: Optional[str] = None, limit: int 
         "query": query
     }
 
+
 # ============= ZK Proof Endpoints =============
 
 @app.post("/api/zk/verify", response_model=ZKProofResponse)
-async def verify_zk_proof(request: ZKProofRequest):
-    """
-    Verify a zero-knowledge proof and issue anonymous credential.
+async def verify_zk_proof(request: ZKProofRequest, db: Session = Depends(get_db)):
+    """Verify a zero-knowledge proof and issue anonymous credential."""
     
-    The "Blind Auditor" verification:
-    1. Verifies the nullifier was computed with the correct secret
-    2. Verifies the Merkle proof (voter is in registry)
-    3. Checks commitment matches claimed values
-    4. Stores ONLY the nullifier (prevents double voting)
-    5. Never stores or logs the actual voter ID
-    """
-    # Check if nullifier already used (prevent double registration)
-    if request.nullifier in credentials_db:
+    # Check if nullifier already used
+    existing = db.query(ZKCredential).filter(
+        ZKCredential.nullifier_hash == request.nullifier
+    ).first()
+    
+    if existing:
         return ZKProofResponse(
             valid=False,
             message="This credential has already been registered. One person, one vote."
         )
     
-    # CRITICAL: Verify nullifier was computed with correct secret (demo secret)
-    # In production, this would be done via zk-SNARK verification
-    if request.nullifier not in expected_nullifiers_db:
+    # Verify nullifier was computed with correct secret
+    if request.nullifier not in expected_nullifiers_cache:
         return ZKProofResponse(
             valid=False,
             message=f"Invalid secret. Please use the demo secret: {DEMO_SECRET}"
         )
     
-    # Clean up the expected nullifier entry (one-time use)
-    expected_data = expected_nullifiers_db.pop(request.nullifier)
+    # Clean up expected nullifier entry
+    expected_data = expected_nullifiers_cache.pop(request.nullifier)
     
-    # Verify Merkle proof (in production, this would be done via zk-SNARK)
-    # For MVP, we verify the proof structure is valid
+    # Verify Merkle proof structure
     if not request.merkle_proof or len(request.merkle_proof) < 1:
         return ZKProofResponse(
             valid=False,
@@ -525,13 +409,16 @@ async def verify_zk_proof(request: ZKProofRequest):
     # Generate anonymous credential
     credential = generate_credential()
     
-    # Store ONLY the nullifier and credential (NEVER the voter ID)
-    credentials_db[request.nullifier] = {
-        "credential": credential,
-        "created_at": datetime.now().isoformat(),
-        "used_votes": [],
-        "verified": True
-    }
+    # Store in database
+    zk_cred = ZKCredential(
+        nullifier_hash=request.nullifier,
+        credential_hash=credential,
+        is_valid=True
+    )
+    db.add(zk_cred)
+    db.commit()
+    
+    _, merkle_root, _ = get_merkle_tree(db)
     
     return ZKProofResponse(
         valid=True,
@@ -539,21 +426,32 @@ async def verify_zk_proof(request: ZKProofRequest):
         nullifier=request.nullifier,
         nullifier_short=request.nullifier[:12] + "...",
         message="✓ Zero-knowledge proof verified. Anonymous credential issued.",
-        merkle_root=voter_registry.merkle_root[:16] + "..." if voter_registry.merkle_root else None
+        merkle_root=merkle_root[:16] + "..." if merkle_root else None
     )
 
 @app.get("/api/zk/credential/{nullifier}")
-async def check_credential(nullifier: str):
+async def check_credential(nullifier: str, db: Session = Depends(get_db)):
     """Check if a credential/nullifier is valid and get voting history."""
-    if nullifier in credentials_db:
-        cred = credentials_db[nullifier]
+    cred = db.query(ZKCredential).filter(
+        ZKCredential.nullifier_hash == nullifier
+    ).first()
+    
+    if cred and cred.is_valid:
+        # Get voted manifesto IDs
+        votes = db.query(ManifestoVote.manifesto_id).filter(
+            ManifestoVote.nullifier == nullifier
+        ).all()
+        used_votes = [v.manifesto_id for v in votes]
+        
         return {
             "valid": True,
-            "used_votes": cred["used_votes"],
-            "created_at": cred["created_at"],
-            "can_vote": True  # Can vote on manifestos not in used_votes
+            "used_votes": used_votes,
+            "created_at": cred.created_at.isoformat() if cred.created_at else None,
+            "can_vote": True
         }
+    
     return {"valid": False, "used_votes": [], "can_vote": False}
+
 
 # ============= Manifesto Endpoints =============
 
@@ -561,22 +459,47 @@ async def check_credential(nullifier: str):
 async def get_manifestos(
     status: Optional[str] = None,
     category: Optional[str] = None,
-    politician_id: Optional[str] = None,
+    politician_id: Optional[int] = None,
     limit: int = 20,
-    offset: int = 0
+    offset: int = 0,
+    db: Session = Depends(get_db)
 ):
     """Get all manifestos with optional filtering."""
-    results = manifestos_db.copy()
+    q = db.query(ManifestoModel).join(Politician)
     
     if status:
-        results = [m for m in results if m["status"] == status]
+        q = q.filter(ManifestoModel.status == status)
     if category:
-        results = [m for m in results if m["category"] == category]
+        q = q.filter(ManifestoModel.category == category)
     if politician_id:
-        results = [m for m in results if m["politician_id"] == politician_id]
+        q = q.filter(ManifestoModel.politician_id == politician_id)
     
-    total = len(results)
-    results = results[offset:offset + limit]
+    total = q.count()
+    manifestos = q.order_by(ManifestoModel.created_at.desc()).offset(offset).limit(limit).all()
+    
+    now = datetime.now(timezone.utc)
+    results = []
+    for m in manifestos:
+        grace_end = m.grace_period_end.replace(tzinfo=timezone.utc) if m.grace_period_end.tzinfo is None else m.grace_period_end
+        voting_open = now >= grace_end
+        
+        results.append({
+            "id": m.id,
+            "title": m.title,
+            "description": m.description,
+            "category": m.category,
+            "politician_id": m.politician_id,
+            "politician_name": m.politician.name if m.politician else "Unknown",
+            "politician_party": m.politician.party if m.politician else None,
+            "deadline": m.grace_period_end.isoformat(),
+            "status": m.status,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "hash": m.promise_hash,
+            "vote_kept": m.vote_kept,
+            "vote_broken": m.vote_broken,
+            "grace_period_end": m.grace_period_end.isoformat(),
+            "voting_open": voting_open
+        })
     
     return {
         "manifestos": results,
@@ -586,208 +509,445 @@ async def get_manifestos(
     }
 
 @app.get("/api/manifestos/{manifesto_id}")
-async def get_manifesto(manifesto_id: str):
+async def get_manifesto(manifesto_id: int, db: Session = Depends(get_db)):
     """Get a specific manifesto by ID."""
-    for m in manifestos_db:
-        if m["id"] == manifesto_id:
-            return m
-    raise HTTPException(status_code=404, detail="Manifesto not found")
+    m = db.query(ManifestoModel).filter(ManifestoModel.id == manifesto_id).first()
+    
+    if not m:
+        raise HTTPException(status_code=404, detail="Manifesto not found")
+    
+    now = datetime.now(timezone.utc)
+    grace_end = m.grace_period_end.replace(tzinfo=timezone.utc) if m.grace_period_end.tzinfo is None else m.grace_period_end
+    voting_open = now >= grace_end
+    
+    return {
+        "id": m.id,
+        "title": m.title,
+        "description": m.description,
+        "category": m.category,
+        "politician_id": m.politician_id,
+        "politician_name": m.politician.name if m.politician else "Unknown",
+        "politician_party": m.politician.party if m.politician else None,
+        "deadline": m.grace_period_end.isoformat(),
+        "status": m.status,
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+        "hash": m.promise_hash,
+        "vote_kept": m.vote_kept,
+        "vote_broken": m.vote_broken,
+        "grace_period_end": m.grace_period_end.isoformat(),
+        "voting_open": voting_open
+    }
 
 @app.post("/api/manifestos")
-async def create_manifesto(manifesto: ManifestoCreate):
-    """Create a new manifesto (politician only)."""
-    new_id = f"MAN-{datetime.now().year}-{len(manifestos_db) + 1:04d}"
-    created_at = datetime.now().isoformat()
+async def create_manifesto(manifesto: ManifestoCreate, db: Session = Depends(get_db)):
+    """Create a new manifesto."""
+    # Verify politician exists
+    politician = db.query(Politician).filter(Politician.id == manifesto.politician_id).first()
+    if not politician:
+        raise HTTPException(status_code=404, detail="Politician not found")
     
-    new_manifesto = {
-        "id": new_id,
-        "title": manifesto.title,
-        "description": manifesto.description,
-        "category": manifesto.category,
-        "politician_id": manifesto.politician_id,
-        "politician_name": "Politician Name",  # Would be looked up
-        "deadline": manifesto.deadline,
-        "status": "pending",
-        "created_at": created_at,
-        "hash": generate_hash(f"{new_id}{created_at}{manifesto.title}"),
-        "vote_kept": 0,
-        "vote_broken": 0,
-        "promises": manifesto.promises,
-        "grace_period_end": (datetime.now() + timedelta(days=180)).isoformat()
+    # Parse deadline
+    try:
+        deadline = datetime.fromisoformat(manifesto.deadline.replace("Z", "+00:00"))
+    except:
+        deadline = datetime.now(timezone.utc) + timedelta(days=365)
+    
+    # Create manifesto
+    new_manifesto = ManifestoModel(
+        politician_id=manifesto.politician_id,
+        title=manifesto.title,
+        description=manifesto.description,
+        category=manifesto.category,
+        status="pending",
+        grace_period_end=deadline,
+        vote_kept=0,
+        vote_broken=0,
+        promise_hash=generate_hash(f"{manifesto.title}:{manifesto.description}:{manifesto.politician_id}")
+    )
+    
+    db.add(new_manifesto)
+    db.commit()
+    db.refresh(new_manifesto)
+    
+    # Create audit log
+    last_audit = db.query(AuditLog).order_by(AuditLog.id.desc()).first()
+    prev_hash = last_audit.block_hash if last_audit else "0x0"
+    
+    audit = AuditLog(
+        manifesto_id=new_manifesto.id,
+        action="PROMISE_CREATED",
+        block_hash=generate_block_hash(str(new_manifesto.id), prev_hash),
+        prev_hash=prev_hash,
+        data={
+            "manifesto_id": new_manifesto.id,
+            "title": new_manifesto.title,
+            "politician_id": new_manifesto.politician_id
+        }
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "id": new_manifesto.id,
+        "title": new_manifesto.title,
+        "status": "created",
+        "hash": new_manifesto.promise_hash
     }
-    
-    manifestos_db.append(new_manifesto)
-    return new_manifesto
 
 @app.get("/api/manifestos/{manifesto_id}/votes")
-async def get_manifesto_votes(manifesto_id: str):
+async def get_manifesto_votes(manifesto_id: int, db: Session = Depends(get_db)):
     """Get vote aggregates for a manifesto."""
-    for m in manifestos_db:
-        if m["id"] == manifesto_id:
-            total = m["vote_kept"] + m["vote_broken"]
-            return {
-                "manifesto_id": manifesto_id,
-                "vote_kept": m["vote_kept"],
-                "vote_broken": m["vote_broken"],
-                "total_votes": total,
-                "kept_percentage": round(m["vote_kept"] / total * 100, 1) if total > 0 else 0,
-                "broken_percentage": round(m["vote_broken"] / total * 100, 1) if total > 0 else 0
-            }
-    raise HTTPException(status_code=404, detail="Manifesto not found")
+    m = db.query(ManifestoModel).filter(ManifestoModel.id == manifesto_id).first()
+    
+    if not m:
+        raise HTTPException(status_code=404, detail="Manifesto not found")
+    
+    total = m.vote_kept + m.vote_broken
+    
+    return {
+        "manifesto_id": manifesto_id,
+        "vote_kept": m.vote_kept,
+        "vote_broken": m.vote_broken,
+        "total_votes": total,
+        "kept_percentage": round(m.vote_kept / total * 100, 1) if total > 0 else 0,
+        "broken_percentage": round(m.vote_broken / total * 100, 1) if total > 0 else 0
+    }
+
 
 # ============= Vote Endpoints =============
 
 @app.post("/api/votes", response_model=VoteResponse)
-async def submit_vote(vote: Vote):
-    """Submit a vote on a manifesto."""
+async def submit_vote(vote: VoteRequest, db: Session = Depends(get_db)):
+    """Submit a vote on a manifesto. Can change existing vote."""
+    
     # Verify nullifier exists
-    if vote.nullifier not in credentials_db:
+    cred = db.query(ZKCredential).filter(
+        ZKCredential.nullifier_hash == vote.nullifier,
+        ZKCredential.is_valid == True
+    ).first()
+    
+    if not cred:
         raise HTTPException(status_code=401, detail="Invalid nullifier")
     
-    # Check if already voted on this manifesto
-    if vote.manifesto_id in credentials_db[vote.nullifier]["used_votes"]:
-        raise HTTPException(status_code=400, detail="Already voted on this manifesto")
-    
     # Find manifesto
-    manifesto = None
-    for m in manifestos_db:
-        if m["id"] == vote.manifesto_id:
-            manifesto = m
-            break
+    manifesto = db.query(ManifestoModel).filter(
+        ManifestoModel.id == vote.manifesto_id
+    ).first()
     
     if not manifesto:
         raise HTTPException(status_code=404, detail="Manifesto not found")
     
     # Check grace period
-    grace_end = datetime.fromisoformat(manifesto["grace_period_end"].replace("Z", ""))
-    if datetime.now() < grace_end:
+    now = datetime.now(timezone.utc)
+    grace_end = manifesto.grace_period_end.replace(tzinfo=timezone.utc) if manifesto.grace_period_end.tzinfo is None else manifesto.grace_period_end
+    
+    if now < grace_end:
         raise HTTPException(status_code=400, detail="Voting not yet open - grace period active")
     
-    # Record vote
-    if vote.vote_type == "kept":
-        manifesto["vote_kept"] += 1
-    else:
-        manifesto["vote_broken"] += 1
-    
-    credentials_db[vote.nullifier]["used_votes"].append(vote.manifesto_id)
+    # Check if already voted
+    existing_vote = db.query(ManifestoVote).filter(
+        ManifestoVote.manifesto_id == vote.manifesto_id,
+        ManifestoVote.nullifier == vote.nullifier
+    ).first()
     
     vote_hash = generate_hash(f"{vote.nullifier}{vote.manifesto_id}{datetime.now().isoformat()}")
+    changed = False
     
-    votes_db.append({
-        "vote_hash": vote_hash,
-        "manifesto_id": vote.manifesto_id,
-        "vote_type": vote.vote_type,
-        "timestamp": datetime.now().isoformat(),
-        "block_height": get_current_block()
-    })
+    if existing_vote:
+        # Change vote
+        if existing_vote.vote_type != vote.vote_type:
+            # Update aggregates
+            if existing_vote.vote_type == "kept":
+                manifesto.vote_kept -= 1
+            else:
+                manifesto.vote_broken -= 1
+            
+            if vote.vote_type == "kept":
+                manifesto.vote_kept += 1
+            else:
+                manifesto.vote_broken += 1
+            
+            existing_vote.vote_type = vote.vote_type
+            existing_vote.vote_hash = vote_hash
+            changed = True
+            message = "Vote changed successfully"
+        else:
+            message = "Vote unchanged (same choice)"
+    else:
+        # New vote
+        new_vote = ManifestoVote(
+            manifesto_id=vote.manifesto_id,
+            nullifier=vote.nullifier,
+            vote_type=vote.vote_type,
+            vote_hash=vote_hash
+        )
+        db.add(new_vote)
+        
+        # Update aggregates
+        if vote.vote_type == "kept":
+            manifesto.vote_kept += 1
+        else:
+            manifesto.vote_broken += 1
+        
+        message = "Vote recorded successfully"
+    
+    db.commit()
     
     return VoteResponse(
         success=True,
-        message="Vote recorded successfully",
+        message=message,
         vote_hash=vote_hash,
-        block_height=get_current_block()
+        block_height=get_current_block(),
+        changed=changed
     )
 
 @app.get("/api/votes/verify/{vote_hash}")
-async def verify_vote(vote_hash: str):
-    """Verify a vote was recorded on-chain."""
-    for v in votes_db:
-        if v["vote_hash"] == vote_hash:
-            return {
-                "verified": True,
-                "vote": v,
-                "merkle_proof": {
-                    "root": generate_hash(f"merkle_root_{v['block_height']}"),
-                    "path": [
-                        {"position": "left", "hash": generate_hash("path_0")},
-                        {"position": "right", "hash": generate_hash("path_1")},
-                        {"position": "left", "hash": generate_hash("path_2")}
-                    ]
-                }
+async def verify_vote(vote_hash: str, db: Session = Depends(get_db)):
+    """Verify a vote was recorded."""
+    vote = db.query(ManifestoVote).filter(ManifestoVote.vote_hash == vote_hash).first()
+    
+    if vote:
+        return {
+            "verified": True,
+            "vote": {
+                "vote_hash": vote.vote_hash,
+                "manifesto_id": vote.manifesto_id,
+                "vote_type": vote.vote_type,
+                "timestamp": vote.created_at.isoformat() if vote.created_at else None
+            },
+            "merkle_proof": {
+                "root": generate_hash(f"merkle_root_{get_current_block()}"),
+                "path": [
+                    {"position": "left", "hash": generate_hash("path_0")},
+                    {"position": "right", "hash": generate_hash("path_1")},
+                    {"position": "left", "hash": generate_hash("path_2")}
+                ]
             }
+        }
+    
     return {"verified": False, "message": "Vote not found"}
+
 
 # ============= Comment Endpoints =============
 
 @app.get("/api/manifestos/{manifesto_id}/comments")
-async def get_comments(manifesto_id: str):
+async def get_comments(manifesto_id: int, db: Session = Depends(get_db)):
     """Get all comments for a manifesto."""
-    comments = [c for c in comments_db if c["manifesto_id"] == manifesto_id]
+    comments = db.query(CommentModel).filter(
+        CommentModel.manifesto_id == manifesto_id,
+        CommentModel.is_deleted == False
+    ).order_by(CommentModel.created_at.desc()).all()
     
     # Build thread structure
-    root_comments = [c for c in comments if c["parent_id"] is None]
+    def build_comment(c):
+        replies = [build_comment(r) for r in c.replies if not r.is_deleted]
+        return {
+            "id": c.id,
+            "manifesto_id": c.manifesto_id,
+            "content": c.content,
+            "nullifier": c.nullifier_display,
+            "parent_id": c.parent_id,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "upvotes": c.upvotes,
+            "downvotes": c.downvotes,
+            "replies": replies
+        }
     
-    def get_replies(parent_id: str):
-        replies = [c for c in comments if c["parent_id"] == parent_id]
-        for reply in replies:
-            reply["replies"] = get_replies(reply["id"])
-        return replies
+    root_comments = [c for c in comments if c.parent_id is None]
+    result = [build_comment(c) for c in root_comments]
     
-    for comment in root_comments:
-        comment["replies"] = get_replies(comment["id"])
-    
-    return {"comments": root_comments, "total": len(comments)}
+    return {"comments": result, "total": len(comments)}
 
 @app.post("/api/comments")
-async def create_comment(comment: CommentCreate):
+async def create_comment(comment: CommentCreate, db: Session = Depends(get_db)):
     """Create a new comment."""
-    new_id = f"CMT-{len(comments_db) + 1:06d}"
+    # Verify nullifier exists
+    cred = db.query(ZKCredential).filter(
+        ZKCredential.nullifier_hash == comment.nullifier,
+        ZKCredential.is_valid == True
+    ).first()
     
-    new_comment = {
-        "id": new_id,
-        "manifesto_id": comment.manifesto_id,
-        "content": comment.content,
-        "nullifier": comment.nullifier[:12] + "...",  # Truncated for privacy
-        "parent_id": comment.parent_id,
-        "created_at": datetime.now().isoformat(),
-        "upvotes": 0,
-        "downvotes": 0
+    if not cred:
+        raise HTTPException(status_code=401, detail="Invalid nullifier - please authenticate first")
+    
+    # Verify manifesto exists
+    manifesto = db.query(ManifestoModel).filter(
+        ManifestoModel.id == comment.manifesto_id
+    ).first()
+    
+    if not manifesto:
+        raise HTTPException(status_code=404, detail="Manifesto not found")
+    
+    # Create comment
+    new_comment = CommentModel(
+        manifesto_id=comment.manifesto_id,
+        parent_id=comment.parent_id,
+        nullifier_display=comment.nullifier[:12] + "...",
+        content=comment.content,
+        upvotes=0,
+        downvotes=0
+    )
+    
+    db.add(new_comment)
+    db.commit()
+    db.refresh(new_comment)
+    
+    return {
+        "id": new_comment.id,
+        "manifesto_id": new_comment.manifesto_id,
+        "content": new_comment.content,
+        "nullifier": new_comment.nullifier_display,
+        "parent_id": new_comment.parent_id,
+        "created_at": new_comment.created_at.isoformat() if new_comment.created_at else None,
+        "upvotes": new_comment.upvotes,
+        "downvotes": new_comment.downvotes
     }
-    
-    comments_db.append(new_comment)
-    return new_comment
 
 @app.post("/api/comments/{comment_id}/vote")
-async def vote_comment(comment_id: str, vote_type: str):
+async def vote_comment(
+    comment_id: int,
+    vote_request: CommentVoteRequest,
+    db: Session = Depends(get_db)
+):
     """Upvote or downvote a comment."""
-    for c in comments_db:
-        if c["id"] == comment_id:
-            if vote_type == "up":
-                c["upvotes"] += 1
+    comment = db.query(CommentModel).filter(CommentModel.id == comment_id).first()
+    
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    
+    # Verify nullifier
+    cred = db.query(ZKCredential).filter(
+        ZKCredential.nullifier_hash == vote_request.nullifier,
+        ZKCredential.is_valid == True
+    ).first()
+    
+    if not cred:
+        raise HTTPException(status_code=401, detail="Invalid nullifier")
+    
+    # Check existing vote
+    existing_vote = db.query(CommentVote).filter(
+        CommentVote.comment_id == comment_id,
+        CommentVote.nullifier == vote_request.nullifier
+    ).first()
+    
+    if existing_vote:
+        # Change vote
+        if existing_vote.vote_type != vote_request.vote_type:
+            # Reverse old vote
+            if existing_vote.vote_type == "up":
+                comment.upvotes -= 1
             else:
-                c["downvotes"] += 1
-            return c
-    raise HTTPException(status_code=404, detail="Comment not found")
+                comment.downvotes -= 1
+            
+            # Apply new vote
+            if vote_request.vote_type == "up":
+                comment.upvotes += 1
+            else:
+                comment.downvotes += 1
+            
+            existing_vote.vote_type = vote_request.vote_type
+    else:
+        # New vote
+        new_vote = CommentVote(
+            comment_id=comment_id,
+            nullifier=vote_request.nullifier,
+            vote_type=vote_request.vote_type
+        )
+        db.add(new_vote)
+        
+        if vote_request.vote_type == "up":
+            comment.upvotes += 1
+        else:
+            comment.downvotes += 1
+    
+    db.commit()
+    
+    return {
+        "id": comment.id,
+        "upvotes": comment.upvotes,
+        "downvotes": comment.downvotes
+    }
+
+@app.put("/api/comments/{comment_id}")
+async def update_comment(
+    comment_id: int,
+    content: str = Query(...),
+    nullifier: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Update a comment (only by original author via nullifier)."""
+    comment = db.query(CommentModel).filter(CommentModel.id == comment_id).first()
+    
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    
+    # Verify ownership via nullifier display
+    if comment.nullifier_display != nullifier[:12] + "...":
+        raise HTTPException(status_code=403, detail="Not authorized to edit this comment")
+    
+    comment.content = content
+    db.commit()
+    
+    return {"id": comment.id, "content": comment.content, "updated": True}
+
+@app.delete("/api/comments/{comment_id}")
+async def delete_comment(
+    comment_id: int,
+    nullifier: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Delete a comment (soft delete)."""
+    comment = db.query(CommentModel).filter(CommentModel.id == comment_id).first()
+    
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    
+    # Verify ownership
+    if comment.nullifier_display != nullifier[:12] + "...":
+        raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
+    
+    comment.is_deleted = True
+    comment.content = "[deleted]"
+    db.commit()
+    
+    return {"id": comment.id, "deleted": True}
+
 
 # ============= Audit & Network Endpoints =============
 
 @app.get("/api/audit/logs")
-async def get_audit_logs(limit: int = 50):
+async def get_audit_logs(limit: int = 50, db: Session = Depends(get_db)):
     """Get recent audit logs."""
-    base_block = get_current_block()
+    logs = db.query(AuditLog).order_by(AuditLog.id.desc()).limit(limit).all()
     
-    # Generate sample audit logs
-    logs = []
-    actions = ["VOTE_CAST", "MANIFESTO_CREATED", "STATUS_CHANGED", "MERKLE_ROOT_UPDATED"]
-    for i in range(limit):
-        logs.append({
-            "id": f"LOG-{base_block - i:08d}",
-            "action": actions[i % len(actions)],
-            "timestamp": (datetime.now() - timedelta(minutes=i * 5)).isoformat(),
-            "block_height": base_block - i,
-            "tx_hash": generate_hash(f"tx_{base_block - i}"),
-            "status": "confirmed"
-        })
-    
-    return {"logs": logs, "total": len(logs)}
+    return {
+        "logs": [
+            {
+                "id": f"LOG-{log.id:08d}",
+                "action": log.action,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "block_height": log.id + 18249000,
+                "tx_hash": log.block_hash,
+                "status": "confirmed",
+                "manifesto_id": log.manifesto_id
+            }
+            for log in logs
+        ],
+        "total": len(logs)
+    }
 
 @app.get("/api/network/stats")
-async def get_network_stats():
+async def get_network_stats(db: Session = Depends(get_db)):
     """Get network statistics."""
+    total_votes = db.query(func.sum(ManifestoModel.vote_kept + ManifestoModel.vote_broken)).scalar() or 0
+    total_manifestos = db.query(func.count(ManifestoModel.id)).scalar()
+    total_voters = db.query(func.count(Voter.id)).scalar()
+    
     return {
         "active_nodes": 1247,
-        "total_votes": sum(m["vote_kept"] + m["vote_broken"] for m in manifestos_db),
-        "total_manifestos": len(manifestos_db),
+        "total_votes": total_votes,
+        "total_manifestos": total_manifestos,
+        "total_voters": total_voters,
         "integrity_score": 99.97,
         "uptime": 99.99,
         "last_block": get_current_block(),
@@ -796,25 +956,42 @@ async def get_network_stats():
     }
 
 @app.get("/api/blockchain/blocks")
-async def get_blocks(limit: int = 10):
-    """Get recent blockchain blocks."""
-    current_block = get_current_block()
-    blocks = []
+async def get_blocks(limit: int = 10, db: Session = Depends(get_db)):
+    """Get recent blockchain blocks from audit logs."""
+    logs = db.query(AuditLog).order_by(AuditLog.id.desc()).limit(limit).all()
     
-    for i in range(limit):
-        block_num = current_block - i
-        prev_hash = generate_hash(f"block_{block_num - 1}") if block_num > 0 else "0x0"
-        
+    if not logs:
+        # Return simulated blocks if no audit logs
+        current_block = get_current_block()
+        return {
+            "blocks": [
+                {
+                    "number": current_block - i,
+                    "hash": generate_hash(f"block_{current_block - i}"),
+                    "prev_hash": generate_hash(f"block_{current_block - i - 1}"),
+                    "timestamp": (datetime.now() - timedelta(seconds=i * 12)).isoformat(),
+                    "tx_count": 1,
+                    "merkle_root": generate_hash(f"merkle_{current_block - i}")
+                }
+                for i in range(limit)
+            ]
+        }
+    
+    blocks = []
+    for log in logs:
         blocks.append({
-            "number": block_num,
-            "hash": generate_hash(f"block_{block_num}"),
-            "prev_hash": prev_hash,
-            "timestamp": (datetime.now() - timedelta(seconds=i * 12)).isoformat(),
-            "tx_count": (block_num % 15) + 1,
-            "merkle_root": generate_hash(f"merkle_{block_num}")
+            "number": log.id + 18249000,
+            "hash": log.block_hash,
+            "prev_hash": log.prev_hash,
+            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+            "tx_count": 1,
+            "merkle_root": generate_hash(f"merkle_{log.id}"),
+            "action": log.action,
+            "manifesto_id": log.manifesto_id
         })
     
     return {"blocks": blocks}
+
 
 # ============= Feedback Endpoint =============
 
@@ -827,87 +1004,114 @@ async def submit_feedback(feedback: Feedback):
         "reference": generate_hash(f"feedback_{datetime.now().isoformat()}")[:16]
     }
 
+
 # ============= Politicians Endpoints =============
 
 @app.get("/api/politicians")
-async def get_politicians():
+async def get_politicians(db: Session = Depends(get_db)):
     """Get list of all registered politicians."""
-    politicians = [
-        {
-            "id": "POL-001",
-            "name": "Jane Doe",
-            "title": "Governor",
-            "party": "Progressive Party",
-            "integrity_score": 87,
-            "manifestos": 12,
+    politicians = db.query(Politician).all()
+    
+    result = []
+    for p in politicians:
+        # Count manifestos
+        manifesto_count = db.query(func.count(ManifestoModel.id)).filter(
+            ManifestoModel.politician_id == p.id
+        ).scalar()
+        
+        # Calculate integrity score based on kept vs broken
+        kept = db.query(func.count(ManifestoModel.id)).filter(
+            ManifestoModel.politician_id == p.id,
+            ManifestoModel.status == "kept"
+        ).scalar()
+        broken = db.query(func.count(ManifestoModel.id)).filter(
+            ManifestoModel.politician_id == p.id,
+            ManifestoModel.status == "broken"
+        ).scalar()
+        
+        total = kept + broken
+        integrity_score = round(kept / total * 100) if total > 0 else 50
+        
+        result.append({
+            "id": p.id,
+            "name": p.name,
+            "title": p.position or "Politician",
+            "party": p.party,
+            "integrity_score": integrity_score,
+            "manifestos": manifesto_count,
             "verified": True,
-            "public_key": "0x8a72f92b45c1e98d3a7b6f1c2d4e5f6a7b8c9d0e"
-        },
-        {
-            "id": "POL-002",
-            "name": "John Smith",
-            "title": "Senator",
-            "party": "Unity Coalition",
-            "integrity_score": 92,
-            "manifestos": 8,
-            "verified": True,
-            "public_key": "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c"
-        },
-        {
-            "id": "POL-003",
-            "name": "Maria Garcia",
-            "title": "Mayor",
-            "party": "Green Alliance",
-            "integrity_score": 78,
-            "manifestos": 15,
-            "verified": True,
-            "public_key": "0x5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e"
-        }
-    ]
-    return {"politicians": politicians}
+            "public_key": generate_hash(f"pk_{p.id}")[:42],
+            "image_url": p.image_url,
+            "bio": p.bio
+        })
+    
+    return {"politicians": result}
 
 @app.get("/api/politicians/{politician_id}")
-async def get_politician(politician_id: str):
+async def get_politician(politician_id: int, db: Session = Depends(get_db)):
     """Get politician details."""
-    politicians = {
-        "POL-001": {
-            "id": "POL-001",
-            "name": "Jane Doe",
-            "title": "Governor",
-            "party": "Progressive Party",
-            "state": "State of Democracy",
-            "integrity_score": 87,
-            "verified": True,
-            "public_key": "0x8a72f92b45c1e98d3a7b6f1c2d4e5f6a7b8c9d0e",
-            "joined_date": "2020-01-15"
-        },
-        "POL-002": {
-            "id": "POL-002",
-            "name": "John Smith",
-            "title": "Senator",
-            "party": "Unity Coalition",
-            "state": "State of Democracy",
-            "integrity_score": 92,
-            "verified": True,
-            "public_key": "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c",
-            "joined_date": "2019-06-20"
-        }
-    }
+    p = db.query(Politician).filter(Politician.id == politician_id).first()
     
-    if politician_id in politicians:
-        return politicians[politician_id]
-    raise HTTPException(status_code=404, detail="Politician not found")
+    if not p:
+        raise HTTPException(status_code=404, detail="Politician not found")
+    
+    # Count manifestos
+    manifesto_count = db.query(func.count(ManifestoModel.id)).filter(
+        ManifestoModel.politician_id == p.id
+    ).scalar()
+    
+    # Get all manifestos for this politician
+    manifestos = db.query(ManifestoModel).filter(
+        ManifestoModel.politician_id == p.id
+    ).all()
+    
+    kept = sum(1 for m in manifestos if m.status == "kept")
+    broken = sum(1 for m in manifestos if m.status == "broken")
+    total = kept + broken
+    integrity_score = round(kept / total * 100) if total > 0 else 50
+    
+    return {
+        "id": p.id,
+        "name": p.name,
+        "title": p.position or "Politician",
+        "party": p.party,
+        "integrity_score": integrity_score,
+        "manifestos": manifesto_count,
+        "verified": True,
+        "public_key": generate_hash(f"pk_{p.id}")[:42],
+        "image_url": p.image_url,
+        "bio": p.bio,
+        "joined_date": p.created_at.isoformat() if p.created_at else None
+    }
+
 
 # ============= Health Check =============
 
 @app.get("/health")
-async def health_check():
+async def health_check(db: Session = Depends(get_db)):
+    """Health check endpoint."""
+    db_ok = check_connection()
+    voter_count = db.query(func.count(Voter.id)).scalar() if db_ok else 0
+    
     return {
-        "status": "healthy",
-        "version": "1.0.0",
+        "status": "healthy" if db_ok else "degraded",
+        "version": "2.1.0",
+        "database": "connected" if db_ok else "disconnected",
+        "voters_loaded": voter_count,
         "timestamp": datetime.now().isoformat(),
         "block_height": get_current_block()
     }
+
+
+# ============= Startup Event =============
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup."""
+    print("🚀 Starting PromiseThread API (PostgreSQL version)...")
+    init_db()
+    print("✓ Database initialized")
+
 
 if __name__ == "__main__":
     import uvicorn

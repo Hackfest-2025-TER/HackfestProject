@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* PromiseThread Global Styles */
 :root {
   /* Primary Colors */

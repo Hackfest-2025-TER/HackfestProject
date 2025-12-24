@@ -172,6 +172,23 @@ $RECYCLE.BIN/
 *.sqlite
 *.sqlite3
 
+# PostgreSQL
+*.sql.gz
+*.dump
+*.backup
+
+# Alembic
+# Keep migrations but ignore any auto-generated cache
+backend/migrations/__pycache__/
+
+# ====================================
+# Python Virtual Environment (backend specific)
+# ====================================
+backend/myenv/
+backend/.venv/
+backend/venv/
+backend/env/
+
 # ====================================
 # Certificates & Keys
 # ====================================

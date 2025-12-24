@@ -1,7 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { onMount } from 'svelte';
-  import { auth } from '$lib/stores';
+  import { authStore } from '$lib/stores';
   
   // Initialize auth state from localStorage on mount
   onMount(() => {

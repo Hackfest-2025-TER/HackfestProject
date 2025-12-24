@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Shield, User, Lock, Search, CheckCircle, AlertCircle, ChevronRight, Fingerprint, Eye, EyeOff, Info, Loader2 } from 'lucide-svelte';
   import { goto } from '$app/navigation';
-  import { authStore } from '$lib/stores/auth';
+  import { authStore } from '$lib/stores';
   import { lookupVoter, verifyZKProof, getMerkleRoot, searchVoters } from '$lib/api';
   import { generateZKProof, generateNullifier, isValidVoterId, isValidSecret, formatNullifier } from '$lib/utils/zkProof';
   

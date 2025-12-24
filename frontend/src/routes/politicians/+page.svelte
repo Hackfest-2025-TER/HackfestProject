@@ -1,66 +1,31 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import { Search, Filter, Shield, Award, Clock, FileText, ChevronRight } from 'lucide-svelte';
   
-  // Sample politicians data
-  const politicians = [
-    {
-      id: 1,
-      name: 'Jane Doe',
-      title: 'Governor',
-      party: 'Progressive Party',
-      avatar: null,
-      integrityScore: 87,
-      manifestos: 12,
-      verified: true,
-      kept: 8,
-      broken: 2,
-      pending: 2
-    },
-    {
-      id: 2,
-      name: 'John Smith',
-      title: 'Senator',
-      party: 'Unity Coalition',
-      avatar: null,
-      integrityScore: 92,
-      manifestos: 8,
-      verified: true,
-      kept: 6,
-      broken: 1,
-      pending: 1
-    },
-    {
-      id: 3,
-      name: 'Maria Garcia',
-      title: 'Mayor',
-      party: 'Green Alliance',
-      avatar: null,
-      integrityScore: 78,
-      manifestos: 15,
-      verified: true,
-      kept: 10,
-      broken: 3,
-      pending: 2
-    },
-    {
-      id: 4,
-      name: 'David Chen',
-      title: 'Representative',
-      party: 'Democratic Front',
-      avatar: null,
-      integrityScore: 65,
-      manifestos: 6,
-      verified: false,
-      kept: 3,
-      broken: 2,
-      pending: 1
-    }
-  ];
-  
+  // Fetch politicians from API
+  let politicians: any[] = [];
+  let loading = true;
+  let error = '';
   let searchQuery = '';
   let selectedParty = 'all';
+  
+  // Get unique parties for filter
+  $: parties = [...new Set(politicians.map(p => p.party))];
+  
+  onMount(async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/politicians');
+      const data = await response.json();
+      politicians = data.politicians || [];
+      loading = false;
+    } catch (err) {
+      error = 'Failed to load politicians data';
+      loading = false;
+      console.error('Error fetching politicians:', err);
+    }
+  });
   
   $: filteredPoliticians = politicians.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -73,6 +38,17 @@
     if (score >= 80) return 'success';
     if (score >= 60) return 'warning';
     return 'error';
+  }
+  
+  // Calculate kept/broken/pending from manifestos
+  function getPoliticianStats(politician: any) {
+    // This will be computed from manifestos later
+    // For now, use placeholder based on integrity score
+    const total = politician.manifestos || 0;
+    const score = politician.integrity_score || 0;
+    const kept = Math.floor((total * score) / 100);
+    const broken = total - kept;
+    return { kept, broken, pending: 0 };
   }
 </script>
 
@@ -104,21 +80,36 @@
       <div class="filters">
         <select bind:value={selectedParty}>
           <option value="all">All Parties</option>
-          <option value="Progressive Party">Progressive Party</option>
-          <option value="Unity Coalition">Unity Coalition</option>
-          <option value="Green Alliance">Green Alliance</option>
-          <option value="Democratic Front">Democratic Front</option>
+          {#each parties as party}
+            <option value={party}>{party}</option>
+          {/each}
         </select>
       </div>
     </div>
     
+    <!-- Loading State -->
+    {#if loading}
+      <div class="loading-state">
+        <p>Loading politicians...</p>
+      </div>
+    {:else if error}
+      <div class="error-state">
+        <p>{error}</p>
+      </div>
+    {:else}
+    
     <!-- Politicians Grid -->
     <div class="politicians-grid">
       {#each filteredPoliticians as politician}
+        {@const stats = getPoliticianStats(politician)}
         <a href="/politicians/{politician.id}" class="politician-card card">
           <div class="card-header">
             <div class="avatar">
-              {politician.name.split(' ').map(n => n[0]).join('')}
+              {#if politician.image_url}
+                <img src={politician.image_url} alt={politician.name} />
+              {:else}
+                <div class="avatar-placeholder">{politician.name.charAt(0)}</div>
+              {/if}
             </div>
             <div class="info">
               <div class="name-row">
@@ -138,14 +129,14 @@
           <div class="score-section">
             <div class="score-header">
               <span class="score-label">Integrity Score</span>
-              <span class="score-value {getScoreColor(politician.integrityScore)}">
-                {politician.integrityScore}%
+              <span class="score-value {getScoreColor(politician.integrity_score)}">
+                {politician.integrity_score}%
               </span>
             </div>
             <div class="score-bar">
               <div 
-                class="score-fill {getScoreColor(politician.integrityScore)}" 
-                style="width: {politician.integrityScore}%"
+                class="score-fill {getScoreColor(politician.integrity_score)}" 
+                style="width: {politician.integrity_score}%"
               ></div>
             </div>
           </div>
@@ -153,15 +144,15 @@
           <!-- Promise Stats -->
           <div class="promise-stats">
             <div class="stat">
-              <span class="stat-value kept">{politician.kept}</span>
+              <span class="stat-value kept">{stats.kept}</span>
               <span class="stat-label">Kept</span>
             </div>
             <div class="stat">
-              <span class="stat-value broken">{politician.broken}</span>
+              <span class="stat-value broken">{stats.broken}</span>
               <span class="stat-label">Broken</span>
             </div>
             <div class="stat">
-              <span class="stat-value pending">{politician.pending}</span>
+              <span class="stat-value pending">{stats.pending}</span>
               <span class="stat-label">Pending</span>
             </div>
           </div>
@@ -176,8 +167,9 @@
         </a>
       {/each}
     </div>
+    {/if}
     
-    {#if filteredPoliticians.length === 0}
+    {#if !loading && !error && filteredPoliticians.length === 0}
       <div class="empty-state">
         <p>No politicians found matching your criteria.</p>
       </div>
@@ -454,9 +446,33 @@
     font-size: 0.8rem;
   }
   
-  .empty-state {
+  .empty-state,
+  .loading-state,
+  .error-state {
     text-align: center;
     padding: var(--space-12);
     color: var(--gray-500);
+  }
+  
+  .error-state {
+    color: var(--error);
+  }
+  
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 600;
   }
 </style>
