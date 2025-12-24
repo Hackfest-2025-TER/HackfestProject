@@ -88,8 +88,7 @@
       const result = await submitVote({
         manifesto_id: manifestoId,
         vote_type: voteType,
-        nullifier: userCredential.nullifier,
-        proof: userCredential.credential // In production, this would be a ZK proof
+        nullifier: userCredential.nullifier
       });
       
       if (result.success) {

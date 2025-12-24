@@ -1,11 +1,11 @@
 <script lang="ts">
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
-  import { Shield, Database, FileText, Link2, CheckCircle, Users, Vote, Search, ChevronRight } from 'lucide-svelte';
+  import { FileText, Lock, Users, Shield, Eye, EyeOff, CheckCircle, ChevronRight, BookOpen } from 'lucide-svelte';
 </script>
 
 <svelte:head>
-  <title>PromiseThread - Transparency by Design</title>
+  <title>PromiseThread - Track Election Promises</title>
 </svelte:head>
 
 <Header variant="default" />
@@ -15,100 +15,116 @@
   <section class="hero">
     <div class="container">
       <div class="hero-content">
-        <h1>Transparency by Design.</h1>
+        <h1>Know What Was Promised.<br/>See What Was Delivered.</h1>
         <p class="hero-subtitle">
-          PromiseThread isn't just a website; it's a verifiable ledger of political accountability. 
-          We use advanced cryptography to ensure every promise is tracked and every vote is counted 
-          without compromising your privacy.
+          This platform keeps election promises public and unchanged, so citizens can 
+          track progress without giving up their privacy.
         </p>
-        <a href="/manifestos" class="btn btn-primary btn-lg">View Manifestos</a>
+        <div class="hero-buttons">
+          <a href="/manifestos" class="btn btn-primary btn-lg">
+            <FileText size={20} />
+            View Election Promises
+          </a>
+          <a href="/guide" class="btn btn-secondary btn-lg">
+            How This Works
+          </a>
+        </div>
       </div>
       <div class="hero-image">
-        <div class="blockchain-graphic">
-          <div class="chain-link"></div>
-          <div class="chain-link"></div>
-          <div class="chain-link"></div>
+        <div class="hero-illustration">
+          <div class="promise-card">
+            <div class="promise-status kept">✓ Kept</div>
+            <div class="promise-title">Build 100 new schools</div>
+            <div class="promise-progress">
+              <div class="progress-bar" style="width: 85%"></div>
+            </div>
+          </div>
+          <div class="promise-card">
+            <div class="promise-status pending">⏳ In Progress</div>
+            <div class="promise-title">Reduce unemployment by 20%</div>
+            <div class="promise-progress">
+              <div class="progress-bar" style="width: 45%"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Core Technologies -->
-  <section class="section tech-section">
+  <!-- What Can You Do Section -->
+  <section class="section features-section">
     <div class="container">
-      <h2>Core Technologies</h2>
-      <p class="section-subtitle">The pillars of our trustless architecture.</p>
+      <h2>What Can You Do on This Platform?</h2>
+      <p class="section-subtitle">Simple tools to help you stay informed about political promises.</p>
       
-      <div class="tech-grid">
-        <div class="tech-card card">
-          <div class="tech-icon">
-            <Shield size={24} />
+      <div class="features-grid">
+        <div class="feature-card card">
+          <div class="feature-icon">
+            <FileText size={28} />
           </div>
-          <h3>Zero-Knowledge Proofs</h3>
-          <p>
-            Our "ZK" authentication allows you to mathematically prove you are a registered 
-            citizen without ever revealing your name or ID to our servers.
-          </p>
+          <h3>View Promises</h3>
+          <p>See official promises made by political parties during elections. All in one place.</p>
         </div>
         
-        <div class="tech-card card">
-          <div class="tech-icon">
-            <Database size={24} />
+        <div class="feature-card card">
+          <div class="feature-icon locked">
+            <Lock size={28} />
           </div>
-          <h3>Hybrid Storage</h3>
-          <p>
-            We balance speed and security. Critical data like votes are stored on an immutable 
-            ledger, while discussions happen off-chain for real-time speed.
-          </p>
+          <h3>Promises Cannot Be Changed</h3>
+          <p>Once published, promises are locked and cannot be edited or deleted later.</p>
         </div>
         
-        <div class="tech-card card">
-          <div class="tech-icon">
-            <FileText size={24} />
+        <div class="feature-card card">
+          <div class="feature-icon feedback">
+            <Users size={28} />
           </div>
-          <h3>Audit Trail</h3>
-          <p>
-            Every promise update and vote tally is cryptographically signed. Anyone can download 
-            the chain data to verify the integrity of the platform.
-          </p>
+          <h3>Share Your Feedback</h3>
+          <p>Citizens can say whether promises are being fulfilled based on what they see.</p>
+        </div>
+        
+        <div class="feature-card card">
+          <div class="feature-icon privacy">
+            <Shield size={28} />
+          </div>
+          <h3>Stay Anonymous</h3>
+          <p>You can participate without revealing your name or identity. Your privacy comes first.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Where Data Lives -->
-  <section class="section data-section">
+  <!-- What Is Public / Private Section -->
+  <section class="section transparency-section">
     <div class="container">
-      <h2>Where Data Lives</h2>
-      <p class="section-subtitle">
-        Understanding the distinction between On-Chain (The Truth) and Off-Chain 
-        (The Conversation) is key to how we maintain trust.
-      </p>
+      <h2>What Is Public and What Is Private?</h2>
+      <p class="section-subtitle">We believe in transparency for promises, but privacy for people.</p>
       
-      <div class="data-grid">
-        <div class="data-card on-chain">
-          <div class="data-icon">
-            <Link2 size={24} />
+      <div class="transparency-grid">
+        <div class="transparency-card public">
+          <div class="transparency-header">
+            <Eye size={24} />
+            <h3>Public</h3>
+            <span class="badge">Anyone Can See</span>
           </div>
-          <h3>On-Chain (The Ledger)</h3>
-          <span class="data-badge">IMMUTABLE & PUBLIC</span>
-          <ul class="data-list">
-            <li><CheckCircle size={16} /> Manifesto Promises</li>
-            <li><CheckCircle size={16} /> Final Vote Tallies</li>
-            <li><CheckCircle size={16} /> Politician Verifications</li>
+          <ul class="transparency-list">
+            <li><CheckCircle size={18} /> Election promises from all parties</li>
+            <li><CheckCircle size={18} /> Progress updates and results</li>
+            <li><CheckCircle size={18} /> Overall citizen feedback scores</li>
+            <li><CheckCircle size={18} /> When promises were made</li>
           </ul>
         </div>
         
-        <div class="data-card off-chain">
-          <div class="data-icon">
-            <Database size={24} />
+        <div class="transparency-card private">
+          <div class="transparency-header">
+            <EyeOff size={24} />
+            <h3>Private</h3>
+            <span class="badge gray">Never Revealed</span>
           </div>
-          <h3>Off-Chain (The Town Hall)</h3>
-          <span class="data-badge gray">FAST & SCALABLE</span>
-          <ul class="data-list gray">
-            <li><CheckCircle size={16} /> User Comments & Debates</li>
-            <li><CheckCircle size={16} /> Profile Images & Bio Text</li>
-            <li><CheckCircle size={16} /> Notification Systems</li>
+          <ul class="transparency-list">
+            <li><Shield size={18} /> Your name</li>
+            <li><Shield size={18} /> Your voter ID</li>
+            <li><Shield size={18} /> How you voted</li>
+            <li><Shield size={18} /> Your personal information</li>
           </ul>
         </div>
       </div>
@@ -118,94 +134,75 @@
   <!-- Promise Lifecycle -->
   <section class="section lifecycle-section">
     <div class="container">
-      <h2>The Life of a Promise</h2>
+      <h2>How an Election Promise Is Tracked</h2>
+      <p class="section-subtitle">A simple process to keep politicians accountable.</p>
       
       <div class="timeline">
         <div class="timeline-item">
           <div class="timeline-number">1</div>
           <div class="timeline-content">
-            <h4>Proposal & Draft</h4>
-            <p>A politician drafts a manifesto. At this stage, it is off-chain and open for feedback from the community.</p>
+            <h4>Promises Are Published</h4>
+            <p>Political parties publish their official promises during election time.</p>
           </div>
         </div>
         
         <div class="timeline-item">
           <div class="timeline-number">2</div>
           <div class="timeline-content">
-            <h4>Immutable Commitment</h4>
-            <p>The finalized promise is hashed and stored on the blockchain. It can no longer be edited or deleted without leaving a trace.</p>
+            <h4>Promises Are Locked</h4>
+            <p>Once published, promises cannot be changed or deleted. They remain as a permanent record.</p>
           </div>
         </div>
         
         <div class="timeline-item">
           <div class="timeline-number">3</div>
           <div class="timeline-content">
-            <h4>Citizen Voting</h4>
-            <p>Verified citizens cast votes on the priority and feasibility of the promise.</p>
-          </div>
-        </div>
-        
-        <div class="timeline-item">
-          <div class="timeline-number">4</div>
-          <div class="timeline-content">
-            <h4>Execution & Audit</h4>
-            <p>Over the term, journalists and auditors submit evidence linked to the promise. The status is updated based on verifiable proof.</p>
+            <h4>Citizens Track Progress</h4>
+            <p>Over time, citizens can share their feedback on whether promises are being kept.</p>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Vote Integrity Flow -->
-  <section class="section integrity-section">
+  <!-- Privacy Assurance -->
+  <section class="section privacy-section">
     <div class="container">
-      <h2>Vote Integrity Flow</h2>
-      
-      <div class="flow-grid">
-        <div class="flow-card">
-          <div class="flow-icon">
-            <Users size={24} />
-          </div>
-          <h4>1. Authenticate</h4>
-          <p>User logs in via Government ID or BankID. ZK Proof is generated locally.</p>
+      <div class="privacy-content">
+        <div class="privacy-icon">
+          <Shield size={48} />
         </div>
-        
-        <div class="flow-connector">→</div>
-        
-        <div class="flow-card">
-          <div class="flow-icon">
-            <Shield size={24} />
-          </div>
-          <h4>2. Tokenize</h4>
-          <p>System issues a one-time voting token. The link to your ID is destroyed.</p>
-        </div>
-        
-        <div class="flow-connector">→</div>
-        
-        <div class="flow-card">
-          <div class="flow-icon">
-            <Vote size={24} />
-          </div>
-          <h4>3. Cast Vote</h4>
-          <p>The token is used to sign the vote on the ledger. Your vote is public; your name is not.</p>
-        </div>
+        <h2>Your Privacy Comes First</h2>
+        <p>
+          You can take part without logging in with your name. The system only checks 
+          that you are a real citizen — nothing more. We never see who you are.
+        </p>
+        <a href="/privacy" class="btn btn-outline">
+          Learn How Your Privacy Is Protected
+          <ChevronRight size={18} />
+        </a>
       </div>
     </div>
   </section>
 
-  <!-- CTA Section -->
+  <!-- Final CTA -->
   <section class="section cta-section">
     <div class="container">
       <div class="cta-content">
-        <Shield size={48} />
-        <h2>Ready to verify democracy?</h2>
+        <h2>Democracy Works Better When Promises Are Remembered</h2>
         <p>
-          Join thousands of citizens who are taking control of the narrative. 
-          No hidden agendas, just verifiable truth.
+          Join thousands of citizens who are keeping track of what was promised 
+          and what was delivered.
         </p>
         <div class="cta-buttons">
-          <a href="/manifestos" class="btn btn-primary btn-lg">Explore Manifestos</a>
-          <a href="/whitepaper" class="btn btn-secondary btn-lg">Read Whitepaper</a>
+          <a href="/manifestos" class="btn btn-primary btn-lg">
+            <FileText size={20} />
+            Explore Promises
+          </a>
+          <a href="/guide" class="btn btn-secondary btn-lg">
+            <BookOpen size={20} />
+            Citizen Guide
+          </a>
         </div>
       </div>
     </div>
@@ -226,6 +223,8 @@
   .section h2 {
     text-align: center;
     margin-bottom: var(--space-2);
+    font-size: 2rem;
+    color: var(--gray-900);
   }
   
   .section-subtitle {
@@ -233,17 +232,18 @@
     color: var(--gray-500);
     max-width: 600px;
     margin: 0 auto var(--space-10);
+    font-size: 1.1rem;
   }
   
   /* Hero */
   .hero {
-    padding: var(--space-12) 0;
-    background: white;
+    padding: var(--space-16) 0;
+    background: linear-gradient(180deg, #f8fafc 0%, white 100%);
   }
   
   .hero .container {
     display: grid;
-    gap: var(--space-8);
+    gap: var(--space-12);
     align-items: center;
   }
   
@@ -255,78 +255,181 @@
   
   .hero h1 {
     font-size: 2.5rem;
-    line-height: 1.1;
-    margin-bottom: var(--space-4);
+    line-height: 1.15;
+    margin-bottom: var(--space-6);
+    color: #082770;
   }
   
   @media (min-width: 768px) {
     .hero h1 {
-      font-size: 3.5rem;
+      font-size: 3rem;
     }
   }
   
   .hero-subtitle {
     color: var(--gray-600);
-    margin-bottom: var(--space-6);
-    font-size: 1.125rem;
+    margin-bottom: var(--space-8);
+    font-size: 1.25rem;
     line-height: 1.7;
   }
   
+  .hero-buttons {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  
+  .hero-buttons .btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  
+  .btn-primary {
+    background: #082770;
+    color: white;
+    padding: var(--space-4) var(--space-6);
+    border-radius: var(--radius-lg);
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  
+  .btn-primary:hover {
+    background: #0a3490;
+    transform: translateY(-1px);
+  }
+  
+  .btn-secondary {
+    background: white;
+    color: #082770;
+    padding: var(--space-4) var(--space-6);
+    border-radius: var(--radius-lg);
+    font-weight: 600;
+    text-decoration: none;
+    border: 2px solid #082770;
+    transition: all 0.2s;
+  }
+  
+  .btn-secondary:hover {
+    background: #082770;
+    color: white;
+  }
+  
+  .btn-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: #082770;
+    font-weight: 600;
+    text-decoration: none;
+    padding: var(--space-3) var(--space-4);
+    border: 2px solid #082770;
+    border-radius: var(--radius-lg);
+    transition: all 0.2s;
+  }
+  
+  .btn-outline:hover {
+    background: #082770;
+    color: white;
+  }
+  
+  /* Hero Illustration */
   .hero-image {
     display: flex;
     justify-content: center;
   }
   
-  .blockchain-graphic {
+  .hero-illustration {
     display: flex;
+    flex-direction: column;
     gap: var(--space-4);
-    padding: var(--space-8);
-    background: linear-gradient(135deg, var(--primary-50), var(--gray-100));
+    padding: var(--space-6);
+    background: white;
     border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-xl);
+    border: 1px solid var(--gray-100);
   }
   
-  .chain-link {
-    width: 60px;
-    height: 60px;
-    background: var(--primary-500);
-    border-radius: var(--radius-lg);
-    opacity: 0.8;
-  }
-  
-  .chain-link:nth-child(2) {
-    opacity: 0.6;
-  }
-  
-  .chain-link:nth-child(3) {
-    opacity: 0.4;
-  }
-  
-  /* Tech Section */
-  .tech-section {
+  .promise-card {
+    padding: var(--space-4);
     background: var(--gray-50);
+    border-radius: var(--radius-lg);
+    min-width: 280px;
   }
   
-  .tech-grid {
+  .promise-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+  }
+  
+  .promise-status.kept {
+    color: var(--success-600);
+  }
+  
+  .promise-status.pending {
+    color: var(--warning-600);
+  }
+  
+  .promise-title {
+    font-weight: 600;
+    color: var(--gray-900);
+    margin-bottom: var(--space-3);
+  }
+  
+  .promise-progress {
+    height: 6px;
+    background: var(--gray-200);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #082770, #10b981);
+    border-radius: 3px;
+  }
+  
+  /* Features Section */
+  .features-section {
+    background: white;
+  }
+  
+  .features-grid {
     display: grid;
     gap: var(--space-6);
   }
   
   @media (min-width: 768px) {
-    .tech-grid {
-      grid-template-columns: repeat(3, 1fr);
+    .features-grid {
+      grid-template-columns: repeat(2, 1fr);
     }
   }
   
-  .tech-card {
-    padding: var(--space-6);
-    text-align: center;
+  @media (min-width: 1024px) {
+    .features-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
   }
   
-  .tech-icon {
-    width: 56px;
-    height: 56px;
-    background: var(--primary-100);
-    color: var(--primary-600);
+  .feature-card {
+    padding: var(--space-6);
+    text-align: center;
+    border: 1px solid var(--gray-100);
+    transition: all 0.2s;
+  }
+  
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .feature-icon {
+    width: 64px;
+    height: 64px;
+    background: #e8f4fc;
+    color: #082770;
     border-radius: var(--radius-xl);
     display: flex;
     align-items: center;
@@ -334,104 +437,128 @@
     margin: 0 auto var(--space-4);
   }
   
-  .tech-card h3 {
-    font-size: 1.125rem;
-    margin-bottom: var(--space-2);
+  .feature-icon.locked {
+    background: #fef3c7;
+    color: #d97706;
   }
   
-  .tech-card p {
-    font-size: 0.875rem;
+  .feature-icon.feedback {
+    background: #dbeafe;
+    color: #2563eb;
+  }
+  
+  .feature-icon.privacy {
+    background: #d1fae5;
+    color: #059669;
+  }
+  
+  .feature-card h3 {
+    font-size: 1.125rem;
+    margin-bottom: var(--space-2);
+    color: var(--gray-900);
+  }
+  
+  .feature-card p {
+    font-size: 0.9rem;
     color: var(--gray-600);
     line-height: 1.6;
   }
   
-  /* Data Section */
-  .data-section {
-    background: var(--gray-800);
-    color: white;
+  /* Transparency Section */
+  .transparency-section {
+    background: var(--gray-50);
   }
   
-  .data-section h2,
-  .data-section .section-subtitle {
-    color: white;
-  }
-  
-  .data-section .section-subtitle {
-    opacity: 0.7;
-  }
-  
-  .data-grid {
+  .transparency-grid {
     display: grid;
     gap: var(--space-6);
   }
   
   @media (min-width: 768px) {
-    .data-grid {
+    .transparency-grid {
       grid-template-columns: repeat(2, 1fr);
     }
   }
   
-  .data-card {
-    padding: var(--space-6);
+  .transparency-card {
+    padding: var(--space-8);
     border-radius: var(--radius-xl);
-    background: var(--gray-700);
-    border-top: 4px solid var(--primary-500);
+    background: white;
+    box-shadow: var(--shadow-md);
   }
   
-  .data-card.off-chain {
-    border-top-color: var(--gray-500);
+  .transparency-card.public {
+    border-top: 4px solid #082770;
   }
   
-  .data-icon {
-    margin-bottom: var(--space-4);
-    color: var(--primary-400);
+  .transparency-card.private {
+    border-top: 4px solid #059669;
   }
   
-  .data-card.off-chain .data-icon {
-    color: var(--gray-400);
+  .transparency-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
   }
   
-  .data-card h3 {
-    color: white;
-    margin-bottom: var(--space-2);
+  .transparency-header h3 {
+    font-size: 1.25rem;
+    margin: 0;
   }
   
-  .data-badge {
-    display: inline-block;
-    padding: var(--space-1) var(--space-2);
-    background: var(--primary-500);
-    color: white;
-    font-size: 0.65rem;
+  .transparency-card.public .transparency-header {
+    color: #082770;
+  }
+  
+  .transparency-card.private .transparency-header {
+    color: #059669;
+  }
+  
+  .badge {
+    font-size: 0.7rem;
     font-weight: 600;
+    padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-sm);
+    background: #082770;
+    color: white;
+    text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: var(--space-4);
   }
   
-  .data-badge.gray {
-    background: var(--gray-600);
+  .badge.gray {
+    background: #059669;
   }
   
-  .data-list {
+  .transparency-list {
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-3);
   }
   
-  .data-list li {
+  .transparency-list li {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    color: var(--primary-300);
-    font-size: 0.875rem;
+    gap: var(--space-3);
+    color: var(--gray-700);
+    font-size: 0.95rem;
   }
   
-  .data-list.gray li {
-    color: var(--gray-400);
+  .transparency-card.public .transparency-list li :global(svg) {
+    color: #082770;
+  }
+  
+  .transparency-card.private .transparency-list li :global(svg) {
+    color: #059669;
   }
   
   /* Timeline */
+  .lifecycle-section {
+    background: white;
+  }
+  
   .timeline {
     max-width: 600px;
     margin: 0 auto;
@@ -439,132 +566,138 @@
   
   .timeline-item {
     display: flex;
-    gap: var(--space-4);
-    padding-bottom: var(--space-6);
+    gap: var(--space-5);
+    padding-bottom: var(--space-8);
     position: relative;
   }
   
   .timeline-item:not(:last-child)::before {
     content: '';
     position: absolute;
-    left: 18px;
-    top: 40px;
+    left: 22px;
+    top: 50px;
     bottom: 0;
-    width: 2px;
-    background: var(--gray-200);
+    width: 3px;
+    background: linear-gradient(180deg, #082770, #e5e7eb);
   }
   
   .timeline-number {
-    width: 40px;
-    height: 40px;
-    background: var(--primary-600);
+    width: 48px;
+    height: 48px;
+    background: #082770;
     color: white;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
+    font-size: 1.25rem;
     flex-shrink: 0;
   }
   
   .timeline-content h4 {
     margin-bottom: var(--space-2);
+    font-size: 1.125rem;
+    color: var(--gray-900);
   }
   
   .timeline-content p {
     color: var(--gray-600);
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     line-height: 1.6;
   }
   
-  /* Flow */
-  .flow-grid {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-4);
+  /* Privacy Section */
+  .privacy-section {
+    background: linear-gradient(135deg, #d1fae5 0%, #e8f4fc 100%);
   }
   
-  @media (min-width: 768px) {
-    .flow-grid {
-      flex-direction: row;
-      justify-content: center;
-    }
-  }
-  
-  .flow-card {
-    background: var(--primary-50);
-    padding: var(--space-6);
-    border-radius: var(--radius-xl);
-    text-align: center;
-    max-width: 250px;
-  }
-  
-  .flow-icon {
-    width: 48px;
-    height: 48px;
-    background: white;
-    color: var(--primary-600);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto var(--space-3);
-    box-shadow: var(--shadow-sm);
-  }
-  
-  .flow-card h4 {
-    margin-bottom: var(--space-2);
-    font-size: 1rem;
-  }
-  
-  .flow-card p {
-    font-size: 0.8rem;
-    color: var(--gray-600);
-    line-height: 1.5;
-  }
-  
-  .flow-connector {
-    color: var(--gray-400);
-    font-size: 1.5rem;
-    transform: rotate(90deg);
-  }
-  
-  @media (min-width: 768px) {
-    .flow-connector {
-      transform: none;
-    }
-  }
-  
-  /* CTA */
-  .cta-section {
-    background: var(--gray-50);
-  }
-  
-  .cta-content {
+  .privacy-content {
     text-align: center;
     max-width: 600px;
     margin: 0 auto;
   }
   
-  .cta-content :global(svg) {
-    color: var(--primary-600);
+  .privacy-icon {
+    width: 80px;
+    height: 80px;
+    background: white;
+    color: #059669;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--space-6);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .privacy-content h2 {
+    color: #082770;
     margin-bottom: var(--space-4);
+  }
+  
+  .privacy-content p {
+    color: var(--gray-700);
+    margin-bottom: var(--space-6);
+    font-size: 1.1rem;
+    line-height: 1.7;
+  }
+  
+  /* CTA */
+  .cta-section {
+    background: #082770;
+    color: white;
+  }
+  
+  .cta-content {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto;
   }
   
   .cta-content h2 {
+    color: white;
     margin-bottom: var(--space-4);
+    font-size: 2rem;
   }
   
   .cta-content p {
-    color: var(--gray-600);
-    margin-bottom: var(--space-6);
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: var(--space-8);
+    font-size: 1.1rem;
+    line-height: 1.7;
   }
   
   .cta-buttons {
     display: flex;
-    gap: var(--space-3);
+    gap: var(--space-4);
     justify-content: center;
     flex-wrap: wrap;
+  }
+  
+  .cta-buttons .btn-primary {
+    background: white;
+    color: #082770;
+  }
+  
+  .cta-buttons .btn-primary:hover {
+    background: #f1f5f9;
+  }
+  
+  .cta-buttons .btn-secondary {
+    background: transparent;
+    color: white;
+    border-color: white;
+  }
+  
+  .cta-buttons .btn-secondary:hover {
+    background: white;
+    color: #082770;
+  }
+  
+  .cta-buttons .btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 </style>

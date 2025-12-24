@@ -117,9 +117,9 @@
       
       // Send proof to backend for verification (voter ID is NOT sent)
       const result = await verifyZKProof({
-        voter_id_hash: proof.voterIdHash,
+        voter_id_hash: proof.voter_id_hash,
         nullifier: proof.nullifier,
-        merkle_proof: proof.merkleProof,
+        merkle_proof: proof.merkle_proof,
         commitment: proof.commitment
       });
       
