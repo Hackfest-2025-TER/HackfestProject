@@ -1,8 +1,29 @@
-﻿{
-  "name": "blockchain",
+{
+  "name": "promisethread-blockchain",
   "version": "1.0.0",
+  "description": "Smart contracts for PromiseThread - Decentralized Political Accountability",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:mumbai": "hardhat run scripts/deploy.js --network mumbai",
+    "deploy:fuji": "hardhat run scripts/deploy.js --network fuji",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "node": "hardhat node",
+    "clean": "hardhat clean",
+    "coverage": "hardhat coverage",
+    "circuit:compile": "circom circuits/citizen_credential.circom --r1cs --wasm --sym -o build/circuits",
+    "circuit:setup": "snarkjs groth16 setup build/circuits/citizen_credential.r1cs pot15_final.ptau build/circuits/circuit_final.zkey",
+    "circuit:export": "snarkjs zkey export verificationkey build/circuits/circuit_final.zkey build/circuits/verification_key.json"
+  },
   "dependencies": {
-    "hardhat": "^2.19.0",
-    "@nomicfoundation/hardhat-toolbox": "^4.0.0"
+    "dotenv": "^16.3.1",
+    "snarkjs": "^0.7.0",
+    "circomlibjs": "^0.1.7"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "hardhat": "^2.19.0"
   }
 }

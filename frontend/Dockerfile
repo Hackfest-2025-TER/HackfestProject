@@ -1,7 +1,21 @@
-﻿FROM node:18-alpine
+FROM node:20-alpine
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies
+RUN pnpm install
+
+# Copy source files
 COPY . .
+
+# Expose port
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+
+# Run dev server (for demo/hackathon purposes)
+CMD ["pnpm", "run", "dev"]

@@ -1,25 +1,31 @@
-﻿services:
-  blockchain:
-    build: ./blockchain
+services:
+  frontend:
+    build: ./frontend
     ports:
-      - "8545:8545"
-    volumes:
-      - ./blockchain:/app
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_BLOCKCHAIN_RPC=http://localhost:8545
+    depends_on:
+      - backend
 
   backend:
     build: ./backend
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./promisethread.db
+      - SECRET_KEY=change-this-in-production
+      - BLOCKCHAIN_RPC_URL=http://blockchain:8545
     volumes:
-      - ./backend:/app
-    depends_on:
-      - blockchain
+      - ./data:/app/data
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
 
-  frontend:
-    build: ./frontend
+  blockchain:
+    build: ./blockchain
     ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-    depends_on:
-      - backend
+      - "8545:8545"
+
+networks:
+  default:
+    name: promisethread-network
