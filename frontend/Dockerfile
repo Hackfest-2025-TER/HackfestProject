@@ -6,7 +6,7 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
+COPY package.json pnpm-lock.yaml* ./
 
 # Install dependencies
 RUN pnpm install
@@ -14,11 +14,8 @@ RUN pnpm install
 # Copy source files
 COPY . .
 
-# Build the app
-RUN pnpm run build
-
 # Expose port
 EXPOSE 3000
 
-# Start the app
-CMD ["node", "build"]
+# Run dev server (for demo/hackathon purposes)
+CMD ["pnpm", "run", "dev"]

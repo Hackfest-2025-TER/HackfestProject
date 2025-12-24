@@ -3,19 +3,17 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY package*.json pnpm-lock.yaml* ./
 
-# Install dependencies
-RUN npm install
+# Install pnpm and dependencies
+RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN pnpm install
 
 # Copy source files
 COPY . .
 
-# Compile contracts
-RUN npx hardhat compile
-
 # Expose Hardhat node port
 EXPOSE 8545
 
-# Start Hardhat node
-CMD ["npx", "hardhat", "node"]
+# Compile and start at runtime (not during build)
+CMD ["sh", "-c", "pnpm run compile && pnpm run node"]
