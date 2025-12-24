@@ -1,25 +1,45 @@
-﻿services:
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_BLOCKCHAIN_RPC=http://localhost:8545
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./promisethread.db
+      - SECRET_KEY=your-secret-key-change-in-production
+      - BLOCKCHAIN_RPC_URL=http://blockchain:8545
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
   blockchain:
-    build: ./blockchain
+    build:
+      context: ./blockchain
+      dockerfile: Dockerfile
     ports:
       - "8545:8545"
     volumes:
       - ./blockchain:/app
+      - /app/node_modules
+    command: npx hardhat node
 
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - blockchain
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-    depends_on:
-      - backend
+networks:
+  default:
+    name: promisethread-network
