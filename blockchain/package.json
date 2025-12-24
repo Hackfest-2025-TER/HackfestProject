@@ -1,0 +1,8 @@
+﻿{
+  "name": "blockchain",
+  "version": "1.0.0",
+  "dependencies": {
+    "hardhat": "^2.19.0",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0"
+  }
+}
