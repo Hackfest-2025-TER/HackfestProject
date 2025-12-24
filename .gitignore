@@ -1,212 +1,61 @@
-# ====================================
-# Node.js / JavaScript / TypeScript
-# ====================================
+# Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-*.log
 
-# Package manager lock files (keep pnpm-lock.yaml if using pnpm)
-package-lock.json
-yarn.lock
-
-# ====================================
 # Build outputs
-# ====================================
 dist/
-dist-ssr/
 build/
-.output/
-.vercel/
-.netlify/
-
-# SvelteKit
 .svelte-kit/
-frontend/.svelte-kit/
-frontend/build/
-frontend/.vercel/
-frontend/.netlify/
+.output/
 
-# ====================================
 # Python
-# ====================================
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-*.egg
-*.egg-info/
-dist/
-build/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.manifest
-*.spec
-
-# Virtual environments
 venv/
-env/
-ENV/
-env.bak/
-venv.bak/
 .venv/
 
-# PyInstaller
-*.manifest
-*.spec
-
-# Unit test / coverage
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# ====================================
-# Blockchain / Hardhat
-# ====================================
+# Hardhat/Blockchain
 blockchain/cache/
 blockchain/artifacts/
-blockchain/node_modules/
-blockchain/typechain/
 blockchain/typechain-types/
 
-# Hardhat files
-cache/
-artifacts/
-typechain/
-typechain-types/
-
-# ZK circuits
+# ZK circuit build outputs
 blockchain/circuits/*.r1cs
 blockchain/circuits/*.wasm
 blockchain/circuits/*.zkey
-blockchain/circuits/*.vkey
 blockchain/circuits/*.sym
-blockchain/circuits/*.json
 
-# ====================================
 # Environment variables
-# ====================================
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.*.local
-*.env
+.env*.local
 
-# ====================================
-# Docker
-# ====================================
-*.log
-docker-compose.override.yml
-
-# ====================================
-# IDE / Editors
-# ====================================
-.vscode/
+# IDE
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
-*.sublime-project
-*.sublime-workspace
-.project
-.classpath
-.settings/
 
-# Keep some VS Code settings if needed
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# ====================================
 # OS
-# ====================================
 .DS_Store
 Thumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
 # ====================================
-# Temporary files
-# ====================================
-*.tmp
-*.temp
-*.bak
-*.swp
-*~
-
-# ====================================
-# Database
-# ====================================
-*.db
-*.sqlite
-*.sqlite3
-
-# PostgreSQL
-*.sql.gz
-*.dump
-*.backup
-
-# Alembic
-# Keep migrations but ignore any auto-generated cache
-backend/migrations/__pycache__/
-
-# ====================================
-# Python Virtual Environment (backend specific)
+# Python Virtual Env__pycache__ackend specific)
 # ====================================
 backend/myenv/
 backend/.venv/
 backend/venv/
 backend/env/
 
-# ====================================
-# Certificates & Keys
-# ====================================
-*.pem
-*.key
-*.cert
-*.crt
-*.p12
-*.pfx
+# Alembic
+# Keep migrations but ignore any auto-generated cache
+backend/migrations/__pycache__/
 
-# ====================================
-# Project specific
-# ====================================
-# Design files that are too large
-design/*.psd
-design/*.sketch
-design/*.fig
+# PostgreSQL
+*.sql.gz
+*.dump
+*.backup
 
-# Local development files
-.local/
-*.local
+# Logs
+*.log
+
+# Local overrides
+docker-compose.override.yml
