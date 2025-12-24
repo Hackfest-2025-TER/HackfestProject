@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
-  import { Search, Filter, Shield, Award, Clock, FileText, ChevronRight } from 'lucide-svelte';
+  import { Search, Filter, Shield, Award, Clock, FileText, ChevronRight, CheckCircle, AlertCircle } from 'lucide-svelte';
   
   // Fetch politicians from API
   let politicians: any[] = [];
@@ -50,10 +50,28 @@
     const broken = total - kept;
     return { kept, broken, pending: 0 };
   }
+  
+  // Get human-readable overall status
+  function getOverallStatus(score: number) {
+    if (score >= 80) return 'Mostly Kept';
+    if (score >= 60) return 'Mixed Progress';
+    if (score >= 40) return 'Needs Attention';
+    return 'Mostly Not Kept';
+  }
+  
+  // Handle image error - fallback to placeholder
+  function handleImageError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    img.style.display = 'none';
+    const placeholder = img.nextElementSibling as HTMLElement;
+    if (placeholder) {
+      placeholder.style.display = 'flex';
+    }
+  }
 </script>
 
 <svelte:head>
-  <title>Politicians - PromiseThread</title>
+  <title>Elected Representatives - PromiseThread</title>
 </svelte:head>
 
 <Header />
@@ -62,8 +80,8 @@
   <div class="container">
     <!-- Page Header -->
     <div class="page-header">
-      <h1>Politicians Directory</h1>
-      <p>Track the integrity and promise fulfillment of elected officials</p>
+      <h1>Elected Representatives</h1>
+      <p>See what elected leaders promised and how those promises are progressing.</p>
     </div>
     
     <!-- Search & Filters -->
@@ -106,7 +124,14 @@
           <div class="card-header">
             <div class="avatar">
               {#if politician.image_url}
-                <img src={politician.image_url} alt={politician.name} />
+                <img 
+                  src={politician.image_url} 
+                  alt={politician.name}
+                  on:error={handleImageError}
+                />
+                <div class="avatar-placeholder" style="display: none;">
+                  {politician.name.charAt(0)}
+                </div>
               {:else}
                 <div class="avatar-placeholder">{politician.name.charAt(0)}</div>
               {/if}
@@ -120,47 +145,58 @@
                   </span>
                 {/if}
               </div>
-              <p class="title">{politician.title}</p>
-              <span class="party">{politician.party}</span>
+              <p class="title">{politician.title} • {politician.party}</p>
             </div>
           </div>
           
-          <!-- Integrity Score -->
-          <div class="score-section">
-            <div class="score-header">
-              <span class="score-label">Integrity Score</span>
-              <span class="score-value {getScoreColor(politician.integrity_score)}">
-                {politician.integrity_score}%
-              </span>
+          <!-- Promise Summary (Primary Focus) -->
+          <div class="promise-summary">
+            <h4>Promise Summary</h4>
+            <div class="promise-stats">
+              <div class="stat kept">
+                <CheckCircle size={16} />
+                <span class="stat-value">{stats.kept}</span>
+                <span class="stat-label">Being Kept</span>
+              </div>
+              <div class="stat broken">
+                <AlertCircle size={16} />
+                <span class="stat-value">{stats.broken}</span>
+                <span class="stat-label">Not Being Kept</span>
+              </div>
+              <div class="stat pending">
+                <Clock size={16} />
+                <span class="stat-value">{stats.pending}</span>
+                <span class="stat-label">Under Review</span>
+              </div>
             </div>
-            <div class="score-bar">
+          </div>
+          
+          <!-- Promise Fulfillment Bar -->
+          <div class="fulfillment-section">
+            <div class="fulfillment-header">
+              <span class="fulfillment-label">Promise Fulfillment</span>
+              <span class="fulfillment-percentage">{politician.integrity_score}%</span>
+            </div>
+            <div class="fulfillment-bar">
               <div 
-                class="score-fill {getScoreColor(politician.integrity_score)}" 
+                class="fulfillment-fill {getScoreColor(politician.integrity_score)}" 
                 style="width: {politician.integrity_score}%"
               ></div>
             </div>
           </div>
           
-          <!-- Promise Stats -->
-          <div class="promise-stats">
-            <div class="stat">
-              <span class="stat-value kept">{stats.kept}</span>
-              <span class="stat-label">Kept</span>
-            </div>
-            <div class="stat">
-              <span class="stat-value broken">{stats.broken}</span>
-              <span class="stat-label">Broken</span>
-            </div>
-            <div class="stat">
-              <span class="stat-value pending">{stats.pending}</span>
-              <span class="stat-label">Pending</span>
-            </div>
+          <!-- Overall Status (Human-readable) -->
+          <div class="overall-status">
+            <span class="status-label">Overall Status:</span>
+            <span class="status-value {getScoreColor(politician.integrity_score)}">
+              {getOverallStatus(politician.integrity_score)}
+            </span>
           </div>
           
           <div class="card-footer">
             <span class="manifesto-count">
               <FileText size={14} />
-              {politician.manifestos} Manifestos
+              {politician.manifestos} Promises Published
             </span>
             <ChevronRight size={18} />
           </div>
@@ -200,10 +236,12 @@
   .page-header h1 {
     font-size: 2rem;
     margin-bottom: var(--space-2);
+    color: #082770;
   }
   
   .page-header p {
-    color: var(--gray-500);
+    color: var(--gray-600);
+    font-size: 1.1rem;
   }
   
   .controls-bar {
@@ -297,6 +335,29 @@
     font-size: 1.25rem;
     font-weight: 600;
     flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  
+  .avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #082770;
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 600;
   }
   
   .info {
@@ -333,101 +394,141 @@
     color: var(--gray-400);
   }
   
-  .score-section {
-    padding: var(--space-3);
+  /* Promise Summary Section */
+  .promise-summary {
+    padding: var(--space-4);
     background: var(--gray-50);
     border-radius: var(--radius-lg);
   }
   
-  .score-header {
+  .promise-summary h4 {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+    margin: 0 0 var(--space-3) 0;
+    font-weight: 500;
+  }
+  
+  .promise-stats {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+  
+  .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    flex: 1;
+    min-width: 70px;
+  }
+  
+  .stat.kept {
+    color: var(--success-600);
+  }
+  
+  .stat.broken {
+    color: var(--error-600);
+  }
+  
+  .stat.pending {
+    color: var(--warning-600);
+  }
+  
+  .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+  
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--gray-500);
+    text-align: center;
+  }
+  
+  /* Promise Fulfillment Bar */
+  .fulfillment-section {
+    padding: var(--space-3);
+    background: white;
+    border: 1px solid var(--gray-100);
+    border-radius: var(--radius-md);
+  }
+  
+  .fulfillment-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--space-2);
   }
   
-  .score-label {
-    font-size: 0.75rem;
-    color: var(--gray-500);
+  .fulfillment-label {
+    font-size: 0.8rem;
+    color: var(--gray-600);
     font-weight: 500;
   }
   
-  .score-value {
+  .fulfillment-percentage {
     font-size: 0.9rem;
     font-weight: 700;
+    color: var(--gray-900);
   }
   
-  .score-value.success {
-    color: var(--success-600);
-  }
-  
-  .score-value.warning {
-    color: var(--warning-600);
-  }
-  
-  .score-value.error {
-    color: var(--error-600);
-  }
-  
-  .score-bar {
-    height: 6px;
+  .fulfillment-bar {
+    height: 8px;
     background: var(--gray-200);
     border-radius: var(--radius-full);
     overflow: hidden;
   }
   
-  .score-fill {
+  .fulfillment-fill {
     height: 100%;
     border-radius: var(--radius-full);
     transition: width 0.5s ease-out;
   }
   
-  .score-fill.success {
-    background: var(--success-500);
+  .fulfillment-fill.success {
+    background: linear-gradient(90deg, #10b981, #34d399);
   }
   
-  .score-fill.warning {
-    background: var(--warning-500);
+  .fulfillment-fill.warning {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
   }
   
-  .score-fill.error {
-    background: var(--error-500);
+  .fulfillment-fill.error {
+    background: linear-gradient(90deg, #ef4444, #f87171);
   }
   
-  .promise-stats {
+  /* Overall Status */
+  .overall-status {
     display: flex;
-    justify-content: space-around;
+    align-items: center;
     gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--gray-50);
+    border-radius: var(--radius-md);
   }
   
-  .stat {
-    text-align: center;
+  .status-label {
+    font-size: 0.8rem;
+    color: var(--gray-500);
+    font-weight: 500;
   }
   
-  .stat-value {
-    display: block;
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin-bottom: var(--space-1);
+  .status-value {
+    font-size: 0.95rem;
+    font-weight: 600;
   }
   
-  .stat-value.kept {
+  .status-value.success {
     color: var(--success-600);
   }
   
-  .stat-value.broken {
+  .status-value.warning {
+    color: var(--warning-600);
+  }
+  
+  .status-value.error {
     color: var(--error-600);
-  }
-  
-  .stat-value.pending {
-    color: var(--gray-500);
-  }
-  
-  .stat-label {
-    font-size: 0.7rem;
-    color: var(--gray-400);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
   }
   
   .card-footer {
@@ -456,23 +557,5 @@
   
   .error-state {
     color: var(--error);
-  }
-  
-  .avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  
-  .avatar-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--primary);
-    color: white;
-    font-size: 1.5rem;
-    font-weight: 600;
   }
 </style>

@@ -4,7 +4,7 @@
   import Footer from '$lib/components/Footer.svelte';
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
-  import { Shield, FileText, CheckCircle, Clock, Activity, TrendingUp, Eye, AlertCircle, Fingerprint } from 'lucide-svelte';
+  import { Shield, FileText, CheckCircle, Clock, Activity, TrendingUp, Eye, AlertCircle, Fingerprint, MessageCircle, Users, Info } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore, isAuthenticated, credential } from '$lib/stores';
@@ -18,14 +18,9 @@
   let manifestos: any[] = [];
   let isLoading = true;
   
-  // Redirect if not authenticated
+  // Load data without auth requirement
   onMount(async () => {
     if (!browser) return;
-    
-    if (!$isAuthenticated) {
-      goto('/auth');
-      return;
-    }
     
     try {
       const data = await getManifestos();
@@ -36,77 +31,73 @@
     isLoading = false;
   });
   
-  // Activity based on voted manifestos
-  $: recentActivity = (userCredential?.usedVotes || []).slice(-3).map(id => ({
-    type: 'vote',
-    description: `Voted on manifesto ${id}`,
-    time: 'Recently',
-    icon: CheckCircle
-  }));
+  // Activity based on voted manifestos (or show demo data if not authenticated)
+  $: recentActivity = isAuth 
+    ? (userCredential?.usedVotes || []).slice(-3).map(id => ({
+        type: 'vote',
+        description: `Shared opinion on promise ${id}`,
+        time: 'Recently',
+        icon: CheckCircle
+      }))
+    : [];
 </script>
 
 <svelte:head>
-  <title>Citizen Dashboard - PromiseThread</title>
+  <title>Citizen Portal - PromiseThread</title>
 </svelte:head>
 
 <Header variant="citizen" />
 
 <main class="citizen-dashboard">
   <div class="container">
-    {#if !isAuth}
-      <!-- Not authenticated banner -->
-      <div class="auth-required card">
-        <AlertCircle size={48} />
-        <h2>Authentication Required</h2>
-        <p>Please verify your identity to access the citizen dashboard.</p>
-        <a href="/auth" class="btn btn-primary">
-          <Fingerprint size={18} />
-          Verify Identity
-        </a>
-      </div>
-    {:else}
-      <!-- Welcome Banner -->
-      <div class="welcome-banner card">
-        <div class="banner-content">
-          <div class="banner-icon">
-            <Shield size={32} />
-          </div>
-          <div class="banner-text">
-            <h1>Welcome, Citizen</h1>
-            <p>Your identity is protected by zero-knowledge proofs. All actions are anonymous.</p>
-          </div>
+    <!-- Welcome Banner -->
+    <div class="welcome-banner card">
+      <div class="banner-content">
+        <div class="banner-icon">
+          <Users size={32} />
         </div>
-        <div class="session-info">
+        <div class="banner-text">
+          <h1>Citizen Portal</h1>
+          <p>Track election promises, share your opinions anonymously, and hold leaders accountable.</p>
+        </div>
+      </div>
+      {#if isAuth}
+        <div class="session-info verified">
           <span class="status-indicator online"></span>
-          <span class="session-label">Nullifier:</span>
-          <code>{userCredential?.nullifierShort || '...'}</code>
+          <span class="session-label">Verified Citizen</span>
+        </div>
+      {:else}
+        <a href="/auth" class="verify-cta">
+          <Shield size={18} />
+          Verify as Citizen
+        </a>
+      {/if}
+    </div>
+    
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <MessageCircle size={24} />
+        <div class="stat-content">
+          <span class="stat-value">{isAuth ? (userCredential?.usedVotes?.length || 0) : '-'}</span>
+          <span class="stat-label">Opinions Shared</span>
         </div>
       </div>
-      
-      <!-- Stats Grid -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <CheckCircle size={24} />
-          <div class="stat-content">
-            <span class="stat-value">{userCredential?.usedVotes?.length || 0}</span>
-            <span class="stat-label">Votes Submitted</span>
-          </div>
-        </div>
-        <div class="stat-card">
-          <Shield size={24} />
-          <div class="stat-content">
-            <span class="stat-value">{userCredential?.verified ? 'Yes' : 'No'}</span>
-            <span class="stat-label">ZK Verified</span>
-          </div>
-        </div>
-        <div class="stat-card">
-          <Activity size={24} />
-          <div class="stat-content">
-            <span class="stat-value">{manifestos.length}</span>
-            <span class="stat-label">Active Promises</span>
-          </div>
+      <div class="stat-card">
+        <FileText size={24} />
+        <div class="stat-content">
+          <span class="stat-value">{manifestos.length}</span>
+          <span class="stat-label">Active Promises</span>
         </div>
       </div>
+      <div class="stat-card">
+        <Shield size={24} />
+        <div class="stat-content">
+          <span class="stat-value">{isAuth ? 'Verified' : 'Not Yet'}</span>
+          <span class="stat-label">Citizen Status</span>
+        </div>
+      </div>
+    </div>
     
     <div class="content-grid">
       <!-- Featured Manifestos -->
@@ -114,16 +105,16 @@
         <div class="section-header">
           <h2>
             <TrendingUp size={20} />
-            Trending Manifestos
+            Trending Promises
           </h2>
           <a href="/manifestos" class="view-all">View All →</a>
         </div>
         
         <div class="manifestos-list">
           {#if isLoading}
-            <p class="loading">Loading manifestos...</p>
+            <p class="loading">Loading promises...</p>
           {:else if manifestos.length === 0}
-            <p class="empty">No manifestos found.</p>
+            <p class="empty">No promises found.</p>
           {:else}
             {#each manifestos as manifesto}
               <ManifestoCard {manifesto} />
@@ -137,39 +128,79 @@
         <div class="section-header">
           <h2>
             <Clock size={20} />
-            Recent Activity
+            Your Activity
           </h2>
         </div>
         
-        <div class="activity-list card">
-          {#if recentActivity.length === 0}
-            <p class="empty-activity">No recent activity yet. Start voting on manifestos!</p>
-          {:else}
-            {#each recentActivity as activity}
-              <div class="activity-item">
-                <div class="activity-icon">
-                  <svelte:component this={activity.icon} size={18} />
+        {#if !isAuth}
+          <!-- Not verified info card -->
+          <div class="info-card card">
+            <div class="info-icon">
+              <Info size={24} />
+            </div>
+            <div class="info-content">
+              <h4>Get Started</h4>
+              <p>Verify as a citizen to share your opinions on promises anonymously.</p>
+              <a href="/auth" class="info-btn">
+                <Shield size={16} />
+                Verify Now
+              </a>
+            </div>
+          </div>
+          
+          <!-- How it works -->
+          <div class="how-it-works card">
+            <h4>How It Works</h4>
+            <ul>
+              <li>
+                <CheckCircle size={16} />
+                <span>Verify once anonymously</span>
+              </li>
+              <li>
+                <MessageCircle size={16} />
+                <span>Share opinions on promises</span>
+              </li>
+              <li>
+                <Eye size={16} />
+                <span>Track promise progress</span>
+              </li>
+            </ul>
+            <p class="privacy-note">
+              <Shield size={14} />
+              Your identity stays private. Always.
+            </p>
+          </div>
+        {:else}
+          <div class="activity-list card">
+            {#if recentActivity.length === 0}
+              <p class="empty-activity">No recent activity yet. Start sharing your opinions on promises!</p>
+            {:else}
+              {#each recentActivity as activity}
+                <div class="activity-item">
+                  <div class="activity-icon">
+                    <svelte:component this={activity.icon} size={18} />
+                  </div>
+                  <div class="activity-content">
+                    <p>{activity.description}</p>
+                    <span class="activity-time">{activity.time}</span>
+                  </div>
                 </div>
-                <div class="activity-content">
-                  <p>{activity.description}</p>
-                  <span class="activity-time">{activity.time}</span>
-                </div>
-              </div>
-            {/each}
-          {/if}
-        </div>
-        
-        <!-- Nullifier Info -->
-        <div class="nullifier-card card">
-          <h4>
-            <Shield size={16} />
-            Your Anonymous ID
-          </h4>
-          <HashDisplay hash={userCredential?.nullifier || ''} />
-          <p class="nullifier-note">
-            This nullifier proves you're a verified citizen without revealing your identity.
-          </p>
-        </div>
+              {/each}
+            {/if}
+          </div>
+          
+          <!-- Nullifier Info -->
+          <div class="nullifier-card card">
+            <h4>
+              <Shield size={16} />
+              Your Anonymous ID
+            </h4>
+            <HashDisplay hash={userCredential?.nullifier || ''} />
+            <p class="nullifier-note">
+              This ID proves you're a verified citizen without revealing who you are.
+            </p>
+          </div>
+        {/if}
       </aside>
     </div>
     
@@ -179,23 +210,22 @@
       <div class="actions-grid">
         <a href="/manifestos" class="action-card">
           <FileText size={24} />
-          <span>Browse Manifestos</span>
+          <span>Browse Promises</span>
         </a>
-        <a href="/citizen/attestation" class="action-card">
-          <CheckCircle size={24} />
-          <span>Submit Attestation</span>
+        <a href={isAuth ? "/citizen/attestation" : "/auth"} class="action-card">
+          <MessageCircle size={24} />
+          <span>Share Opinion</span>
         </a>
         <a href="/audit-trail" class="action-card">
           <Activity size={24} />
           <span>View Audit Trail</span>
         </a>
-        <a href="/settings" class="action-card">
-          <Shield size={24} />
-          <span>Privacy Settings</span>
+        <a href="/politicians" class="action-card">
+          <Users size={24} />
+          <span>View Representatives</span>
         </a>
       </div>
     </div>
-    {/if}
   </div>
 </main>
 
@@ -270,8 +300,8 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: var(--space-4);
-    background: linear-gradient(135deg, var(--primary-50), white);
-    border: 1px solid var(--primary-100);
+    background: linear-gradient(135deg, #e8f4fc, white);
+    border: 1px solid #b3d4fc;
   }
   
   .banner-content {
@@ -283,8 +313,8 @@
   .banner-icon {
     width: 56px;
     height: 56px;
-    background: var(--primary-100);
-    color: var(--primary-600);
+    background: #082770;
+    color: white;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -294,11 +324,12 @@
   .banner-text h1 {
     font-size: 1.5rem;
     margin-bottom: var(--space-1);
+    color: #082770;
   }
   
   .banner-text p {
-    color: var(--gray-500);
-    font-size: 0.9rem;
+    color: var(--gray-600);
+    font-size: 0.95rem;
   }
   
   .session-info {
@@ -309,6 +340,31 @@
     background: white;
     border-radius: var(--radius-lg);
     border: 1px solid var(--gray-200);
+  }
+  
+  .session-info.verified {
+    background: var(--success-50);
+    border-color: var(--success-200);
+    color: var(--success-700);
+    font-weight: 500;
+  }
+  
+  .verify-cta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    background: #082770;
+    color: white;
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  
+  .verify-cta:hover {
+    background: #0a3490;
+    transform: translateY(-1px);
   }
   
   .status-indicator {
