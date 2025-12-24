@@ -1,6 +1,4 @@
 <script lang="ts">
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
   import { Bug, Lightbulb, MessageSquare, Upload, Shield, Info, ArrowLeft } from 'lucide-svelte';
   
   let feedbackType: 'bug' | 'suggestion' | 'general' = 'bug';
@@ -26,8 +24,6 @@
 <svelte:head>
   <title>Submit Feedback - PromiseThread</title>
 </svelte:head>
-
-<Header variant="citizen" />
 
 <main class="feedback-page">
   <div class="container">
@@ -82,8 +78,8 @@
         <div>
           <strong>Privacy & Transparency</strong>
           <p>
-            Your privacy matters. This feedback is submitted anonymously and is not 
-            stored on the public immutable ledger, but helps us improve the platform for everyone.
+            Your privacy matters. This feedback is submitted anonymously and 
+            helps us improve the platform for everyone.
           </p>
         </div>
       </div>
@@ -114,8 +110,6 @@
     </div>
   </div>
 </main>
-
-<Footer />
 
 <style>
   .feedback-page {

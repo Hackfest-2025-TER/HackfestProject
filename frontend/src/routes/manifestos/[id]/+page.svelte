@@ -1,223 +1,326 @@
 <script lang="ts">
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
+  import { onMount } from 'svelte';
+  import { page } from '$app/stores';
   import CommentThread from '$lib/components/CommentThread.svelte';
   import VoteBox from '$lib/components/VoteBox.svelte';
-  import HashDisplay from '$lib/components/HashDisplay.svelte';
   import { Shield, ThumbsUp, MessageSquare, Share2, ExternalLink, Clock, CheckCircle, Info, Search, Send } from 'lucide-svelte';
   
-  // Sample manifesto data
-  const manifesto = {
-    id: '4992',
-    title: 'Universal Basic Income Pilot',
-    status: 'verified',
-    hash: '0x7a82...9f2',
-    merkleRoot: '0x3b...1c',
-    description: 'This manifesto proposes a 2-year pilot program to introduce a universal basic income for all citizens, funded by a restructuring of existing tax brackets. The primary goal is to assess the impact on economic stability and entrepreneurship rates within the designated pilot zones.',
-    details: 'All funding allocations will be transparently tracked via the attached smart contract addresses, ensuring real-time auditability of public funds.',
-    voteCount: 12500,
-    commentCount: 84,
-    timeline: 'Discussion Phase (Ends in 4d)',
-    quorum: 78,
-    postedAgo: '2 days ago'
-  };
+  $: manifestoId = $page.params.id;
   
-  const comments = [
-    {
-      id: '1',
-      content: 'While the funding model appears sound in the short term, has there been any modeling done on the impact of tax bracket restructuring on middle-income households specifically in the pilot zones? The whitepaper seems vague on this.',
-      zkCredential: '0x4f...82',
-      upvotes: 142,
-      downvotes: 5,
-      createdAt: '2024-10-14T14:32:00Z',
-      isVerifiedCitizen: true,
-      evidenceProof: 'tx_0x92f8...4a2b',
-      replies: [
-        {
-          id: '1-1',
-          content: 'Page 42 of the technical addendum addresses this. The bracket shift only affects the top 5% of earners in the zone. Middle income remains neutral.',
-          zkCredential: '0xb2...9c',
-          upvotes: 56,
-          downvotes: 2,
-          createdAt: '2024-10-14T12:15:00Z',
-          isVerifiedCitizen: true,
-          userRole: 'Verified Economist'
-        }
-      ]
-    },
-    {
-      id: '2',
-      content: 'I support this fully. It\'s time we test UBI in a controlled environment. The current welfare systems are bloated and inefficient.',
-      zkCredential: '0x88...1f',
-      upvotes: 89,
-      downvotes: 12,
-      createdAt: '2024-10-14T10:00:00Z',
-      isVerifiedCitizen: true
-    }
-  ];
-  
+  let manifesto: any = null;
+  let comments: any[] = [];
+  let loading = true;
+  let error = '';
   let newComment = '';
   let commentSortBy = 'top';
+  let nullifier = '';
+  
+  onMount(async () => {
+    // Get nullifier from localStorage (if user is authenticated)
+    nullifier = localStorage.getItem('nullifier') || '';
+    
+    await loadManifesto();
+    await loadComments();
+  });
+  
+  async function loadManifesto() {
+    try {
+      const response = await fetch(`http://localhost:8000/api/manifestos/${manifestoId}`);
+      if (!response.ok) throw new Error('Manifesto not found');
+      manifesto = await response.json();
+      loading = false;
+    } catch (err: any) {
+      error = err.message || 'Failed to load manifesto';
+      loading = false;
+    }
+  }
+  
+  async function loadComments() {
+    try {
+      const response = await fetch(`http://localhost:8000/api/manifestos/${manifestoId}/comments`);
+      if (!response.ok) throw new Error('Failed to load comments');
+      const data = await response.json();
+      comments = data.comments || [];
+    } catch (err) {
+      console.error('Error loading comments:', err);
+    }
+  }
+  
+  async function postComment() {
+    if (!newComment.trim() || !nullifier) {
+      alert('Please authenticate first to post comments');
+      return;
+    }
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          manifesto_id: parseInt(manifestoId),
+          content: newComment,
+          nullifier: nullifier
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to post comment');
+      
+      newComment = '';
+      await loadComments();
+    } catch (err: any) {
+      alert(err.message || 'Failed to post comment');
+    }
+  }
+  
+  function formatDate(dateStr: string) {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  }
+  
+  function getTimeRemaining(graceEndStr: string) {
+    const graceEnd = new Date(graceEndStr);
+    const now = new Date();
+    const diffMs = graceEnd.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 0) return `Voting opens in ${diffDays} days`;
+    return 'Voting Open';
+  }
+  
+  function getStatusBadge(status: string) {
+    switch (status) {
+      case 'kept': return { label: 'Kept', class: 'success' };
+      case 'broken': return { label: 'Broken', class: 'error' };
+      default: return { label: 'Pending', class: 'warning' };
+    }
+  }
 </script>
 
 <svelte:head>
-  <title>{manifesto.title} - PromiseThread</title>
+  <title>{manifesto?.title || 'Loading...'} - PromiseThread</title>
 </svelte:head>
 
-<Header variant="citizen" />
-
-<main class="manifesto-detail">
-  <div class="container">
-    <div class="content-grid">
-      <!-- Main Content -->
-      <div class="main-content">
-        <!-- Manifesto Header -->
-        <div class="manifesto-header card">
-          <div class="header-meta">
-            <span class="proposal-id">#{manifesto.id}</span>
-            <span class="status-badge verified">
-              <CheckCircle size={12} />
-              Verified
-            </span>
-            <span class="posted-time">{manifesto.postedAgo}</span>
-          </div>
-          
-          <h1>{manifesto.title}</h1>
-          
-          <div class="hash-info">
-            <div class="hash-item">
-              <span class="hash-label"># Hash:</span>
-              <HashDisplay hash={manifesto.hash} />
-            </div>
-            <div class="hash-item">
-              <span class="hash-label">🌳 Merkle Root:</span>
-              <HashDisplay hash={manifesto.merkleRoot} />
-            </div>
-            <a href="#" class="view-proof">View On-Chain Proof ↗</a>
-          </div>
-          
-          <p class="description">{manifesto.description}</p>
-          <p class="details">{manifesto.details}</p>
-          
-          <div class="manifesto-stats">
-            <div class="stat">
-              <ThumbsUp size={18} />
-              <span>{(manifesto.voteCount / 1000).toFixed(1)}k Votes</span>
-            </div>
-            <div class="stat">
-              <MessageSquare size={18} />
-              <span>{manifesto.commentCount} Comments</span>
-            </div>
-            <button class="share-btn">
-              <Share2 size={18} />
-              Share
-            </button>
-          </div>
-        </div>
-        
-        <!-- Comment Input -->
-        <div class="comment-input card">
-          <div class="input-header">
-            <div class="avatar-placeholder"></div>
-            <div class="input-wrapper">
-              <input 
-                type="text" 
-                placeholder="Enter your argument..."
-                bind:value={newComment}
-              />
-            </div>
-          </div>
-          <div class="input-footer">
-            <div class="posting-as">
-              <Shield size={14} />
-              <span>Posting anonymously as</span>
-              <HashDisplay hash="0x8a...3f" copyable={false} />
-              <span class="nullifier-label">(Nullifier ID)</span>
-            </div>
-            <button class="btn btn-primary">
-              <Send size={16} />
-              Sign & Post
-            </button>
-          </div>
-        </div>
-        
-        <!-- Discussion -->
-        <div class="discussion card">
-          <div class="discussion-header">
-            <h3>Discussion</h3>
-            <div class="sort-tabs">
-              <button 
-                class="sort-btn" 
-                class:active={commentSortBy === 'top'}
-                on:click={() => commentSortBy = 'top'}
-              >Top</button>
-              <button 
-                class="sort-btn" 
-                class:active={commentSortBy === 'newest'}
-                on:click={() => commentSortBy = 'newest'}
-              >Newest</button>
-              <button 
-                class="sort-btn" 
-                class:active={commentSortBy === 'controversial'}
-                on:click={() => commentSortBy = 'controversial'}
-              >Controversial</button>
-            </div>
-          </div>
-          
-          <div class="comments-list">
-            {#each comments as comment}
-              <CommentThread {comment} />
-            {/each}
-          </div>
-        </div>
+{#if loading}
+  <main class="manifesto-detail">
+    <div class="container">
+      <div class="loading-state">Loading manifesto...</div>
+    </div>
+  </main>
+{:else if error}
+  <main class="manifesto-detail">
+    <div class="container">
+      <div class="error-state">
+        <h2>Manifesto Not Found</h2>
+        <p>{error}</p>
+        <a href="/manifestos" class="btn btn-secondary">← Back to Manifestos</a>
       </div>
-      
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <!-- About Card -->
-        <div class="sidebar-card card">
-          <div class="sidebar-header">
-            <Info size={18} />
-            <h4>About this Proposal</h4>
-          </div>
-          
-          <div class="sidebar-section">
-            <span class="section-label">TIMELINE</span>
-            <div class="timeline-badge">
-              <Clock size={14} />
-              {manifesto.timeline}
+    </div>
+  </main>
+{:else if manifesto}
+  {@const badge = getStatusBadge(manifesto.status)}
+  {@const totalVotes = manifesto.vote_kept + manifesto.vote_broken}
+  {@const keptPercent = totalVotes > 0 ? (manifesto.vote_kept / totalVotes * 100).toFixed(1) : 0}
+  {@const brokenPercent = totalVotes > 0 ? (manifesto.vote_broken / totalVotes * 100).toFixed(1) : 0}
+  <main class="manifesto-detail">
+    <div class="container">
+      <div class="content-grid">
+        <!-- Main Content -->
+        <div class="main-content">
+          <!-- Manifesto Header -->
+          <div class="manifesto-header card">
+            <div class="header-meta">
+              <span class="proposal-id">#{manifesto.id}</span>
+              <span class="status-badge {badge.class}">
+                <CheckCircle size={12} />
+                {badge.label}
+              </span>
+              <span class="posted-time">{formatDate(manifesto.created_at)}</span>
+            </div>
+            
+            <h1>{manifesto.title}</h1>
+            
+            <div class="politician-info">
+              <a href="/politicians/{manifesto.politician_id}" class="politician-link">
+                By {manifesto.politician_name} ({manifesto.politician_party})
+              </a>
+            </div>
+            
+            <div class="hash-info">
+              <div class="hash-item">
+                <span class="hash-label">Hash:</span>
+                <span class="hash-value">{manifesto.hash || 'N/A'}</span>
+              </div>
+              <span class="category-badge">{manifesto.category}</span>
+            </div>
+            
+            <p class="description">{manifesto.description}</p>
+            
+            <div class="manifesto-stats">
+              <div class="stat">
+                <ThumbsUp size={18} />
+                <span>{manifesto.vote_kept + manifesto.vote_broken} Votes</span>
+              </div>
+              <div class="stat">
+                <MessageSquare size={18} />
+                <span>{comments.length} Comments</span>
+              </div>
+              <button class="share-btn">
+                <Share2 size={18} />
+                Share
+              </button>
             </div>
           </div>
           
-          <div class="sidebar-section">
-            <span class="section-label">QUORUM REACHED</span>
-            <div class="quorum-bar">
-              <div class="quorum-fill" style="width: {manifesto.quorum}%"></div>
+          <!-- Vote Box -->
+          {#if manifesto.voting_open}
+            <VoteBox manifestoId={manifesto.id} />
+          {:else}
+            <div class="voting-locked card">
+              <Clock size={24} />
+              <div>
+                <h4>Voting Not Yet Open</h4>
+                <p>{getTimeRemaining(manifesto.grace_period_end)}</p>
+              </div>
             </div>
-            <span class="quorum-text">{manifesto.quorum}% Verified</span>
-          </div>
+          {/if}
           
-          <div class="sidebar-section">
-            <span class="section-label">IMMUTABLE ID</span>
-            <HashDisplay hash={manifesto.hash} />
+          <!-- Comment Input -->
+          {#if nullifier}
+            <div class="comment-input card">
+              <div class="input-header">
+                <div class="avatar-placeholder"></div>
+                <div class="input-wrapper">
+                  <input 
+                    type="text" 
+                    placeholder="Enter your argument..."
+                    bind:value={newComment}
+                    on:keydown={(e) => e.key === 'Enter' && postComment()}
+                  />
+                </div>
+              </div>
+              <div class="input-footer">
+                <div class="posting-as">
+                  <Shield size={14} />
+                  <span>Posting anonymously</span>
+                </div>
+                <button class="btn btn-primary" on:click={postComment}>
+                  <Send size={16} />
+                  Post
+                </button>
+              </div>
+            </div>
+          {:else}
+            <div class="auth-prompt card">
+              <Shield size={24} />
+              <p>Please <a href="/auth">authenticate</a> to post comments</p>
+            </div>
+          {/if}
+          
+          <!-- Discussion -->
+          <div class="discussion card">
+            <div class="discussion-header">
+              <h3>Discussion ({comments.length})</h3>
+              <div class="sort-tabs">
+                <button 
+                  class="sort-btn" 
+                  class:active={commentSortBy === 'top'}
+                  on:click={() => commentSortBy = 'top'}
+                >Top</button>
+                <button 
+                  class="sort-btn" 
+                  class:active={commentSortBy === 'newest'}
+                  on:click={() => commentSortBy = 'newest'}
+                >Newest</button>
+              </div>
+            </div>
+            
+            <div class="comments-list">
+              {#if comments.length > 0}
+                {#each comments as comment}
+                  <CommentThread {comment} />
+                {/each}
+              {:else}
+                <div class="empty-comments">
+                  <MessageSquare size={48} />
+                  <p>No comments yet. Be the first to discuss!</p>
+                </div>
+              {/if}
+            </div>
           </div>
         </div>
         
-        <!-- Discussion Rules -->
-        <div class="sidebar-card card">
-          <h4>Discussion Rules</h4>
-          <ul class="rules-list">
-            <li>
+        <!-- Sidebar -->
+        <aside class="sidebar">
+          <!-- About Card -->
+          <div class="sidebar-card card">
+            <div class="sidebar-header">
+              <Info size={18} />
+              <h4>About this Promise</h4>
+            </div>
+            
+            <div class="sidebar-section">
+              <span class="section-label">STATUS</span>
+              <div class="status-display {badge.class}">
+                {badge.label}
+              </div>
+            </div>
+            
+            <div class="sidebar-section">
+              <span class="section-label">VOTING</span>
+              <div class="timeline-badge">
+                <Clock size={14} />
+                {getTimeRemaining(manifesto.grace_period_end)}
+              </div>
+            </div>
+            
+            <div class="sidebar-section">
+              <span class="section-label">VOTE RESULTS</span>
+              <div class="vote-bars">
+                <div class="vote-bar">
+                  <span class="vote-label">Kept</span>
+                  <div class="bar-container">
+                    <div class="bar-fill success" style="width: {keptPercent}%"></div>
+                  </div>
+                  <span class="vote-count">{manifesto.vote_kept}</span>
+                </div>
+                <div class="vote-bar">
+                  <span class="vote-label">Broken</span>
+                  <div class="bar-container">
+                    <div class="bar-fill error" style="width: {brokenPercent}%"></div>
+                  </div>
+                  <span class="vote-count">{manifesto.vote_broken}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="sidebar-section">
+              <span class="section-label">CATEGORY</span>
+              <span class="category-tag">{manifesto.category}</span>
+            </div>
+          </div>
+          
+          <div class="sidebar-card card">
+            <h4>Community Guidelines</h4>
+            <ul class="rules-list">
+              <li>
               <Shield size={14} />
-              All comments are cryptographically signed. You cannot edit or delete after 5 minutes.
+              All comments are permanent. You cannot edit or delete after 5 minutes.
             </li>
             <li>
               <Shield size={14} />
-              Identities are hidden, but your reputation is persistent via Nullifier Hash.
+              Your identity is hidden, but your reputation is persistent.
             </li>
             <li>
               <Shield size={14} />
-              Civil discourse is enforced by community consensus voting.
+              Civil discourse is enforced by community voting.
             </li>
           </ul>
         </div>
@@ -226,12 +329,12 @@
         <div class="sidebar-card card">
           <h4>Related Proposals</h4>
           <div class="related-list">
-            <a href="#" class="related-item">
+            <a href="/manifestos/4011" class="related-item">
               <span class="related-id">#4011</span>
               <span class="related-title">Digital ID Implementation</span>
               <span class="related-status closed">Closed</span>
             </a>
-            <a href="#" class="related-item">
+            <a href="/manifestos/4088" class="related-item">
               <span class="related-id">#4088</span>
               <span class="related-title">Tax Reform 2024</span>
               <span class="related-status voting">Voting</span>
@@ -242,8 +345,7 @@
     </div>
   </div>
 </main>
-
-<Footer />
+{/if}
 
 <style>
   .manifesto-detail {
@@ -514,6 +616,178 @@
   
   .sidebar-card {
     padding: var(--space-4);
+  }
+  
+  .politician-info {
+    margin: var(--space-3) 0;
+  }
+  
+  .politician-link {
+    color: var(--primary-600);
+    text-decoration: none;
+    font-size: 0.875rem;
+  }
+  
+  .politician-link:hover {
+    text-decoration: underline;
+  }
+  
+  .category-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    background: var(--primary-100);
+    color: var(--primary-700);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
+  .voting-locked {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background: var(--warning-50);
+    border: 1px solid var(--warning-200);
+    border-radius: var(--radius-xl);
+  }
+  
+  .voting-locked :global(svg) {
+    color: var(--warning-600);
+    flex-shrink: 0;
+  }
+  
+  .voting-locked h4 {
+    margin: 0 0 var(--space-1) 0;
+    color: var(--gray-900);
+    font-size: 0.95rem;
+  }
+  
+  .voting-locked p {
+    margin: 0;
+    color: var(--gray-600);
+    font-size: 0.85rem;
+  }
+  
+  .auth-prompt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--gray-50);
+    text-align: center;
+    justify-content: center;
+  }
+  
+  .auth-prompt :global(svg) {
+    color: var(--gray-400);
+  }
+  
+  .auth-prompt a {
+    color: var(--primary-600);
+    text-decoration: underline;
+  }
+  
+  .empty-comments {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--gray-500);
+  }
+  
+  .empty-comments :global(svg) {
+    margin: 0 auto var(--space-4) auto;
+    opacity: 0.5;
+  }
+  
+  .loading-state, .error-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+  }
+  
+  .error-state h2 {
+    color: var(--error-600);
+    margin-bottom: var(--space-4);
+  }
+  
+  .status-display {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
+  .status-display.success {
+    background: var(--success-100);
+    color: var(--success-700);
+  }
+  
+  .status-display.error {
+    background: var(--error-100);
+    color: var(--error-700);
+  }
+  
+  .status-display.warning {
+    background: var(--warning-100);
+    color: var(--warning-700);
+  }
+  
+  .vote-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  
+  .vote-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  
+  .vote-label {
+    font-size: 0.75rem;
+    color: var(--gray-600);
+    width: 50px;
+  }
+  
+  .bar-container {
+    flex: 1;
+    height: 6px;
+    background: var(--gray-200);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+  
+  .bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+  
+  .bar-fill.success {
+    background: var(--success-500);
+  }
+  
+  .bar-fill.error {
+    background: var(--error-500);
+  }
+  
+  .vote-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    width: 40px;
+    text-align: right;
+  }
+  
+  .category-tag {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    background: var(--gray-100);
+    color: var(--gray-700);
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 500;
   }
   
   .sidebar-header {

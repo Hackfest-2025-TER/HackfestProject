@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Shield, FileText, Users, Settings, BarChart3, LogOut, CheckCircle, TrendingUp, Vote, Eye } from 'lucide-svelte';
-  import HashDisplay from '$lib/components/HashDisplay.svelte';
+  import { Shield, FileText, Users, BarChart3, LogOut, CheckCircle, TrendingUp, Vote, Copy } from 'lucide-svelte';
+
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
   
   // Politician data
@@ -28,7 +28,7 @@
     {
       id: '1',
       author: 'Verified Citizen',
-      zkCredential: '0x8a...99',
+      citizenId: 'CZ-8899',
       date: 'Oct 14, 2024 • 14:32 UTC',
       content: 'This proposal fails to address the rural transport deficit sufficiently. While the tax incentives are a good start for urban centers, Section 4 needs a dedicated clause for agricultural supply chain logistics. Without it, the economic reform remains unbalanced.',
       evidenceProof: 'tx_0x92f8...4a2b'
@@ -36,7 +36,7 @@
     {
       id: '2',
       author: 'Verified Citizen',
-      zkCredential: '0x3b...11',
+      citizenId: 'CZ-3B11',
       date: 'Oct 14, 2024 • 12:15 UTC',
       content: 'Strongly agree with the digital currency integration points. It\'s about time we modernized the treasury systems. Transparency is key here.',
       evidenceProof: 'tx_0x11a7...88e3'
@@ -78,14 +78,6 @@
         <Users size={18} />
         Voters
       </a>
-      <a href="/politician/audit-logs" class="nav-item" class:active={activeNav === 'audit-logs'}>
-        <Eye size={18} />
-        Audit Logs
-      </a>
-      <a href="/politician/settings" class="nav-item" class:active={activeNav === 'settings'}>
-        <Settings size={18} />
-        Settings
-      </a>
     </nav>
     
     <div class="sidebar-footer">
@@ -107,9 +99,8 @@
       <div class="header-right">
         <span class="node-status">
           <span class="status-dot online"></span>
-          Node: Active
+          Active
         </span>
-        <button class="icon-btn">🔔</button>
       </div>
     </header>
     
@@ -137,16 +128,16 @@
       
       <div class="meta-grid">
         <div class="meta-item">
-          <span class="meta-label">PUBLICATION DATE</span>
+          <span class="meta-label">PUBLISHED</span>
           <span class="meta-value">{manifesto.publicationDate}</span>
         </div>
         <div class="meta-item">
-          <span class="meta-label">BLOCK HEIGHT</span>
-          <span class="meta-value">#{manifesto.blockHeight.toLocaleString()}</span>
+          <span class="meta-label">RECORD ID</span>
+          <span class="meta-value">{manifesto.id}</span>
         </div>
         <div class="meta-item">
-          <span class="meta-label">MANIFESTO HASH</span>
-          <HashDisplay hash={manifesto.manifestoHash} />
+          <span class="meta-label">STATUS</span>
+          <span class="meta-value">{manifesto.status}</span>
         </div>
       </div>
     </div>
@@ -177,16 +168,18 @@
             <div class="comment-content">
               <div class="comment-header">
                 <span class="author">{comment.author}</span>
-                <HashDisplay hash={comment.zkCredential} copyable={false} />
+                <span class="citizen-id">{comment.citizenId}</span>
                 <span class="date">{comment.date}</span>
               </div>
               <p class="comment-text">{comment.content}</p>
               <div class="evidence">
-                <span class="evidence-label">EVIDENCE PROOF:</span>
-                <a href="#" class="evidence-link">{comment.evidenceProof}</a>
+                <span class="evidence-label">SOURCE:</span>
+                <a href="#" class="evidence-link">View Reference</a>
               </div>
             </div>
-            <button class="copy-btn" title="Copy">📋</button>
+            <button class="copy-btn" title="Copy">
+              <Copy size={14} />
+            </button>
           </div>
         {/each}
       </div>

@@ -84,6 +84,7 @@ class Politician(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
+    slug = Column(String(300), nullable=True, unique=True, index=True)  # URL-friendly version of name
     party = Column(String(100), nullable=True)
     position = Column(String(100), nullable=True)  # PM, Minister, MP, etc.
     image_url = Column(String(500), nullable=True)

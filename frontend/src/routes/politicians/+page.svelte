@@ -1,7 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
   import { Search, Filter, Shield, Award, Clock, FileText, ChevronRight, CheckCircle, AlertCircle } from 'lucide-svelte';
   
   // Fetch politicians from API
@@ -74,16 +72,8 @@
   <title>Elected Representatives - PromiseThread</title>
 </svelte:head>
 
-<Header />
-
 <main class="politicians-page">
   <div class="container">
-    <!-- Page Header -->
-    <div class="page-header">
-      <h1>Elected Representatives</h1>
-      <p>See what elected leaders promised and how those promises are progressing.</p>
-    </div>
-    
     <!-- Search & Filters -->
     <div class="controls-bar">
       <div class="search-box">
@@ -120,7 +110,7 @@
     <div class="politicians-grid">
       {#each filteredPoliticians as politician}
         {@const stats = getPoliticianStats(politician)}
-        <a href="/politicians/{politician.id}" class="politician-card card">
+        <a href="/politicians/{politician.slug || politician.id}" class="politician-card card">
           <div class="card-header">
             <div class="avatar">
               {#if politician.image_url}
@@ -213,8 +203,6 @@
   </div>
 </main>
 
-<Footer />
-
 <style>
   .politicians-page {
     min-height: 100vh;
@@ -226,22 +214,6 @@
     max-width: 1200px;
     margin: 0 auto;
     padding: var(--space-8) var(--space-4);
-  }
-  
-  .page-header {
-    text-align: center;
-    margin-bottom: var(--space-8);
-  }
-  
-  .page-header h1 {
-    font-size: 2rem;
-    margin-bottom: var(--space-2);
-    color: #082770;
-  }
-  
-  .page-header p {
-    color: var(--gray-600);
-    font-size: 1.1rem;
   }
   
   .controls-bar {
@@ -487,15 +459,15 @@
   }
   
   .fulfillment-fill.success {
-    background: linear-gradient(90deg, #10b981, #34d399);
+    background: linear-gradient(90deg, var(--success-500), var(--success-400));
   }
   
   .fulfillment-fill.warning {
-    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    background: linear-gradient(90deg, var(--warning-500), var(--warning-400));
   }
   
   .fulfillment-fill.error {
-    background: linear-gradient(90deg, #ef4444, #f87171);
+    background: linear-gradient(90deg, var(--error-500), var(--error-400));
   }
   
   /* Overall Status */
