@@ -1,41 +1,117 @@
 <script lang="ts">
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
-  import HashDisplay from '$lib/components/HashDisplay.svelte';
-  import { Building2, Shield, CheckCircle, Lock, ChevronRight, Calendar } from 'lucide-svelte';
+  import { Building2, Shield, CheckCircle, Lock, ChevronRight, Calendar, AlertCircle, Fingerprint, Clock, ThumbsUp, ThumbsDown, ExternalLink } from 'lucide-svelte';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import { authStore, isAuthenticated, credential } from '$lib/stores/auth';
+  import { getManifesto, submitVote, getMerkleRoot, getBlocks } from '$lib/api';
   
-  // Promise data
-  const promise = {
-    id: '402',
-    title: 'North-South Rail Link',
-    category: 'Infrastructure',
-    quote: 'We promise to complete the construction of the North-South Rail Link by Q4 2025 to reduce city congestion.',
-    targetDate: 'Dec 31, 2025',
-    imageUrl: '/images/rail-link.jpg'
-  };
+  // Get manifesto ID from URL
+  $: manifestoId = $page.url.searchParams.get('id') || 'MAN-2023-0002';
   
-  // Ledger record
-  const ledgerRecord = {
-    nullifierHash: '0x8a72f92b45c1e98d3a7b...c4d1',
-    blockHeight: 18249002,
-    timestamp: '2023-10-27 14:38:22 UTC'
-  };
+  // Reactive auth state
+  $: isAuth = $isAuthenticated;
+  $: userCredential = $credential;
   
-  let attestation: 'fulfilled' | 'not_fulfilled' | null = null;
+  // Data state
+  let manifesto: any = null;
+  let merkleRoot = '';
+  let currentBlock = 0;
+  let isLoading = true;
+  let error = '';
+  
+  // Vote state
+  let voteType: 'kept' | 'broken' | null = null;
   let isSubmitting = false;
+  let voteSubmitted = false;
+  let voteResult: any = null;
   
-  async function submitAttestation() {
-    if (!attestation) return;
+  // Load data on mount
+  onMount(async () => {
+    if (!$isAuthenticated) {
+      // Redirect to auth if not logged in
+      goto('/auth');
+      return;
+    }
+    
+    try {
+      const [manifestoData, rootData, blocksData] = await Promise.all([
+        getManifesto(manifestoId),
+        getMerkleRoot(),
+        getBlocks(1)
+      ]);
+      
+      manifesto = manifestoData;
+      merkleRoot = rootData.merkle_root;
+      currentBlock = blocksData.blocks?.[0]?.number || 19230442;
+      
+      // Check if already voted
+      if (userCredential?.usedVotes?.includes(manifestoId)) {
+        voteSubmitted = true;
+      }
+    } catch (e) {
+      error = 'Failed to load manifesto data.';
+      console.error(e);
+    }
+    isLoading = false;
+  });
+  
+  // Check if voting is open (grace period passed)
+  $: canVote = manifesto && new Date() >= new Date(manifesto.grace_period_end);
+  $: hasAlreadyVoted = userCredential?.usedVotes?.includes(manifestoId);
+  
+  // Time until voting opens
+  $: timeUntilVoting = (() => {
+    if (!manifesto?.grace_period_end) return 'Unknown';
+    const graceEnd = new Date(manifesto.grace_period_end);
+    const now = new Date();
+    if (now >= graceEnd) return null;
+    
+    const diff = graceEnd.getTime() - now.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) return `${days} days, ${hours} hours`;
+    return `${hours} hours`;
+  })();
+  
+  // Submit vote
+  async function handleSubmitVote() {
+    if (!voteType || !userCredential || hasAlreadyVoted) return;
+    
     isSubmitting = true;
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    error = '';
+    
+    try {
+      const result = await submitVote({
+        manifesto_id: manifestoId,
+        vote_type: voteType,
+        nullifier: userCredential.nullifier,
+        proof: userCredential.credential // In production, this would be a ZK proof
+      });
+      
+      if (result.success) {
+        voteResult = result;
+        voteSubmitted = true;
+        
+        // Update local credential with new vote
+        authStore.markVoted(manifestoId);
+      } else {
+        error = result.message || 'Vote submission failed.';
+      }
+    } catch (e) {
+      error = 'Failed to submit vote. Please try again.';
+      console.error(e);
+    }
+    
     isSubmitting = false;
-    // Show success
   }
 </script>
 
 <svelte:head>
-  <title>Citizen Attestation Portal - PromiseThread</title>
+  <title>Vote on Promise - PromiseThread</title>
 </svelte:head>
 
 <Header variant="citizen" />
@@ -46,154 +122,274 @@
     <div class="page-header">
       <span class="header-badge">
         <Building2 size={14} />
-        OFFICIAL RECORD SYSTEM
+        ANONYMOUS VOTING PORTAL
       </span>
-      <h1>Citizen Attestation Portal</h1>
-      <p>Submit your verification of manifesto items anonymously. All records are cryptographically signed and publicly auditable.</p>
+      <h1>Cast Your Vote</h1>
+      <p>Evaluate this political promise anonymously. Your vote is cryptographically verified but your identity remains hidden.</p>
     </div>
     
     <!-- ZK Identity Banner -->
-    <div class="zk-banner">
-      <div class="zk-left">
-        <Shield size={20} />
-        <div>
-          <strong>Identity: Verified (Zero-Knowledge)</strong>
-          <span>Proof generated via zk-SNARK protocol. Your personal data is hidden.</span>
+    {#if isAuth}
+      <div class="zk-banner">
+        <div class="zk-left">
+          <Shield size={20} />
+          <div>
+            <strong>Identity: Verified (Zero-Knowledge)</strong>
+            <span>Nullifier: {userCredential?.nullifierShort}</span>
+          </div>
         </div>
+        <span class="session-badge">
+          <span class="status-dot online"></span>
+          Secure Session Active
+        </span>
       </div>
-      <span class="session-badge">
-        <span class="status-dot online"></span>
-        Secure Session Active
-      </span>
-    </div>
+    {:else}
+      <div class="zk-banner warning">
+        <div class="zk-left">
+          <AlertCircle size={20} />
+          <div>
+            <strong>Not Verified</strong>
+            <span>Please verify your identity to vote</span>
+          </div>
+        </div>
+        <a href="/auth" class="verify-btn">
+          <Fingerprint size={16} />
+          Verify Now
+        </a>
+      </div>
+    {/if}
     
-    <div class="content-grid">
-      <!-- Promise Card -->
-      <div class="promise-section">
-        <div class="promise-card card">
-          <span class="category-badge">{promise.category.toUpperCase()}</span>
-          <div class="promise-image">
-            <div class="image-placeholder">
-              <Building2 size={48} />
+    {#if isLoading}
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading promise data...</p>
+      </div>
+    {:else if error && !manifesto}
+      <div class="error-state">
+        <AlertCircle size={24} />
+        <p>{error}</p>
+        <a href="/manifestos" class="back-link">Back to Promises</a>
+      </div>
+    {:else if manifesto}
+      <div class="content-grid">
+        <!-- Promise Card -->
+        <div class="promise-section">
+          <div class="promise-card card">
+            <span class="category-badge">{manifesto.category?.toUpperCase()}</span>
+            <h2>{manifesto.title}</h2>
+            <p class="promise-description">{manifesto.description}</p>
+            
+            <div class="promise-meta">
+              <div class="meta-item">
+                <span class="meta-label">Politician</span>
+                <span class="meta-value">{manifesto.politician_name}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Deadline</span>
+                <span class="meta-value">{manifesto.deadline}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Current Status</span>
+                <span class="status-badge {manifesto.status}">{manifesto.status}</span>
+              </div>
+            </div>
+            
+            <!-- Current Vote Tally -->
+            <div class="vote-tally">
+              <h4>Current Vote Tally</h4>
+              <div class="tally-bars">
+                <div class="tally-row">
+                  <span class="tally-label">
+                    <ThumbsUp size={14} />
+                    Kept
+                  </span>
+                  <div class="tally-bar">
+                    <div class="tally-fill kept" style="width: {manifesto.vote_kept / (manifesto.vote_kept + manifesto.vote_broken + 1) * 100}%"></div>
+                  </div>
+                  <span class="tally-count">{manifesto.vote_kept}</span>
+                </div>
+                <div class="tally-row">
+                  <span class="tally-label">
+                    <ThumbsDown size={14} />
+                    Broken
+                  </span>
+                  <div class="tally-bar">
+                    <div class="tally-fill broken" style="width: {manifesto.vote_broken / (manifesto.vote_kept + manifesto.vote_broken + 1) * 100}%"></div>
+                  </div>
+                  <span class="tally-count">{manifesto.vote_broken}</span>
+                </div>
+              </div>
             </div>
           </div>
-          <h2>Manifesto Item #{promise.id}: {promise.title}</h2>
-          <blockquote>
-            "{promise.quote}"
-          </blockquote>
-          <div class="target-date">
-            <Calendar size={16} />
-            <span>Target Completion: {promise.targetDate}</span>
-          </div>
+          
+          <!-- Voting Form -->
+          {#if voteSubmitted}
+            <div class="vote-success card">
+              <div class="success-icon">
+                <CheckCircle size={48} />
+              </div>
+              <h3>Vote Recorded!</h3>
+              <p>Your anonymous vote has been recorded on the blockchain.</p>
+              
+              {#if voteResult}
+                <div class="vote-receipt">
+                  <div class="receipt-row">
+                    <span>Vote Hash</span>
+                    <code>{voteResult.vote_hash?.slice(0, 20)}...</code>
+                  </div>
+                  <div class="receipt-row">
+                    <span>Block Height</span>
+                    <code>#{voteResult.block_height?.toLocaleString()}</code>
+                  </div>
+                </div>
+              {/if}
+              
+              <a href="/manifestos" class="back-btn">
+                <ChevronRight size={18} />
+                Back to Promises
+              </a>
+            </div>
+          {:else if !canVote}
+            <div class="grace-period-card card">
+              <Clock size={32} />
+              <h3>Voting Not Yet Open</h3>
+              <p>This promise is in its grace period. Evaluation opens in:</p>
+              <div class="countdown">
+                <span class="countdown-value">{timeUntilVoting}</span>
+              </div>
+              <p class="grace-note">
+                Grace periods ensure fair evaluation by preventing premature judgment.
+              </p>
+            </div>
+          {:else if hasAlreadyVoted}
+            <div class="already-voted card">
+              <CheckCircle size={32} />
+              <h3>You've Already Voted</h3>
+              <p>Your nullifier shows you have already cast a vote on this promise. Each citizen can only vote once.</p>
+              <a href="/manifestos" class="back-btn">
+                Back to Promises
+              </a>
+            </div>
+          {:else}
+            <div class="attestation-form card">
+              <div class="form-header">
+                <Fingerprint size={20} />
+                <h3>Your Assessment</h3>
+              </div>
+              
+              <div class="attestation-options">
+                <label class="attestation-option" class:selected={voteType === 'kept'}>
+                  <input type="radio" bind:group={voteType} value="kept" />
+                  <div class="option-radio"></div>
+                  <div class="option-content">
+                    <strong>
+                      <ThumbsUp size={16} />
+                      Promise Kept
+                    </strong>
+                    <span>I believe this promise has been fulfilled based on available evidence.</span>
+                  </div>
+                </label>
+                
+                <label class="attestation-option" class:selected={voteType === 'broken'}>
+                  <input type="radio" bind:group={voteType} value="broken" />
+                  <div class="option-radio"></div>
+                  <div class="option-content">
+                    <strong>
+                      <ThumbsDown size={16} />
+                      Promise Broken
+                    </strong>
+                    <span>I see insufficient evidence that this promise was fulfilled.</span>
+                  </div>
+                </label>
+              </div>
+              
+              {#if error}
+                <div class="error-banner">
+                  <AlertCircle size={16} />
+                  <span>{error}</span>
+                </div>
+              {/if}
+              
+              <button 
+                class="submit-btn" 
+                on:click={handleSubmitVote}
+                disabled={!voteType || isSubmitting}
+              >
+                {#if isSubmitting}
+                  <span class="spinner small"></span>
+                  Recording Vote...
+                {:else}
+                  <Fingerprint size={18} />
+                  Submit Anonymous Vote
+                {/if}
+              </button>
+              
+              <p class="disclaimer">
+                <Lock size={14} />
+                Your vote is irreversible. Only your nullifier is recorded, not your identity.
+              </p>
+            </div>
+          {/if}
         </div>
         
-        <!-- Attestation Form -->
-        <div class="attestation-form card">
-          <div class="form-header">
-            <CheckCircle size={20} />
-            <h3>Your Attestation</h3>
-          </div>
-          
-          <div class="attestation-options">
-            <label class="attestation-option" class:selected={attestation === 'fulfilled'}>
-              <input type="radio" bind:group={attestation} value="fulfilled" />
-              <div class="option-radio"></div>
-              <div class="option-content">
-                <strong>Being fulfilled</strong>
-                <span>I confirm seeing clear evidence of active construction and progress according to the schedule.</span>
-              </div>
-            </label>
+        <!-- Sidebar -->
+        <aside class="sidebar">
+          <!-- Blockchain Record -->
+          <div class="sidebar-card card">
+            <div class="card-header">
+              <span class="card-label">BLOCKCHAIN RECORD</span>
+              <Lock size={14} />
+            </div>
             
-            <label class="attestation-option" class:selected={attestation === 'not_fulfilled'}>
-              <input type="radio" bind:group={attestation} value="not_fulfilled" />
-              <div class="option-radio"></div>
-              <div class="option-content">
-                <strong>Not being fulfilled</strong>
-                <span>I see no evidence of progress, or the project appears abandoned/delayed.</span>
-              </div>
-            </label>
+            <div class="record-field">
+              <span class="field-label">YOUR NULLIFIER</span>
+              <div class="field-value mono">{userCredential?.nullifierShort || '...'}</div>
+              <span class="field-hint">Prevents double-voting without revealing identity</span>
+            </div>
+            
+            <div class="record-field">
+              <span class="field-label">CURRENT BLOCK</span>
+              <div class="field-value">#{currentBlock.toLocaleString()}</div>
+            </div>
+            
+            <div class="record-field">
+              <span class="field-label">MERKLE ROOT</span>
+              <div class="field-value mono">{merkleRoot?.slice(0, 16)}...</div>
+            </div>
+            
+            <a href="/audit-trail" class="audit-link">
+              <ExternalLink size={14} />
+              View Full Audit Trail
+            </a>
           </div>
           
-          <button 
-            class="submit-btn" 
-            on:click={submitAttestation}
-            disabled={!attestation || isSubmitting}
-          >
-            {#if isSubmitting}
-              <span class="spinner"></span>
-              Processing...
-            {:else}
-              <ChevronRight size={18} />
-              Submit Attestation
-            {/if}
-          </button>
+          <!-- Privacy Guarantee -->
+          <div class="sidebar-card card">
+            <h4>
+              <Shield size={16} />
+              Privacy Guarantee
+            </h4>
+            <ul class="privacy-list">
+              <li>Your vote is verified using Zero-Knowledge Proofs</li>
+              <li>Only your <strong>nullifier</strong> is stored - never your voter ID</li>
+              <li>Vote aggregates are public; individual votes are private</li>
+              <li>All records are immutably stored on-chain</li>
+            </ul>
+          </div>
           
-          <p class="disclaimer">
-            <Lock size={14} />
-            Action is irreversible. No personal data will be recorded.
-          </p>
-        </div>
+          <!-- How It Works -->
+          <div class="sidebar-card card">
+            <h4>How Voting Works</h4>
+            <ol class="how-list">
+              <li>Your ZK credential proves you're an eligible voter</li>
+              <li>Your nullifier ensures one vote per promise</li>
+              <li>Vote is recorded with only the nullifier</li>
+              <li>Aggregates update on-chain immediately</li>
+            </ol>
+          </div>
+        </aside>
       </div>
-      
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <!-- Ledger Record -->
-        <div class="sidebar-card card">
-          <div class="card-header">
-            <span class="card-label">OFFICIAL LEDGER RECORD</span>
-            <Lock size={14} />
-          </div>
-          
-          <div class="result-badge">
-            <CheckCircle size={18} />
-            <span>Result: Recorded Anonymously</span>
-          </div>
-          
-          <div class="record-field">
-            <span class="field-label">NULLIFIER HASH</span>
-            <div class="field-value mono">{ledgerRecord.nullifierHash}</div>
-            <span class="field-hint">Unique identifier preventing double-voting</span>
-          </div>
-          
-          <div class="record-field">
-            <span class="field-label">BLOCK HEIGHT</span>
-            <div class="field-value">#{ledgerRecord.blockHeight.toLocaleString()}</div>
-          </div>
-          
-          <div class="record-field">
-            <span class="field-label">TIMESTAMP</span>
-            <div class="field-value">{ledgerRecord.timestamp}</div>
-          </div>
-          
-          <p class="immutable-note">
-            This record is immutable and permanently stored on the chain.
-          </p>
-        </div>
-        
-        <!-- Privacy Guarantee -->
-        <div class="sidebar-card card">
-          <h4>
-            <Shield size={16} />
-            Privacy Guarantee
-          </h4>
-          <ul class="privacy-list">
-            <li>Your vote is cryptographically signed using your private key, but only the proof is submitted.</li>
-            <li>The <strong>Nullifier Hash</strong> ensures one-person-one-vote without linking back to your ID.</li>
-            <li>Results are publicly available for audit by any citizen node.</li>
-          </ul>
-        </div>
-      </aside>
-    </div>
-  </div>
-  
-  <!-- Footer -->
-  <div class="page-footer">
-    <span>Powered by Citizen Protocol v2.1</span>
-    <span>•</span>
-    <a href="/privacy">Privacy Policy</a>
-    <span>•</span>
-    <a href="/source">Verify Source Code</a>
-    <div class="footer-center">Official Government Transparency Initiative</div>
+    {/if}
   </div>
 </main>
 
@@ -211,7 +407,6 @@
     padding: var(--space-8) var(--space-4);
   }
   
-  /* Page Header */
   .page-header {
     margin-bottom: var(--space-6);
   }
@@ -221,13 +416,12 @@
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-1) var(--space-3);
-    background: var(--success-100);
-    color: var(--success-700);
-    font-size: 0.7rem;
-    font-weight: 600;
+    background: var(--primary-100);
+    color: var(--primary-700);
     border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
     margin-bottom: var(--space-3);
-    letter-spacing: 0.02em;
   }
   
   .page-header h1 {
@@ -237,7 +431,6 @@
   
   .page-header p {
     color: var(--gray-500);
-    max-width: 600px;
   }
   
   /* ZK Banner */
@@ -245,13 +438,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
-    gap: var(--space-4);
     padding: var(--space-4);
-    background: white;
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-xl);
+    background: var(--success-50);
+    border: 1px solid var(--success-200);
+    border-radius: var(--radius-lg);
     margin-bottom: var(--space-6);
+  }
+  
+  .zk-banner.warning {
+    background: var(--warning-50);
+    border-color: var(--warning-200);
   }
   
   .zk-left {
@@ -260,31 +456,31 @@
     gap: var(--space-3);
   }
   
-  .zk-left :global(svg) {
-    color: var(--primary-600);
+  .zk-banner :global(svg) {
+    color: var(--success-600);
+  }
+  
+  .zk-banner.warning :global(svg) {
+    color: var(--warning-600);
   }
   
   .zk-left strong {
     display: block;
     color: var(--gray-900);
-    font-size: 0.9rem;
   }
   
   .zk-left span {
-    font-size: 0.8rem;
-    color: var(--gray-500);
+    font-size: 0.875rem;
+    color: var(--gray-600);
+    font-family: var(--font-mono);
   }
   
   .session-badge {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--success-50);
+    font-size: 0.875rem;
     color: var(--success-700);
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 500;
   }
   
   .status-dot {
@@ -295,6 +491,61 @@
   
   .status-dot.online {
     background: var(--success-500);
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  
+  .verify-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--primary-600);
+    color: white;
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  
+  /* Loading/Error States */
+  .loading-state,
+  .error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-12);
+    color: var(--gray-500);
+  }
+  
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--gray-200);
+    border-top-color: var(--primary-500);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: var(--space-3);
+  }
+  
+  .spinner.small {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+    margin: 0;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  .back-link {
+    margin-top: var(--space-4);
+    color: var(--primary-600);
   }
   
   /* Content Grid */
@@ -305,43 +556,25 @@
   
   @media (min-width: 768px) {
     .content-grid {
-      grid-template-columns: 1fr 340px;
+      grid-template-columns: 1fr 320px;
     }
   }
   
-  /* Promise Section */
+  /* Promise Card */
   .promise-card {
     padding: var(--space-6);
     margin-bottom: var(--space-4);
-    position: relative;
   }
   
   .category-badge {
-    position: absolute;
-    top: var(--space-4);
-    left: var(--space-4);
+    display: inline-block;
     padding: var(--space-1) var(--space-3);
-    background: var(--gray-800);
-    color: white;
-    font-size: 0.65rem;
+    background: var(--primary-100);
+    color: var(--primary-700);
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
     font-weight: 600;
-    border-radius: var(--radius-sm);
-    letter-spacing: 0.02em;
-  }
-  
-  .promise-image {
-    margin-bottom: var(--space-4);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-  }
-  
-  .image-placeholder {
-    height: 200px;
-    background: linear-gradient(135deg, var(--success-100), var(--primary-100));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--gray-400);
+    margin-bottom: var(--space-3);
   }
   
   .promise-card h2 {
@@ -349,27 +582,158 @@
     margin-bottom: var(--space-3);
   }
   
-  .promise-card blockquote {
-    padding: var(--space-4);
-    background: var(--gray-50);
-    border-left: 3px solid var(--primary-500);
-    margin-bottom: var(--space-4);
-    font-style: italic;
-    color: var(--gray-700);
+  .promise-description {
+    color: var(--gray-600);
     line-height: 1.6;
+    margin-bottom: var(--space-4);
   }
   
-  .target-date {
+  .promise-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--gray-200);
+    margin-bottom: var(--space-4);
+  }
+  
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  
+  .meta-label {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    text-transform: uppercase;
+  }
+  
+  .meta-value {
+    font-weight: 600;
+  }
+  
+  .status-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+  
+  .status-badge.kept {
+    background: var(--success-100);
+    color: var(--success-700);
+  }
+  
+  .status-badge.broken {
+    background: var(--error-100);
+    color: var(--error-700);
+  }
+  
+  .status-badge.pending {
+    background: var(--warning-100);
+    color: var(--warning-700);
+  }
+  
+  /* Vote Tally */
+  .vote-tally {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--gray-200);
+  }
+  
+  .vote-tally h4 {
+    font-size: 0.875rem;
+    margin-bottom: var(--space-3);
+    color: var(--gray-700);
+  }
+  
+  .tally-row {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+  }
+  
+  .tally-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    width: 80px;
+    font-size: 0.875rem;
+    color: var(--gray-600);
+  }
+  
+  .tally-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--gray-200);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+  
+  .tally-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.3s;
+  }
+  
+  .tally-fill.kept {
+    background: var(--success-500);
+  }
+  
+  .tally-fill.broken {
+    background: var(--error-500);
+  }
+  
+  .tally-count {
+    width: 50px;
+    text-align: right;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  
+  /* Grace Period Card */
+  .grace-period-card,
+  .already-voted {
+    padding: var(--space-8);
+    text-align: center;
+  }
+  
+  .grace-period-card :global(svg),
+  .already-voted :global(svg) {
+    color: var(--warning-500);
+    margin-bottom: var(--space-4);
+  }
+  
+  .already-voted :global(svg) {
+    color: var(--success-500);
+  }
+  
+  .grace-period-card h3,
+  .already-voted h3 {
+    margin-bottom: var(--space-2);
+  }
+  
+  .countdown {
+    margin: var(--space-4) 0;
+  }
+  
+  .countdown-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--warning-600);
+  }
+  
+  .grace-note {
     font-size: 0.875rem;
     color: var(--gray-500);
   }
   
   /* Attestation Form */
   .attestation-form {
-    padding: var(--space-5);
+    padding: var(--space-6);
   }
   
   .form-header {
@@ -377,11 +741,13 @@
     align-items: center;
     gap: var(--space-2);
     margin-bottom: var(--space-4);
-    color: var(--success-600);
+  }
+  
+  .form-header :global(svg) {
+    color: var(--primary-600);
   }
   
   .form-header h3 {
-    color: var(--gray-900);
     font-size: 1rem;
   }
   
@@ -404,7 +770,7 @@
   }
   
   .attestation-option:hover {
-    border-color: var(--gray-300);
+    border-color: var(--primary-300);
   }
   
   .attestation-option.selected {
@@ -423,39 +789,39 @@
     border-radius: 50%;
     flex-shrink: 0;
     margin-top: 2px;
-    position: relative;
+    transition: all 0.2s;
   }
   
   .attestation-option.selected .option-radio {
     border-color: var(--primary-500);
-  }
-  
-  .attestation-option.selected .option-radio::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 10px;
-    height: 10px;
     background: var(--primary-500);
-    border-radius: 50%;
-  }
-  
-  .option-content {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    box-shadow: inset 0 0 0 3px white;
   }
   
   .option-content strong {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
     color: var(--gray-900);
   }
   
   .option-content span {
-    font-size: 0.8rem;
+    font-size: 0.875rem;
     color: var(--gray-500);
-    line-height: 1.4;
+  }
+  
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--error-50);
+    border: 1px solid var(--error-200);
+    border-radius: var(--radius-md);
+    color: var(--error-700);
+    font-size: 0.875rem;
+    margin-bottom: var(--space-4);
   }
   
   .submit-btn {
@@ -465,7 +831,7 @@
     justify-content: center;
     gap: var(--space-2);
     padding: var(--space-4);
-    background: var(--warning-500);
+    background: var(--primary-600);
     color: white;
     border: none;
     border-radius: var(--radius-lg);
@@ -473,11 +839,10 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    margin-bottom: var(--space-3);
   }
   
   .submit-btn:hover:not(:disabled) {
-    background: var(--warning-600);
+    background: var(--primary-700);
   }
   
   .submit-btn:disabled {
@@ -485,27 +850,90 @@
     cursor: not-allowed;
   }
   
-  .spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid white;
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  
   .disclaimer {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: var(--space-2);
+    margin-top: var(--space-4);
     font-size: 0.75rem;
-    color: var(--gray-400);
+    color: var(--gray-500);
+  }
+  
+  /* Vote Success */
+  .vote-success {
+    padding: var(--space-8);
     text-align: center;
+  }
+  
+  .success-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto var(--space-4);
+    background: var(--success-100);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .success-icon :global(svg) {
+    color: var(--success-600);
+  }
+  
+  .vote-success h3 {
+    margin-bottom: var(--space-2);
+  }
+  
+  .vote-success > p {
+    color: var(--gray-500);
+    margin-bottom: var(--space-4);
+  }
+  
+  .vote-receipt {
+    background: var(--gray-900);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    text-align: left;
+  }
+  
+  .receipt-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--gray-700);
+  }
+  
+  .receipt-row:last-child {
+    border-bottom: none;
+  }
+  
+  .receipt-row span {
+    color: var(--gray-400);
+    font-size: 0.875rem;
+  }
+  
+  .receipt-row code {
+    color: var(--success-400);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+  
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-6);
+    background: var(--gray-100);
+    color: var(--gray-700);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  
+  .back-btn:hover {
+    background: var(--gray-200);
   }
   
   /* Sidebar */
@@ -524,33 +952,13 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: var(--space-4);
-    color: var(--gray-400);
   }
   
   .card-label {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     font-weight: 600;
+    color: var(--gray-500);
     letter-spacing: 0.05em;
-  }
-  
-  .result-badge {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    background: var(--success-50);
-    border-radius: var(--radius-lg);
-    margin-bottom: var(--space-4);
-  }
-  
-  .result-badge :global(svg) {
-    color: var(--success-600);
-  }
-  
-  .result-badge span {
-    color: var(--success-700);
-    font-weight: 500;
-    font-size: 0.875rem;
   }
   
   .record-field {
@@ -559,97 +967,94 @@
   
   .field-label {
     display: block;
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: var(--gray-400);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 0.7rem;
+    color: var(--gray-500);
     margin-bottom: var(--space-1);
+    letter-spacing: 0.05em;
   }
   
   .field-value {
-    font-size: 0.875rem;
+    font-weight: 600;
     color: var(--gray-900);
-    word-break: break-all;
   }
   
   .field-value.mono {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    word-break: break-all;
   }
   
   .field-hint {
-    display: block;
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     color: var(--gray-400);
-    font-style: italic;
     margin-top: var(--space-1);
   }
   
-  .immutable-note {
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--gray-200);
-    font-size: 0.75rem;
-    color: var(--gray-500);
-    font-style: italic;
+  .audit-link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--primary-600);
+    font-size: 0.875rem;
+    text-decoration: none;
+  }
+  
+  .audit-link:hover {
+    text-decoration: underline;
   }
   
   .sidebar-card h4 {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: 0.9rem;
+    font-size: 0.875rem;
     margin-bottom: var(--space-3);
-    color: var(--primary-600);
   }
   
-  .privacy-list {
+  .privacy-list,
+  .how-list {
     list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
+    padding: 0;
+    margin: 0;
   }
   
-  .privacy-list li {
+  .privacy-list li,
+  .how-list li {
     font-size: 0.8rem;
     color: var(--gray-600);
-    line-height: 1.5;
     padding-left: var(--space-4);
     position: relative;
+    margin-bottom: var(--space-2);
   }
   
   .privacy-list li::before {
-    content: '•';
+    content: '✓';
     position: absolute;
     left: 0;
-    color: var(--primary-500);
+    color: var(--success-500);
   }
   
-  .privacy-list li strong {
-    color: var(--primary-600);
+  .how-list {
+    counter-reset: step;
   }
   
-  /* Page Footer */
-  .page-footer {
+  .how-list li {
+    counter-increment: step;
+  }
+  
+  .how-list li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    width: 18px;
+    height: 18px;
+    background: var(--primary-100);
+    color: var(--primary-700);
+    border-radius: 50%;
+    font-size: 0.7rem;
+    font-weight: 600;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    padding: var(--space-6) var(--space-4);
-    font-size: 0.75rem;
-    color: var(--gray-400);
-    text-align: center;
-  }
-  
-  .page-footer a {
-    color: var(--primary-600);
-    text-decoration: none;
-  }
-  
-  .footer-center {
-    width: 100%;
-    margin-top: var(--space-2);
-    font-style: italic;
   }
 </style>

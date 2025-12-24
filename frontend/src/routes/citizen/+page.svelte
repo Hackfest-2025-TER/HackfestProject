@@ -3,49 +3,43 @@
   import Footer from '$lib/components/Footer.svelte';
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
-  import { Shield, FileText, CheckCircle, Clock, Activity, TrendingUp, Eye } from 'lucide-svelte';
+  import { Shield, FileText, CheckCircle, Clock, Activity, TrendingUp, Eye, AlertCircle, Fingerprint } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { authStore, isAuthenticated, credential } from '$lib/stores/auth';
+  import { getManifestos } from '$lib/api';
   
-  // Sample user data
-  const user = {
-    nullifierId: '0x8a72f92b...c4d1',
-    sessionId: 'SES-2024-0827',
-    votesSubmitted: 12,
-    manifestosViewed: 34,
-    commentsMade: 8
-  };
+  // Reactive auth state
+  $: isAuth = $isAuthenticated;
+  $: userCredential = $credential;
   
-  // Sample recent activity
-  const recentActivity = [
-    { type: 'vote', description: 'Voted on "Universal Healthcare Act"', time: '2 hours ago', icon: CheckCircle },
-    { type: 'comment', description: 'Commented on "Green Energy Initiative"', time: '5 hours ago', icon: FileText },
-    { type: 'view', description: 'Viewed "Education Reform Bill"', time: '1 day ago', icon: Eye }
-  ];
+  // Data
+  let manifestos: any[] = [];
+  let isLoading = true;
   
-  // Featured manifestos
-  const featuredManifestos = [
-    {
-      id: '1',
-      title: 'Universal Healthcare Act',
-      politicianName: 'Jane Doe',
-      party: 'Progressive Party',
-      category: 'Healthcare',
-      status: 'pending',
-      integrityScore: 94,
-      voteCount: 1450,
-      commentCount: 89
-    },
-    {
-      id: '2',
-      title: 'North-South Rail Link',
-      politicianName: 'Jane Doe',
-      party: 'Progressive Party',
-      category: 'Infrastructure',
-      status: 'pending',
-      integrityScore: 87,
-      voteCount: 1048,
-      commentCount: 56
+  // Redirect if not authenticated
+  onMount(async () => {
+    if (!$isAuthenticated) {
+      goto('/auth');
+      return;
     }
-  ];
+    
+    try {
+      const data = await getManifestos();
+      manifestos = data.manifestos?.slice(0, 4) || [];
+    } catch (e) {
+      console.error('Failed to load manifestos:', e);
+    }
+    isLoading = false;
+  });
+  
+  // Activity based on voted manifestos
+  $: recentActivity = (userCredential?.usedVotes || []).slice(-3).map(id => ({
+    type: 'vote',
+    description: `Voted on manifesto ${id}`,
+    time: 'Recently',
+    icon: CheckCircle
+  }));
 </script>
 
 <svelte:head>
@@ -56,48 +50,60 @@
 
 <main class="citizen-dashboard">
   <div class="container">
-    <!-- Welcome Banner -->
-    <div class="welcome-banner card">
-      <div class="banner-content">
-        <div class="banner-icon">
-          <Shield size={32} />
-        </div>
-        <div class="banner-text">
-          <h1>Welcome, Citizen</h1>
-          <p>Your identity is protected by zero-knowledge proofs. All actions are anonymous.</p>
-        </div>
+    {#if !isAuth}
+      <!-- Not authenticated banner -->
+      <div class="auth-required card">
+        <AlertCircle size={48} />
+        <h2>Authentication Required</h2>
+        <p>Please verify your identity to access the citizen dashboard.</p>
+        <a href="/auth" class="btn btn-primary">
+          <Fingerprint size={18} />
+          Verify Identity
+        </a>
       </div>
-      <div class="session-info">
-        <span class="status-indicator online"></span>
-        <span class="session-label">Session ID:</span>
-        <code>{user.sessionId}</code>
-      </div>
-    </div>
-    
-    <!-- Stats Grid -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <CheckCircle size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{user.votesSubmitted}</span>
-          <span class="stat-label">Votes Submitted</span>
+    {:else}
+      <!-- Welcome Banner -->
+      <div class="welcome-banner card">
+        <div class="banner-content">
+          <div class="banner-icon">
+            <Shield size={32} />
+          </div>
+          <div class="banner-text">
+            <h1>Welcome, Citizen</h1>
+            <p>Your identity is protected by zero-knowledge proofs. All actions are anonymous.</p>
+          </div>
         </div>
-      </div>
-      <div class="stat-card">
-        <FileText size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{user.manifestosViewed}</span>
-          <span class="stat-label">Manifestos Viewed</span>
+        <div class="session-info">
+          <span class="status-indicator online"></span>
+          <span class="session-label">Nullifier:</span>
+          <code>{userCredential?.nullifierShort || '...'}</code>
         </div>
       </div>
-      <div class="stat-card">
-        <Activity size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{user.commentsMade}</span>
-          <span class="stat-label">Comments Made</span>
+      
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <CheckCircle size={24} />
+          <div class="stat-content">
+            <span class="stat-value">{userCredential?.usedVotes?.length || 0}</span>
+            <span class="stat-label">Votes Submitted</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <Shield size={24} />
+          <div class="stat-content">
+            <span class="stat-value">{userCredential?.verified ? 'Yes' : 'No'}</span>
+            <span class="stat-label">ZK Verified</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <Activity size={24} />
+          <div class="stat-content">
+            <span class="stat-value">{manifestos.length}</span>
+            <span class="stat-label">Active Promises</span>
+          </div>
         </div>
       </div>
-    </div>
     
     <div class="content-grid">
       <!-- Featured Manifestos -->
@@ -111,28 +117,15 @@
         </div>
         
         <div class="manifestos-list">
-          {#each featuredManifestos as manifesto}
-            <a href="/manifestos/{manifesto.id}" class="manifesto-item card">
-              <div class="manifesto-header">
-                <span class="category-badge">{manifesto.category}</span>
-                <span class="integrity-badge">
-                  {manifesto.integrityScore}% Integrity
-                </span>
-              </div>
-              <h3>{manifesto.title}</h3>
-              <p class="politician-info">by {manifesto.politicianName} · {manifesto.party}</p>
-              <div class="manifesto-stats">
-                <span class="stat">
-                  <CheckCircle size={14} />
-                  {manifesto.voteCount} votes
-                </span>
-                <span class="stat">
-                  <FileText size={14} />
-                  {manifesto.commentCount} comments
-                </span>
-              </div>
-            </a>
-          {/each}
+          {#if isLoading}
+            <p class="loading">Loading manifestos...</p>
+          {:else if manifestos.length === 0}
+            <p class="empty">No manifestos found.</p>
+          {:else}
+            {#each manifestos as manifesto}
+              <ManifestoCard {manifesto} />
+            {/each}
+          {/if}
         </div>
       </section>
       
@@ -146,17 +139,21 @@
         </div>
         
         <div class="activity-list card">
-          {#each recentActivity as activity}
-            <div class="activity-item">
-              <div class="activity-icon">
-                <svelte:component this={activity.icon} size={18} />
+          {#if recentActivity.length === 0}
+            <p class="empty-activity">No recent activity yet. Start voting on manifestos!</p>
+          {:else}
+            {#each recentActivity as activity}
+              <div class="activity-item">
+                <div class="activity-icon">
+                  <svelte:component this={activity.icon} size={18} />
+                </div>
+                <div class="activity-content">
+                  <p>{activity.description}</p>
+                  <span class="activity-time">{activity.time}</span>
+                </div>
               </div>
-              <div class="activity-content">
-                <p>{activity.description}</p>
-                <span class="activity-time">{activity.time}</span>
-              </div>
-            </div>
-          {/each}
+            {/each}
+          {/if}
         </div>
         
         <!-- Nullifier Info -->
@@ -165,7 +162,7 @@
             <Shield size={16} />
             Your Anonymous ID
           </h4>
-          <HashDisplay hash={user.nullifierId} />
+          <HashDisplay hash={userCredential?.nullifier || ''} />
           <p class="nullifier-note">
             This nullifier proves you're a verified citizen without revealing your identity.
           </p>
@@ -195,6 +192,7 @@
         </a>
       </div>
     </div>
+    {/if}
   </div>
 </main>
 
@@ -211,6 +209,53 @@
     max-width: 1200px;
     margin: 0 auto;
     padding: var(--space-6) var(--space-4);
+  }
+  
+  /* Auth Required Banner */
+  .auth-required {
+    padding: var(--space-12);
+    text-align: center;
+    max-width: 500px;
+    margin: var(--space-12) auto;
+  }
+  
+  .auth-required :global(svg) {
+    color: var(--warning-500);
+    margin-bottom: var(--space-4);
+  }
+  
+  .auth-required h2 {
+    margin-bottom: var(--space-2);
+  }
+  
+  .auth-required p {
+    color: var(--gray-500);
+    margin-bottom: var(--space-6);
+  }
+  
+  .auth-required .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-6);
+    background: var(--primary-600);
+    color: white;
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  
+  .loading, .empty {
+    padding: var(--space-8);
+    text-align: center;
+    color: var(--gray-500);
+  }
+  
+  .empty-activity {
+    padding: var(--space-4);
+    text-align: center;
+    color: var(--gray-400);
+    font-size: 0.875rem;
   }
   
   /* Welcome Banner */

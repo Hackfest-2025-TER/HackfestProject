@@ -1,56 +1,86 @@
 <script lang="ts">
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
-  import ManifestoCard from '$lib/components/ManifestoCard.svelte';
-  import HashDisplay from '$lib/components/HashDisplay.svelte';
-  import { Search, Filter, Download, CheckCircle, Clock, FileText, ChevronLeft, ChevronRight } from 'lucide-svelte';
+  import { Search, Filter, Download, CheckCircle, Clock, FileText, ChevronLeft, ChevronRight, Shield, Fingerprint, AlertCircle, Vote } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { authStore, isAuthenticated, credential } from '$lib/stores/auth';
+  import { getManifestos, getMerkleRoot, getNetworkStats } from '$lib/api';
   
-  // Sample data
-  const manifestos = [
-    {
-      id: '1',
-      title: '2024 Economic Reform Promise',
-      description: 'A comprehensive framework for revitalizing the national economy through tax incentives for small businesses, digital currency integration, and sustainable energy subsidies.',
-      status: 'published',
-      merkleRoot: '0x4f...9a2b',
-      publicationDate: 'Oct 12, 2023',
-      integrityScore: 99,
-      commentCount: 124
-    },
-    {
-      id: '2',
-      title: 'Education Infrastructure Plan',
-      description: 'Proposal to modernize educational facilities nationwide with updated technology labs and sustainable building practices.',
-      status: 'published',
-      merkleRoot: '0x83...d29c',
-      publicationDate: 'Sep 01, 2023',
-      integrityScore: 95,
-      commentCount: 82
-    },
-    {
-      id: '3',
-      title: 'Healthcare Transparency Act',
-      description: 'Initiative to make all healthcare pricing publicly accessible through blockchain-verified records.',
-      status: 'published',
-      merkleRoot: '0xa1...b42f',
-      publicationDate: 'Aug 15, 2023',
-      integrityScore: 98,
-      commentCount: 203
-    },
-    {
-      id: '4',
-      title: 'Urban Mobility Framework',
-      description: 'A sustainable transportation plan focusing on electric vehicle infrastructure and public transit improvements.',
-      status: 'verification_pending',
-      merkleRoot: 'Generating...',
-      publicationDate: 'Today, 10:45 AM',
-      integrityScore: 0,
-      commentCount: 0
-    }
-  ];
+  // Reactive auth state
+  $: isAuth = $isAuthenticated;
+  $: userCredential = $credential;
+  
+  // Data state
+  let manifestos: any[] = [];
+  let networkStats: any = null;
+  let merkleRoot = '';
+  let isLoading = true;
+  let error = '';
   
   let searchQuery = '';
   let statusFilter = 'all';
+  
+  // Load data on mount
+  onMount(async () => {
+    try {
+      const [manifestoData, rootData, stats] = await Promise.all([
+        getManifestos(),
+        getMerkleRoot(),
+        getNetworkStats()
+      ]);
+      
+      manifestos = manifestoData.manifestos || [];
+      merkleRoot = rootData.merkle_root;
+      networkStats = stats;
+      
+      // Refresh credential status if authenticated
+      if ($isAuthenticated) {
+        await authStore.refreshStatus();
+      }
+    } catch (e) {
+      error = 'Failed to load data. Please try again.';
+      console.error(e);
+    }
+    isLoading = false;
+  });
+  
+  // Check if grace period has passed for voting
+  function canVote(manifesto: any): boolean {
+    if (!manifesto.grace_period_end) return false;
+    const graceEnd = new Date(manifesto.grace_period_end);
+    return new Date() >= graceEnd;
+  }
+  
+  // Get remaining time until voting opens
+  function getTimeUntilVoting(manifesto: any): string {
+    if (!manifesto.grace_period_end) return 'Unknown';
+    const graceEnd = new Date(manifesto.grace_period_end);
+    const now = new Date();
+    
+    if (now >= graceEnd) return 'Open';
+    
+    const diff = graceEnd.getTime() - now.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days > 0) return `${days} days`;
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    return `${hours} hours`;
+  }
+  
+  // Check if user has voted on this manifesto
+  function hasVoted(manifestoId: string): boolean {
+    return userCredential?.usedVotes?.includes(manifestoId) ?? false;
+  }
+  
+  // Filter manifestos based on search and status
+  $: filteredManifestos = manifestos.filter(m => {
+    const matchesSearch = !searchQuery || 
+      m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.hash?.includes(searchQuery);
+    const matchesStatus = statusFilter === 'all' || m.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 </script>
 
 <svelte:head>
@@ -62,39 +92,71 @@
 <main class="manifestos-page">
   <div class="container">
     <div class="page-header">
-      <h1>Manifesto Dashboard</h1>
-      <p>Manage your immutable commitments and view cryptographic audit trails.</p>
+      <h1>Political Promises</h1>
+      <p>Track and evaluate political commitments. Vote anonymously when evaluation periods open.</p>
     </div>
+    
+    <!-- Auth Status Banner -->
+    {#if isAuth}
+      <div class="auth-banner verified">
+        <div class="auth-info">
+          <Shield size={20} />
+          <div>
+            <strong>Anonymous Credential Active</strong>
+            <span>Nullifier: {userCredential?.nullifierShort}</span>
+          </div>
+        </div>
+        <span class="votes-cast">
+          <Vote size={14} />
+          {userCredential?.usedVotes?.length || 0} votes cast
+        </span>
+      </div>
+    {:else}
+      <div class="auth-banner warning">
+        <div class="auth-info">
+          <AlertCircle size={20} />
+          <div>
+            <strong>Not Verified</strong>
+            <span>Generate a ZK credential to vote on promises</span>
+          </div>
+        </div>
+        <a href="/auth" class="verify-btn">
+          <Fingerprint size={16} />
+          Verify Identity
+        </a>
+      </div>
+    {/if}
     
     <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card card">
         <div class="stat-header">
-          <span class="stat-label">Active Manifestos</span>
+          <span class="stat-label">Total Promises</span>
           <FileText size={20} />
         </div>
-        <div class="stat-value">3</div>
-        <div class="stat-trend positive">↗ 1 new this month</div>
+        <div class="stat-value">{manifestos.length}</div>
+        <div class="stat-trend positive">From verified politicians</div>
       </div>
       
       <div class="stat-card card">
         <div class="stat-header">
-          <span class="stat-label">Avg. Integrity Score</span>
+          <span class="stat-label">Voter Registry</span>
+          <Shield size={20} />
         </div>
-        <div class="stat-value">98.5%</div>
-        <div class="integrity-bar">
-          <div class="integrity-fill" style="width: 98.5%"></div>
-        </div>
-      </div>
-      
-      <div class="stat-card card">
-        <div class="stat-header">
-          <span class="stat-label">Verified Signatures</span>
-        </div>
-        <div class="stat-value">1,240</div>
+        <div class="stat-value">{networkStats?.total_votes?.toLocaleString() || '...'}</div>
         <div class="stat-meta">
-          <CheckCircle size={14} />
-          From verified voter IDs
+          <Fingerprint size={14} />
+          Total votes recorded
+        </div>
+      </div>
+      
+      <div class="stat-card card">
+        <div class="stat-header">
+          <span class="stat-label">ZK Integrity Score</span>
+        </div>
+        <div class="stat-value">{networkStats?.integrity_score || 99.97}%</div>
+        <div class="integrity-bar">
+          <div class="integrity-fill" style="width: {networkStats?.integrity_score || 99.97}%"></div>
         </div>
       </div>
     </div>
@@ -123,77 +185,97 @@
     
     <!-- Manifestos Table -->
     <div class="table-card card">
-      <table class="manifestos-table">
-        <thead>
-          <tr>
-            <th>MANIFESTO TITLE</th>
-            <th>MERKLE ROOT (HASH)</th>
-            <th>PUBLICATION DATE</th>
-            <th>INTEGRITY</th>
-            <th>ACTIONS</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each manifestos as manifesto}
+      {#if isLoading}
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading promises...</p>
+        </div>
+      {:else if error}
+        <div class="error-state">
+          <AlertCircle size={24} />
+          <p>{error}</p>
+        </div>
+      {:else}
+        <table class="manifestos-table">
+          <thead>
             <tr>
-              <td class="title-cell">
-                <div class="title-content">
-                  <span class="title">{manifesto.title}</span>
+              <th>PROMISE</th>
+              <th>CATEGORY</th>
+              <th>STATUS</th>
+              <th>VOTES</th>
+              <th>VOTING</th>
+              <th>ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filteredManifestos as manifesto}
+              <tr>
+                <td class="title-cell">
+                  <div class="title-content">
+                    <span class="title">{manifesto.title}</span>
+                    <span class="politician-name">by {manifesto.politician_name}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="category-badge">{manifesto.category}</span>
+                </td>
+                <td>
                   <span class="status-badge {manifesto.status}">
-                    {#if manifesto.status === 'published'}
-                      <CheckCircle size={12} /> Published
-                    {:else if manifesto.status === 'verification_pending'}
-                      <Clock size={12} /> Verification Pending
+                    {#if manifesto.status === 'kept'}
+                      <CheckCircle size={12} /> Kept
+                    {:else if manifesto.status === 'broken'}
+                      <AlertCircle size={12} /> Broken
                     {:else}
-                      {manifesto.status}
+                      <Clock size={12} /> Pending
                     {/if}
                   </span>
-                </div>
-              </td>
-              <td>
-                {#if manifesto.merkleRoot.startsWith('0x')}
-                  <HashDisplay hash={manifesto.merkleRoot} />
-                {:else}
-                  <span class="generating">{manifesto.merkleRoot}</span>
-                {/if}
-              </td>
-              <td class="date-cell">{manifesto.publicationDate}</td>
-              <td>
-                {#if manifesto.integrityScore > 0}
-                  <div class="integrity-cell">
-                    <div class="mini-bar">
-                      <div class="mini-fill" style="width: {manifesto.integrityScore}%"></div>
-                    </div>
-                    <span>{manifesto.integrityScore}%</span>
+                </td>
+                <td class="votes-cell">
+                  <div class="vote-bars">
+                    <div class="vote-bar kept" style="width: {manifesto.vote_kept / (manifesto.vote_kept + manifesto.vote_broken + 1) * 100}%"></div>
+                    <div class="vote-bar broken" style="width: {manifesto.vote_broken / (manifesto.vote_kept + manifesto.vote_broken + 1) * 100}%"></div>
                   </div>
-                {:else}
-                  <span class="generating">--</span>
-                {/if}
-              </td>
-              <td class="actions-cell">
-                {#if manifesto.status === 'published'}
+                  <span class="vote-counts">
+                    <span class="kept">{manifesto.vote_kept}</span> / 
+                    <span class="broken">{manifesto.vote_broken}</span>
+                  </span>
+                </td>
+                <td>
+                  {#if canVote(manifesto)}
+                    {#if hasVoted(manifesto.id)}
+                      <span class="voted-badge">
+                        <CheckCircle size={12} /> Voted
+                      </span>
+                    {:else if isAuth}
+                      <a href="/citizen/attestation?id={manifesto.id}" class="vote-btn">
+                        <Vote size={14} /> Vote
+                      </a>
+                    {:else}
+                      <span class="login-to-vote">Login to vote</span>
+                    {/if}
+                  {:else}
+                    <span class="grace-period">
+                      <Clock size={12} />
+                      Opens in {getTimeUntilVoting(manifesto)}
+                    </span>
+                  {/if}
+                </td>
+                <td class="actions-cell">
                   <a href="/manifestos/{manifesto.id}" class="action-link">
-                    Details
+                    View Details
                   </a>
-                  <a href="/manifestos/{manifesto.id}/comments" class="action-link primary">
-                    Comments ({manifesto.commentCount})
-                  </a>
-                {:else}
-                  <a href="/politician/manifestos/{manifesto.id}/edit" class="action-link">
-                    Edit Draft
-                  </a>
-                {/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
       
       <div class="table-footer">
-        <span class="showing">Showing 1 to {manifestos.length} of {manifestos.length} manifestos</span>
-        <div class="pagination">
-          <button class="page-btn" disabled><ChevronLeft size={16} /></button>
-          <button class="page-btn" disabled><ChevronRight size={16} /></button>
+        <span class="showing">Showing {filteredManifestos.length} of {manifestos.length} promises</span>
+        <div class="merkle-info">
+          <Fingerprint size={14} />
+          Registry Root: {merkleRoot ? merkleRoot.slice(0, 12) + '...' : 'Loading...'}
         </div>
       </div>
     </div>
@@ -230,7 +312,7 @@
   }
   
   .page-header {
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-6);
   }
   
   .page-header h1 {
@@ -240,6 +322,76 @@
   
   .page-header p {
     color: var(--gray-500);
+  }
+  
+  /* Auth Banner */
+  .auth-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-6);
+  }
+  
+  .auth-banner.verified {
+    background: var(--success-50);
+    border: 1px solid var(--success-200);
+  }
+  
+  .auth-banner.warning {
+    background: var(--warning-50);
+    border: 1px solid var(--warning-200);
+  }
+  
+  .auth-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  
+  .auth-banner.verified .auth-info :global(svg) {
+    color: var(--success-600);
+  }
+  
+  .auth-banner.warning .auth-info :global(svg) {
+    color: var(--warning-600);
+  }
+  
+  .auth-info strong {
+    display: block;
+    color: var(--gray-900);
+  }
+  
+  .auth-info span {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+    font-family: var(--font-mono);
+  }
+  
+  .votes-cast {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.875rem;
+    color: var(--success-700);
+  }
+  
+  .verify-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--primary-600);
+    color: white;
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+  
+  .verify-btn:hover {
+    background: var(--primary-700);
   }
   
   .stats-grid {
@@ -355,6 +507,33 @@
   
   .table-card {
     overflow: hidden;
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .loading-state,
+  .error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-12);
+    color: var(--gray-500);
+  }
+  
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--gray-200);
+    border-top-color: var(--primary-500);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: var(--space-3);
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
   
   .manifestos-table {
@@ -395,48 +574,118 @@
     color: var(--gray-900);
   }
   
+  .politician-name {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+  }
+  
+  .category-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    background: var(--gray-100);
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--gray-600);
+  }
+  
   .status-badge {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    font-size: 0.7rem;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
     font-weight: 500;
   }
   
-  .status-badge.published {
-    color: var(--success-600);
+  .status-badge.kept {
+    background: var(--success-100);
+    color: var(--success-700);
   }
   
-  .status-badge.verification_pending {
-    color: var(--warning-600);
+  .status-badge.broken {
+    background: var(--error-100);
+    color: var(--error-700);
   }
   
-  .date-cell {
-    color: var(--gray-500);
+  .status-badge.pending {
+    background: var(--warning-100);
+    color: var(--warning-700);
   }
   
-  .generating {
-    color: var(--gray-400);
-    font-style: italic;
+  .votes-cell {
+    min-width: 120px;
   }
   
-  .integrity-cell {
+  .vote-bars {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  
-  .mini-bar {
-    width: 80px;
     height: 6px;
     background: var(--gray-200);
     border-radius: var(--radius-full);
     overflow: hidden;
+    margin-bottom: var(--space-1);
   }
   
-  .mini-fill {
-    height: 100%;
+  .vote-bar.kept {
     background: var(--success-500);
+  }
+  
+  .vote-bar.broken {
+    background: var(--error-500);
+  }
+  
+  .vote-counts {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+  }
+  
+  .vote-counts .kept {
+    color: var(--success-600);
+  }
+  
+  .vote-counts .broken {
+    color: var(--error-600);
+  }
+  
+  .voted-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--success-600);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  
+  .vote-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    background: var(--primary-600);
+    color: white;
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  
+  .vote-btn:hover {
+    background: var(--primary-700);
+  }
+  
+  .login-to-vote {
+    font-size: 0.75rem;
+    color: var(--gray-400);
+    font-style: italic;
+  }
+  
+  .grace-period {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.75rem;
+    color: var(--warning-600);
   }
   
   .actions-cell {
@@ -446,16 +695,12 @@
   
   .action-link {
     font-size: 0.8rem;
-    color: var(--gray-600);
+    color: var(--primary-600);
     text-decoration: none;
   }
   
   .action-link:hover {
-    color: var(--gray-900);
-  }
-  
-  .action-link.primary {
-    color: var(--primary-600);
+    text-decoration: underline;
   }
   
   .table-footer {
@@ -472,27 +717,13 @@
     color: var(--gray-500);
   }
   
-  .pagination {
-    display: flex;
-    gap: var(--space-2);
-  }
-  
-  .page-btn {
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--gray-200);
-    background: white;
-    border-radius: var(--radius-md);
+  .merkle-info {
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
     color: var(--gray-400);
-    cursor: pointer;
-  }
-  
-  .page-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
   
   .status-bar {

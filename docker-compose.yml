@@ -27,6 +27,7 @@ services:
       - BLOCKCHAIN_RPC_URL=http://blockchain:8545
     volumes:
       - ./backend:/app
+      - ./data:/app/data
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   blockchain:
