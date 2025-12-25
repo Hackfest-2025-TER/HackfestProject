@@ -1,11 +1,9 @@
 <script lang="ts">
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
   import { Shield, Search, CheckCircle, XCircle, FileText, Link, Clock, AlertTriangle, Copy, ExternalLink, RefreshCw } from 'lucide-svelte';
 
   // State
-  let politicianId: number | null = null;
+  let manifestoId: number | null = null;
   let manifestoText = '';
   let isVerifying = false;
   let verificationResult: any = null;
@@ -34,20 +32,21 @@
    * STEP 2: Fetch Blockchain Hash
    * Backend acts only as RPC proxy - not as authority.
    */
-  async function fetchBlockchainHash(politicianId: number): Promise<any> {
-    const response = await fetch(`http://localhost:8000/api/manifesto/${politicianId}/hash`);
+  async function fetchBlockchainHash(manifestoId: number): Promise<any> {
+    const response = await fetch(`http://localhost:8000/api/manifestos/${manifestoId}`);
     if (!response.ok) {
       throw new Error('Failed to fetch blockchain hash');
     }
-    return response.json();
+    const data = await response.json();
+    return { hash: data.hash, manifesto: data };
   }
   
   /**
    * MAIN VERIFICATION FLOW
    */
   async function verifyManifesto() {
-    if (!politicianId || !manifestoText.trim()) {
-      alert('Please enter politician ID and manifesto text');
+    if (!manifestoId || !manifestoText.trim()) {
+      alert('Please enter manifesto ID and manifesto text');
       return;
     }
     
@@ -64,7 +63,7 @@
       await new Promise(r => setTimeout(r, 500));
       
       // STEP 2: Fetch blockchain hash
-      const blockchainData = await fetchBlockchainHash(politicianId);
+      const blockchainData = await fetchBlockchainHash(manifestoId);
       blockchainHash = blockchainData.hash;
       currentStep = 3;
       
@@ -102,19 +101,33 @@
   }
   
   /**
-   * Load sample manifesto for testing
+   * Load sample data - randomly selects valid or tampered scenario
    */
   function loadSample() {
-    politicianId = 1;
-    manifestoText = `Build 100km of new highways connecting major cities within 3 years. This includes environmental impact assessments and community consultations.`;
+    const scenarios = [
+      // VALID - Exact match with blockchain (Manifesto ID 1)
+      // Backend generates hash as: title:description:politician_id
+      {
+        manifestoId: 1,
+        manifestoText: `धुलिखेल-काभ्रे सडक विस्तार:धुलिखेलदेखि काभ्रेसम्मको सडकलाई चार लेन बनाउने। यो परियोजनाले यातायात सुधार गर्नेछ र आर्थिक विकासमा योगदान पुर्याउनेछ।:1`
+      },
+      // TAMPERED - Text has been modified (Manifesto ID 2 with extra word "अति")
+      {
+        manifestoId: 2,
+        manifestoText: `प्रत्येक गाउँमा स्वास्थ्य चौकी:हरेक गाउँमा कम्तीमा एक अति स्वास्थ्य चौकी स्थापना गर्ने र आधारभूत स्वास्थ्य सेवा सुनिश्चित गर्ने।:2`
+        // Note: The word "अति" was added after "एक" - original doesn't have it
+      }
+    ];
+    
+    const selected = scenarios[Math.floor(Math.random() * scenarios.length)];
+    manifestoId = selected.manifestoId;
+    manifestoText = selected.manifestoText;
   }
 </script>
 
 <svelte:head>
   <title>Verify Manifesto - PromiseThread</title>
 </svelte:head>
-
-<Header variant="citizen" />
 
 <main class="verify-page">
   <div class="container">
@@ -123,9 +136,9 @@
       <div class="hero-icon">
         <Shield size={48} />
       </div>
-      <h1>Verify Manifesto Authenticity</h1>
+      <h1>Verify Promise Hash</h1>
       <p class="hero-subtitle">
-        Independently verify that a political manifesto hasn't been tampered with.
+        Independently verify that a promise's text matches its blockchain hash.
         <strong>Your verification happens in your browser</strong> — we never see your data.
       </p>
     </div>
@@ -168,14 +181,17 @@
       </div>
       
       <div class="form-body">
-        <!-- Politician ID Input -->
+        <!-- Manifesto ID Input -->
         <div class="form-group">
-          <label for="politician-id">Politician ID</label>
+          <label for="manifesto-id">
+            Manifesto/Promise ID
+            <span class="label-hint">The unique ID of the promise you want to verify</span>
+          </label>
           <input 
             type="number" 
-            id="politician-id"
-            bind:value={politicianId}
-            placeholder="Enter politician ID (e.g., 1)"
+            id="manifesto-id"
+            bind:value={manifestoId}
+            placeholder="Enter manifesto ID (e.g., 1)"
             min="1"
           />
         </div>
@@ -205,7 +221,7 @@ The text must match EXACTLY what was originally submitted. Even a single charact
           <button 
             class="btn btn-primary" 
             on:click={verifyManifesto}
-            disabled={isVerifying || !politicianId || !manifestoText.trim()}
+            disabled={isVerifying || !manifestoId || !manifestoText.trim()}
           >
             {#if isVerifying}
               <RefreshCw size={18} class="spin" />
@@ -368,42 +384,13 @@ print(f'Your hash: {hash}')
         {/if}
       </div>
     {/if}
-    
-    <!-- Trust Model Explanation -->
-    <div class="trust-model card">
-      <h3>🛡️ Why You Can Trust This Verification</h3>
-      <div class="trust-grid">
-        <div class="trust-item">
-          <div class="trust-icon">🖥️</div>
-          <h4>Client-Side Hashing</h4>
-          <p>SHA-256 hash is computed <strong>in your browser</strong>. The backend never sees your input text before hashing.</p>
-        </div>
-        <div class="trust-item">
-          <div class="trust-icon">⛓️</div>
-          <h4>Blockchain Immutability</h4>
-          <p>The reference hash is stored on an <strong>immutable blockchain</strong>. No one can change it after recording.</p>
-        </div>
-        <div class="trust-item">
-          <div class="trust-icon">🔓</div>
-          <h4>Open Verification</h4>
-          <p>All code is open source. You can verify <strong>independently</strong> using any SHA-256 tool and blockchain RPC.</p>
-        </div>
-        <div class="trust-item">
-          <div class="trust-icon">🎭</div>
-          <h4>Zero Knowledge</h4>
-          <p>We don't track who verifies what. <strong>No cookies, no logs</strong> of your verification activity.</p>
-        </div>
-      </div>
-    </div>
   </div>
 </main>
-
-<Footer />
 
 <style>
   .verify-page {
     min-height: 100vh;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    background: #f8fafc;
     padding: 2rem 1rem;
   }
   
@@ -427,17 +414,17 @@ print(f'Your hash: {hash}')
     background: linear-gradient(135deg, #3b82f6, #8b5cf6);
     border-radius: 20px;
     margin-bottom: 1rem;
-    color: white;
+    color: #082770;
   }
   
   .hero h1 {
     font-size: 2rem;
-    color: white;
+    color: #082770;
     margin-bottom: 0.5rem;
   }
   
   .hero-subtitle {
-    color: #94a3b8;
+    color: #64748b;
     font-size: 1.1rem;
     max-width: 600px;
     margin: 0 auto;
@@ -449,8 +436,8 @@ print(f'Your hash: {hash}')
   
   /* Cards */
   .card {
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: white;
+    border: 1px solid #e2e8f0;
     border-radius: 16px;
     margin-bottom: 1.5rem;
   }
@@ -465,7 +452,7 @@ print(f'Your hash: {hash}')
   }
   
   .info-card h3 {
-    color: white;
+    color: #082770;
     margin-bottom: 1rem;
   }
   
@@ -508,7 +495,7 @@ print(f'Your hash: {hash}')
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: #082770;
     font-weight: bold;
     font-size: 0.85rem;
   }
@@ -519,13 +506,13 @@ print(f'Your hash: {hash}')
   
   .step-content strong {
     display: block;
-    color: white;
+    color: #082770;
     font-size: 0.9rem;
   }
   
   .step-content span {
     font-size: 0.75rem;
-    color: #94a3b8;
+    color: #64748b;
   }
   
   .step-arrow {
@@ -544,9 +531,9 @@ print(f'Your hash: {hash}')
     align-items: center;
     gap: 0.75rem;
     padding: 1.25rem 1.5rem;
-    background: #0f172a;
+    background: #f8fafc;
     border-bottom: 1px solid #334155;
-    color: white;
+    color: #082770;
   }
   
   .form-header h2 {
@@ -564,7 +551,7 @@ print(f'Your hash: {hash}')
   
   .form-group label {
     display: block;
-    color: #e2e8f0;
+    color: #082770;
     font-weight: 500;
     margin-bottom: 0.5rem;
   }
@@ -581,10 +568,10 @@ print(f'Your hash: {hash}')
   .form-group textarea {
     width: 100%;
     padding: 0.875rem 1rem;
-    background: #0f172a;
-    border: 1px solid #334155;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
-    color: white;
+    color: #082770;
     font-size: 1rem;
     transition: border-color 0.2s;
   }
@@ -629,7 +616,7 @@ print(f'Your hash: {hash}')
   
   .btn-primary {
     background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-    color: white;
+    color: #082770;
   }
   
   .btn-primary:hover:not(:disabled) {
@@ -644,7 +631,7 @@ print(f'Your hash: {hash}')
   
   .btn-secondary {
     background: #334155;
-    color: #e2e8f0;
+    color: #082770;
   }
   
   .btn-secondary:hover {
@@ -722,7 +709,7 @@ print(f'Your hash: {hash}')
     align-items: center;
     gap: 1rem;
     padding: 1.5rem;
-    background: #0f172a;
+    background: #f8fafc;
     flex-wrap: wrap;
     justify-content: center;
   }
@@ -730,7 +717,7 @@ print(f'Your hash: {hash}')
   .hash-box {
     flex: 1;
     min-width: 280px;
-    background: #1e293b;
+    background: white;
     border-radius: 12px;
     padding: 1rem;
   }
@@ -739,7 +726,7 @@ print(f'Your hash: {hash}')
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: #94a3b8;
+    color: #64748b;
     font-size: 0.85rem;
     margin-bottom: 0.5rem;
   }
@@ -757,7 +744,7 @@ print(f'Your hash: {hash}')
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: #0f172a;
+    background: #f8fafc;
     padding: 0.75rem;
     border-radius: 8px;
   }
@@ -776,13 +763,13 @@ print(f'Your hash: {hash}')
     border-radius: 6px;
     padding: 0.5rem;
     cursor: pointer;
-    color: #94a3b8;
+    color: #64748b;
     transition: all 0.2s;
   }
   
   .copy-btn:hover {
     background: #475569;
-    color: white;
+    color: #082770;
   }
   
   .comparison-symbol {
@@ -807,7 +794,7 @@ print(f'Your hash: {hash}')
   }
   
   .blockchain-details h4 {
-    color: white;
+    color: #082770;
     margin-bottom: 1rem;
   }
   
@@ -818,7 +805,7 @@ print(f'Your hash: {hash}')
   }
   
   .detail-item {
-    background: #0f172a;
+    background: #f8fafc;
     padding: 0.75rem 1rem;
     border-radius: 8px;
   }
@@ -831,7 +818,7 @@ print(f'Your hash: {hash}')
   }
   
   .detail-value {
-    color: #e2e8f0;
+    color: #082770;
     font-size: 0.9rem;
   }
   
@@ -863,23 +850,23 @@ print(f'Your hash: {hash}')
   
   .advanced-section {
     padding: 1.5rem;
-    background: #0f172a;
+    background: #f8fafc;
     border-top: 1px solid #334155;
   }
   
   .advanced-section h4 {
-    color: white;
+    color: #082770;
     margin-bottom: 0.5rem;
   }
   
   .advanced-section > p {
-    color: #94a3b8;
+    color: #64748b;
     margin-bottom: 1rem;
   }
   
   .code-block {
     margin-bottom: 1rem;
-    background: #1e293b;
+    background: white;
     border-radius: 8px;
     padding: 1rem;
   }
@@ -894,7 +881,7 @@ print(f'Your hash: {hash}')
   .code-block pre {
     margin: 0;
     padding: 0.75rem;
-    background: #0f172a;
+    background: #f8fafc;
     border-radius: 6px;
     overflow-x: auto;
     font-family: 'Monaco', 'Consolas', monospace;
@@ -910,7 +897,7 @@ print(f'Your hash: {hash}')
   }
   
   .trust-model h3 {
-    color: white;
+    color: #082770;
     margin-bottom: 1.5rem;
     text-align: center;
   }
@@ -931,13 +918,13 @@ print(f'Your hash: {hash}')
   }
   
   .trust-item h4 {
-    color: white;
+    color: #082770;
     font-size: 1rem;
     margin-bottom: 0.5rem;
   }
   
   .trust-item p {
-    color: #94a3b8;
+    color: #64748b;
     font-size: 0.85rem;
     line-height: 1.5;
   }

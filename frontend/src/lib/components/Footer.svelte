@@ -30,6 +30,10 @@
       <div>
         <h3 class="text-white font-medium mb-3 text-sm">Help</h3>
         <ul class="space-y-2">
+          <li><a href="/guide" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Guide</a></li>
+          <li><a href="/faq" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">FAQ</a></li>
+          <li><a href="/verify" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Verify Promise Hash</a></li>
+          <li><a href="/verify-signature" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Verify Digital Signature</a></li>
           <li><a href="/feedback" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Feedback</a></li>
           <li><a href="/privacy" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Privacy</a></li>
         </ul>
