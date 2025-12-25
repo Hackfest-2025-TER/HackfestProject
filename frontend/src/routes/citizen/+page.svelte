@@ -110,6 +110,23 @@
       </div>
     </div>
     
+    <!-- Verification Trust Banner -->
+    <div class="verification-banner card">
+      <div class="verification-content">
+        <div class="verification-icon">
+          <Shield size={28} />
+        </div>
+        <div class="verification-text">
+          <h3>Verify Promise Hashes</h3>
+          <p>Don't trust—verify! Check that any promise text matches its blockchain hash. Our system is designed so you never have to trust us.</p>
+        </div>
+      </div>
+      <a href="/verify" class="verification-btn">
+        <Shield size={18} />
+        Verify Now
+      </a>
+    </div>
+    
     <div class="content-grid">
       <!-- Featured Manifestos -->
       <section class="featured-section">
@@ -232,6 +249,11 @@
         <a href={isAuth ? "/citizen/votes" : "/auth"} class="action-card card">
           <CheckCircle size={24} />
           <span>My Votes</span>
+          <ChevronRight size={16} class="action-arrow" />
+        </a>
+        <a href="/verify" class="action-card card verify-card">
+          <Shield size={24} />
+          <span>Verify Hash</span>
           <ChevronRight size={16} class="action-arrow" />
         </a>
         <a href="/audit-trail" class="action-card card">
@@ -683,5 +705,127 @@
   .action-card:hover :global(.action-arrow) {
     transform: translateX(4px);
     color: var(--primary-500);
+  }
+  
+  /* Verification Banner */
+  .verification-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    margin: var(--space-8) 0;
+    background: linear-gradient(135deg, #082770 0%, #0a3490 100%);
+    border: none;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .verification-banner::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 50%;
+  }
+  
+  .verification-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    flex: 1;
+    z-index: 1;
+  }
+  
+  .verification-icon {
+    width: 56px;
+    height: 56px;
+    background: rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  .verification-icon :global(svg) {
+    color: white;
+  }
+  
+  .verification-text h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: white;
+    margin-bottom: var(--space-2);
+  }
+  
+  .verification-text p {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.5;
+    max-width: 600px;
+  }
+  
+  .verification-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-6);
+    background: white;
+    color: #082770;
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1;
+    flex-shrink: 0;
+  }
+  
+  .verification-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background: #f8fafc;
+  }
+  
+  .verification-btn :global(svg) {
+    color: #082770;
+  }
+  
+  /* Verify Action Card Highlight */
+  .action-card.verify-card {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border-color: #0ea5e9;
+  }
+  
+  .action-card.verify-card :global(svg:first-child) {
+    color: #0284c7;
+  }
+  
+  .action-card.verify-card:hover {
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    border-color: #0284c7;
+    transform: translateY(-2px);
+  }
+  
+  @media (max-width: 768px) {
+    .verification-banner {
+      flex-direction: column;
+      text-align: center;
+    }
+    
+    .verification-content {
+      flex-direction: column;
+      text-align: center;
+    }
+    
+    .verification-text p {
+      margin: 0 auto;
+    }
   }
 </style>
