@@ -10,13 +10,13 @@ describe("PromiseRegistry", function () {
     
     const PromiseRegistry = await ethers.getContractFactory("PromiseRegistry");
     promiseRegistry = await PromiseRegistry.deploy();
-    await promiseRegistry.waitForDeployment();
+    await promiseRegistry.deployed();
   });
 
   describe("Promise Registration", function () {
     it("Should register a new promise", async function () {
-      const promiseId = ethers.encodeBytes32String("PROMISE-001");
-      const promiseHash = ethers.keccak256(ethers.toUtf8Bytes("Universal Healthcare Act"));
+      const promiseId = ethers.utils.formatBytes32String("PROMISE-001");
+      const promiseHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("Universal Healthcare Act"));
       const gracePeriodDays = 180;
 
       await expect(
@@ -33,8 +33,8 @@ describe("PromiseRegistry", function () {
     });
 
     it("Should reject duplicate promise registration", async function () {
-      const promiseId = ethers.encodeBytes32String("PROMISE-001");
-      const promiseHash = ethers.keccak256(ethers.toUtf8Bytes("Test Promise"));
+      const promiseId = ethers.utils.formatBytes32String("PROMISE-001");
+      const promiseHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("Test Promise"));
 
       await promiseRegistry.connect(politician).registerPromise(
         promiseId,
@@ -57,8 +57,8 @@ describe("PromiseRegistry", function () {
     let promiseHash;
 
     beforeEach(async function () {
-      promiseId = ethers.encodeBytes32String("PROMISE-002");
-      promiseHash = ethers.keccak256(ethers.toUtf8Bytes("Test Promise"));
+      promiseId = ethers.utils.formatBytes32String("PROMISE-002");
+      promiseHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("Test Promise"));
       
       await promiseRegistry.connect(politician).registerPromise(
         promiseId,
@@ -70,10 +70,10 @@ describe("PromiseRegistry", function () {
     it("Should accept vote aggregates", async function () {
       const votesKept = 100;
       const votesBroken = 20;
-      const merkleRoot = ethers.keccak256(ethers.toUtf8Bytes("merkle-root"));
+      const merkleRoot = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("merkle-root"));
       const nullifiers = [
-        ethers.keccak256(ethers.toUtf8Bytes("nullifier-1")),
-        ethers.keccak256(ethers.toUtf8Bytes("nullifier-2"))
+        ethers.utils.keccak256(ethers.utils.toUtf8Bytes("nullifier-1")),
+        ethers.utils.keccak256(ethers.utils.toUtf8Bytes("nullifier-2"))
       ];
 
       await expect(
@@ -92,8 +92,8 @@ describe("PromiseRegistry", function () {
     });
 
     it("Should prevent nullifier reuse", async function () {
-      const nullifier = ethers.keccak256(ethers.toUtf8Bytes("nullifier-unique"));
-      const merkleRoot = ethers.keccak256(ethers.toUtf8Bytes("merkle-root"));
+      const nullifier = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("nullifier-unique"));
+      const merkleRoot = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("merkle-root"));
 
       await promiseRegistry.submitVoteAggregate(
         promiseId,
@@ -119,8 +119,8 @@ describe("PromiseRegistry", function () {
     let promiseId;
 
     beforeEach(async function () {
-      promiseId = ethers.encodeBytes32String("PROMISE-003");
-      const promiseHash = ethers.keccak256(ethers.toUtf8Bytes("Test Promise"));
+      promiseId = ethers.utils.formatBytes32String("PROMISE-003");
+      const promiseHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("Test Promise"));
       
       await promiseRegistry.connect(politician).registerPromise(
         promiseId,
@@ -130,14 +130,14 @@ describe("PromiseRegistry", function () {
     });
 
     it("Should finalize status as KEPT when 60%+ votes kept", async function () {
-      const merkleRoot = ethers.keccak256(ethers.toUtf8Bytes("merkle-root"));
+      const merkleRoot = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("merkle-root"));
       
       await promiseRegistry.submitVoteAggregate(
         promiseId,
         70,  // 70% kept
         30,  // 30% broken
         merkleRoot,
-        [ethers.keccak256(ethers.toUtf8Bytes("nullifier-1"))]
+        [ethers.utils.keccak256(ethers.utils.toUtf8Bytes("nullifier-1"))]
       );
 
       await promiseRegistry.finalizeStatus(promiseId);
@@ -147,14 +147,14 @@ describe("PromiseRegistry", function () {
     });
 
     it("Should finalize status as BROKEN when 60%+ votes broken", async function () {
-      const merkleRoot = ethers.keccak256(ethers.toUtf8Bytes("merkle-root"));
+      const merkleRoot = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("merkle-root"));
       
       await promiseRegistry.submitVoteAggregate(
         promiseId,
         20,  // 20% kept
         80,  // 80% broken
         merkleRoot,
-        [ethers.keccak256(ethers.toUtf8Bytes("nullifier-2"))]
+        [ethers.utils.keccak256(ethers.utils.toUtf8Bytes("nullifier-2"))]
       );
 
       await promiseRegistry.finalizeStatus(promiseId);
@@ -164,14 +164,14 @@ describe("PromiseRegistry", function () {
     });
 
     it("Should finalize status as DISPUTED when no consensus", async function () {
-      const merkleRoot = ethers.keccak256(ethers.toUtf8Bytes("merkle-root"));
+      const merkleRoot = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("merkle-root"));
       
       await promiseRegistry.submitVoteAggregate(
         promiseId,
         50,  // 50% kept
         50,  // 50% broken
         merkleRoot,
-        [ethers.keccak256(ethers.toUtf8Bytes("nullifier-3"))]
+        [ethers.utils.keccak256(ethers.utils.toUtf8Bytes("nullifier-3"))]
       );
 
       await promiseRegistry.finalizeStatus(promiseId);
@@ -183,8 +183,8 @@ describe("PromiseRegistry", function () {
 
   describe("Merkle Proof Verification", function () {
     it("Should verify valid Merkle proof", async function () {
-      const promiseId = ethers.encodeBytes32String("PROMISE-004");
-      const promiseHash = ethers.keccak256(ethers.toUtf8Bytes("Test Promise"));
+      const promiseId = ethers.utils.formatBytes32String("PROMISE-004");
+      const promiseHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("Test Promise"));
       
       await promiseRegistry.connect(politician).registerPromise(
         promiseId,
@@ -193,20 +193,20 @@ describe("PromiseRegistry", function () {
       );
 
       // Create a simple Merkle tree
-      const leaf1 = ethers.keccak256(ethers.toUtf8Bytes("vote-1"));
-      const leaf2 = ethers.keccak256(ethers.toUtf8Bytes("vote-2"));
+      const leaf1 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("vote-1"));
+      const leaf2 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("vote-2"));
       
       // Simple 2-leaf tree - root is hash of the two leaves
       const merkleRoot = leaf1 <= leaf2
-        ? ethers.keccak256(ethers.concat([leaf1, leaf2]))
-        : ethers.keccak256(ethers.concat([leaf2, leaf1]));
+        ? ethers.utils.keccak256(ethers.utils.concat([leaf1, leaf2]))
+        : ethers.utils.keccak256(ethers.utils.concat([leaf2, leaf1]));
 
       await promiseRegistry.submitVoteAggregate(
         promiseId,
         2,
         0,
         merkleRoot,
-        [ethers.keccak256(ethers.toUtf8Bytes("nullifier-4"))]
+        [ethers.utils.keccak256(ethers.utils.toUtf8Bytes("nullifier-4"))]
       );
 
       // Verify leaf1 is in the tree

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Shield, Users, FileText, Menu, X, LogOut } from 'lucide-svelte';
+  import { Shield, Users, FileText, Menu, X, LogOut, History } from 'lucide-svelte';
   import { authStore } from '$lib/stores';
   
   export let variant: string = 'default';
@@ -10,18 +10,26 @@
   $: isAuthenticated = $authStore.isAuthenticated;
   $: nullifierShort = $authStore.credential?.nullifierShort || '';
   
-  // Logo destination: authenticated users go to manifestos, others to landing
-  $: logoHref = isAuthenticated ? '/manifestos' : '/';
+  // Logo destination: authenticated users go to citizen portal, others to landing
+  $: logoHref = isAuthenticated ? '/citizen' : '/';
   
   function handleLogout() {
     authStore.logout();
     menuOpen = false;
   }
   
-  const navItems = [
-    { href: '/manifestos', label: 'Promises', icon: FileText },
-    { href: '/politicians', label: 'Politicians', icon: Users },
-  ];
+  // Navigation items - show Citizen Portal for authenticated users
+  $: navItems = isAuthenticated 
+    ? [
+        { href: '/citizen', label: 'Citizen Portal', icon: Shield },
+        { href: '/citizen/votes', label: 'My Votes', icon: History },
+        { href: '/manifestos', label: 'Promises', icon: FileText },
+        { href: '/politicians', label: 'Politicians', icon: Users },
+      ]
+    : [
+        { href: '/manifestos', label: 'Promises', icon: FileText },
+        { href: '/politicians', label: 'Politicians', icon: Users },
+      ];
 </script>
 
 <header class="header-main {variant}">

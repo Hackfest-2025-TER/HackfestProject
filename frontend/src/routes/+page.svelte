@@ -3,9 +3,23 @@
   import { onMount } from 'svelte';
 
   let mounted = false;
-  onMount(() => {
+  let networkStats: any = null;
+  
+  onMount(async () => {
     mounted = true;
+    await loadNetworkStats();
   });
+  
+  async function loadNetworkStats() {
+    try {
+      const response = await fetch('http://localhost:8000/api/network/stats');
+      if (response.ok) {
+        networkStats = await response.json();
+      }
+    } catch (error) {
+      console.error('Failed to load network stats:', error);
+    }
+  }
 </script>
 
 <svelte:head>
@@ -39,8 +53,8 @@
             Explore Promises
             <ArrowRight size={20} />
           </a>
-          <a href="/auth" class="btn btn-glass btn-xl">
-            Verify Identity
+          <a href="/citizen" class="btn btn-glass btn-xl">
+            Citizen Portal
           </a>
         </div>
         
@@ -106,13 +120,13 @@
           <div class="floating-card card-1">
             <div class="mini-stat">
               <span class="label">Trust Score</span>
-              <span class="value">98%</span>
+              <span class="value">{networkStats ? networkStats.integrity_score.toFixed(1) + '%' : '...'}</span>
             </div>
           </div>
           <div class="floating-card card-2">
             <div class="mini-stat">
               <span class="label">Votes</span>
-              <span class="value">12.5k</span>
+              <span class="value">{networkStats ? (networkStats.total_votes >= 1000 ? (networkStats.total_votes / 1000).toFixed(1) + 'k' : networkStats.total_votes) : '...'}</span>
             </div>
           </div>
         </div>
@@ -125,18 +139,18 @@
     <div class="container">
       <div class="stats-grid">
         <div class="stat-item">
-          <span class="stat-number">2,400+</span>
+          <span class="stat-number">{networkStats ? (networkStats.total_voters || 0).toLocaleString() : '...'}</span>
           <span class="stat-label">Verified Citizens</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-number">156</span>
+          <span class="stat-number">{networkStats ? (networkStats.total_manifestos || 0).toLocaleString() : '...'}</span>
           <span class="stat-label">Promises Tracked</span>
         </div>
         <div class="stat-divider"></div>
         <div class="stat-item">
-          <span class="stat-number">100%</span>
-          <span class="stat-label">Transparent</span>
+          <span class="stat-number">{networkStats ? (networkStats.total_votes || 0).toLocaleString() : '...'}</span>
+          <span class="stat-label">Total Votes</span>
         </div>
       </div>
     </div>
@@ -243,8 +257,8 @@
           <h2>Ready to shape the future?</h2>
           <p>Join thousands of citizens ensuring promises are more than just words.</p>
           <div class="cta-buttons">
-            <a href="/auth" class="btn btn-white btn-lg">
-              Get Started Now
+            <a href="/citizen" class="btn btn-white btn-lg">
+              Go to Citizen Portal
             </a>
           </div>
         </div>
