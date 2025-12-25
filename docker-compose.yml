@@ -80,6 +80,3 @@ volumes:
 networks:
   promisethread-network:
     driver: bridge
-
-volumes:
-  postgres_data:
