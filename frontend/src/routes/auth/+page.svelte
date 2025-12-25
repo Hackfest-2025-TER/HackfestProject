@@ -1,16 +1,16 @@
 <script lang="ts">
-  import { Shield, User, Lock, CheckCircle, AlertCircle, ChevronRight, Eye, EyeOff, Loader2, KeyRound } from 'lucide-svelte';
+  import { Shield, User, Lock, CheckCircle, AlertCircle, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores';
-  import { lookupVoter, getMerkleRoot } from '$lib/api';
+  import { getMerkleRoot } from '$lib/api';
   import { isValidSecret } from '$lib/utils/zkProof';
   import { authenticateCitizen } from '$lib/zk/auth';
   
   // UI State
-  let currentStep: 'search' | 'verify' | 'success' = 'search';
+  let currentStep: 'authenticate' | 'success' = 'authenticate';
   let isLoading = false;
   let error = '';
-  let statusMessage = ''; // New status message for ZK steps
+  let statusMessage = ''; // Status message for ZK steps
   
   // Form State
   let voterIdInput = '';
@@ -18,7 +18,6 @@
   let showSecret = false;
   
   // Data State
-  let voterLookupData: any = null;
   let verificationResult: any = null;
   let merkleRoot = '';
   
@@ -30,38 +29,15 @@
       console.error('Failed to load merkle root:', e);
     }
   }
-  async function lookupAndProceed() {
+  
+  async function authenticateDirectly() {
     error = '';
+    statusMessage = '';
     
     if (!voterIdInput.trim()) {
       error = 'Please enter your Voter ID';
       return;
     }
-    
-    isLoading = true;
-    
-    try {
-      const result = await lookupVoter(voterIdInput.trim());
-      
-      if (!result.found) {
-        error = 'Voter ID not found. Please check and try again.';
-        isLoading = false;
-        return;
-      }
-      
-      voterLookupData = result;
-      currentStep = 'verify';
-    } catch (e) {
-      error = 'Connection failed. Please try again.';
-      console.error(e);
-    }
-    
-    isLoading = false;
-  }
-  
-  async function generateAndVerify() {
-    error = '';
-    statusMessage = '';
     
     if (!isValidSecret(secretInput)) {
       error = 'Your secret must be at least 6 characters.';
@@ -126,13 +102,6 @@
     goto('/manifestos');
   }
   
-  function goBack() {
-    currentStep = 'search';
-    voterLookupData = null;
-    secretInput = '';
-    error = '';
-  }
-  
   loadMerkleRoot();
 </script>
 
@@ -146,30 +115,25 @@
     <div class="auth-card">
       <!-- Step Indicator -->
       <div class="step-indicator">
-        <div class="step" class:active={currentStep === 'search'} class:completed={currentStep !== 'search'}>
+        <div class="step" class:active={currentStep === 'authenticate'} class:completed={currentStep === 'success'}>
           <span class="step-number">1</span>
-          <span class="step-label">Find Record</span>
-        </div>
-        <div class="step-connector" class:active={currentStep !== 'search'}></div>
-        <div class="step" class:active={currentStep === 'verify'} class:completed={currentStep === 'success'}>
-          <span class="step-number">2</span>
-          <span class="step-label">Verify</span>
+          <span class="step-label">Authenticate</span>
         </div>
         <div class="step-connector" class:active={currentStep === 'success'}></div>
         <div class="step" class:active={currentStep === 'success'}>
-          <span class="step-number">3</span>
-          <span class="step-label">Done</span>
+          <span class="step-number">2</span>
+          <span class="step-label">Complete</span>
         </div>
       </div>
       
-      <!-- Step 1: Voter ID -->
-      {#if currentStep === 'search'}
+      <!-- Step 1: Authenticate (Single Step - Zero Knowledge) -->
+      {#if currentStep === 'authenticate'}
         <div class="auth-card-header">
           <div class="header-icon">
-            <KeyRound size={32} />
+            <Shield size={32} />
           </div>
-          <h1>Verify Your Identity</h1>
-          <p>Enter your voter ID to get started. Your identity remains private.</p>
+          <h1>Zero-Knowledge Authentication</h1>
+          <p>Prove your eligibility anonymously. Your identity will never be revealed.</p>
         </div>
         
         <div class="form-section">
@@ -186,7 +150,41 @@
             />
           </div>
           <p class="form-hint">
-            Your voter ID can be found on your voter registration card.
+            Your voter ID stays on your device and is never sent to the server.
+          </p>
+        </div>
+        
+        <div class="form-section">
+          <label class="form-label">
+            <Lock size={16} />
+            Your Secret
+          </label>
+          <div class="input-wrapper">
+            {#if showSecret}
+              <input 
+                type="text"
+                class="form-input" 
+                placeholder="Enter your secret (min 6 characters)"
+                bind:value={secretInput}
+              />
+            {:else}
+              <input 
+                type="password"
+                class="form-input" 
+                placeholder="Enter your secret (min 6 characters)"
+                bind:value={secretInput}
+              />
+            {/if}
+            <button class="toggle-secret" on:click={() => showSecret = !showSecret}>
+              {#if showSecret}
+                <EyeOff size={18} />
+              {:else}
+                <Eye size={18} />
+              {/if}
+            </button>
+          </div>
+          <p class="form-hint">
+            Your secret is used locally to generate an anonymous proof. Use the same secret each time.
           </p>
         </div>
         
@@ -200,105 +198,23 @@
         <div class="info-banner">
           <Shield size={20} />
           <div>
-            <strong>Your Privacy is Protected</strong>
-            <p>We verify you're a registered voter without storing any personal information. Your identity remains anonymous.</p>
+            <strong>True Zero-Knowledge Privacy</strong>
+            <p>Your voter ID and secret never leave your browser. We verify your eligibility without learning who you are.</p>
           </div>
         </div>
         
-        <button class="submit-btn" on:click={lookupAndProceed} disabled={isLoading || !voterIdInput.trim()}>
+        <button class="submit-btn" on:click={authenticateDirectly} disabled={isLoading || !voterIdInput.trim() || !secretInput}>
           {#if isLoading}
             <Loader2 size={18} class="spinner" />
-            {statusMessage || 'Looking up...'}
+            {statusMessage || 'Verifying anonymously...'}
           {:else}
-            Continue
+            Authenticate Anonymously
             <ChevronRight size={18} />
           {/if}
         </button>
       {/if}
       
-      <!-- Step 2: Verify -->
-      {#if currentStep === 'verify'}
-        <div class="auth-card-header">
-          <div class="header-icon">
-            <Lock size={32} />
-          </div>
-          <h1>Enter Your Secret</h1>
-          <p>Create a secret to verify your identity anonymously.</p>
-        </div>
-        
-        <div class="voter-found-card">
-          <CheckCircle size={24} />
-          <div>
-            <strong>Voter Found</strong>
-            <span>Name: {voterLookupData.name_masked} - Ward: {voterLookupData.ward}</span>
-          </div>
-        </div>
-        
-        <div class="form-section">
-          <label class="form-label">
-            <Lock size={16} />
-            Your Secret
-          </label>
-          <div class="input-wrapper">
-            {#if showSecret}
-              <input 
-                type="text"
-                class="form-input" 
-                placeholder="Enter a secret (min 6 characters)"
-                bind:value={secretInput}
-              />
-            {:else}
-              <input 
-                type="password"
-                class="form-input" 
-                placeholder="Enter a secret (min 6 characters)"
-                bind:value={secretInput}
-              />
-            {/if}
-            <button class="toggle-secret" on:click={() => showSecret = !showSecret}>
-              {#if showSecret}
-                <EyeOff size={18} />
-              {:else}
-                <Eye size={18} />
-              {/if}
-            </button>
-          </div>
-          <p class="form-hint">
-            This secret helps verify your identity. Use the same secret each time you visit.
-          </p>
-        </div>
-        
-        {#if error}
-          <div class="error-banner">
-            <AlertCircle size={18} />
-            <p>{error}</p>
-          </div>
-        {/if}
-        
-        <div class="info-banner warning">
-          <Shield size={18} />
-          <div>
-            <strong>Remember your secret</strong>
-            <p>You'll need this same secret to vote on promises later.</p>
-          </div>
-        </div>
-        
-        <div class="button-row">
-          <button class="back-btn" on:click={goBack}>
-            Back
-          </button>
-          <button class="submit-btn" on:click={generateAndVerify} disabled={isLoading || !secretInput}>
-            {#if isLoading}
-              <Loader2 size={18} class="spinner" />
-              {statusMessage || 'Verifying...'}
-            {:else}
-              Verify
-            {/if}
-          </button>
-        </div>
-      {/if}
-      
-      <!-- Step 3: Success -->
+      <!-- Step 2: Success -->
       {#if currentStep === 'success'}
         <div class="success-content">
           <div class="success-icon">
@@ -619,33 +535,6 @@
   .error-banner p {
     font-size: 0.875rem;
     color: var(--error-400);
-  }
-  
-  /* Voter Found Card */
-  .voter-found-card {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    border-radius: 12px;
-    margin-bottom: 1.5rem;
-  }
-  
-  .voter-found-card :global(svg) {
-    color: var(--success-400);
-  }
-  
-  .voter-found-card strong {
-    display: block;
-    color: var(--success-300);
-    font-size: 0.95rem;
-  }
-  
-  .voter-found-card span {
-    font-size: 0.85rem;
-    color: var(--success-400);
   }
   
   /* Buttons */

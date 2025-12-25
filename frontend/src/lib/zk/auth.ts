@@ -124,6 +124,7 @@ export interface AuthResult {
     credential?: string;
     nullifier?: string;
     message?: string;
+    used_votes?: number[];  // List of manifesto IDs already voted on
 }
 
 export interface PreFetchedData {
@@ -249,7 +250,8 @@ export async function authenticateCitizen(
             success: true,
             credential: result.credential || credential,
             nullifier: result.nullifier || nullifier,
-            message: "Successfully verified as eligible voter"
+            message: "Successfully verified as eligible voter",
+            used_votes: result.used_votes || []  // Return vote history from backend
         };
 
     } catch (error: any) {

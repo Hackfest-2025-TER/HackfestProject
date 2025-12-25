@@ -31,7 +31,7 @@ from crypto_utils import (
     verify_signature, get_verification_bundle, is_valid_address, format_address_short
 )
 from blockchain_service import get_blockchain_service, BlockchainService
-from utils.merkle_tree import registry
+from utils.merkle_tree import registry, MerkleTree
 
 app = FastAPI(
     title="PromiseThread API",
@@ -229,34 +229,24 @@ async def get_registry_stats(db: Session = Depends(get_db)):
 
 @app.post("/api/registry/lookup")
 async def lookup_voter(request: VoterLookupRequest, db: Session = Depends(get_db)):
-    """Look up voter by ID and return Merkle proof."""
-    voter_id = request.voter_id.strip()
+    """DEPRECATED: This endpoint violates zero-knowledge principles.
     
-    voter = db.query(Voter).filter(Voter.voter_id == voter_id).first()
+    In true ZK system:
+    - Client computes commitment locally: hash(secret + voterID)
+    - Client finds commitment in shuffled leaves
+    - NO server lookup of voter identity
     
-    if not voter:
-        return VoterLookupResponse(
-            found=False,
-            message="Voter ID not found in registry"
-        )
-    
-    # In Purist mode, we don't return the proof here.
-    # The client builds it themselves.
-    # But we return 'found=True' to let the UI proceed.
-    
-    voter_id_hash = generate_hash(voter_id)
-    
-    # Mask the name
-    name = voter.name or ""
-    name_masked = name[:2] + "***" if len(name) > 2 else "***"
-    
+    This endpoint is kept for backward compatibility only.
+    Frontend should directly call /api/zk/login instead.
+    """
+    # Return generic response without revealing ANY voter information
     return VoterLookupResponse(
         found=True,
-        voter_id_hash=voter_id_hash,
-        name_masked=name_masked,
-        ward=str(voter.ward) if voter.ward else None,
-        merkle_proof=None,  # Client builds proof locally in Purist mode
-        message="Voter found. Use this data to generate your ZK proof client-side."
+        voter_id_hash=None,
+        name_masked=None,
+        ward=None,
+        merkle_proof=None,
+        message="Please proceed with authentication. Your identity will be verified anonymously."
     )
 
 @app.get("/api/registry/search")
