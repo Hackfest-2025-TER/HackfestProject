@@ -79,6 +79,11 @@ class ZKCredential(Base):
 class Politician(Base):
     """
     Politicians who make promises. Will be seeded with sample data.
+    
+    Digital Signature Architecture:
+    - wallet_address: Public Ethereum address (stored)
+    - private key: NEVER stored - given to politician once
+    - Signatures prove authorship without backend involvement
     """
     __tablename__ = 'politicians'
     
@@ -90,6 +95,20 @@ class Politician(Base):
     image_url = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # ========= Digital Identity (Wallet) =========
+    wallet_address = Column(String(42), unique=True, nullable=True)  # Ethereum address (0x...)
+    wallet_created_at = Column(DateTime, nullable=True)
+    public_key = Column(String(130), nullable=True)  # Full public key (for advanced verification)
+    
+    # ========= Key Rotation Support =========
+    key_version = Column(Integer, default=1)  # Increments on key rotation
+    key_revoked = Column(Boolean, default=False)  # True if key has been revoked
+    key_revoked_at = Column(DateTime, nullable=True)
+    key_revoked_reason = Column(String(255), nullable=True)  # "lost", "compromised", etc.
+    
+    # Previous wallet addresses (for historical verification)
+    previous_wallet_addresses = Column(JSONB, default=list)  # List of {address, revoked_at, version}
     
     # Relationships
     manifestos = relationship("Manifesto", back_populates="politician")
@@ -105,9 +124,16 @@ class Politician(Base):
 class Manifesto(Base):
     """
     Political promises/manifestos.
-    - Full text stored here (off-chain)
-    - promise_hash stored on blockchain (on-chain)
+    
+    Data Architecture:
+    - Full text stored here (off-chain cache)
+    - promise_hash + signature stored on blockchain (on-chain)
     - vote_kept/vote_broken are cached aggregates
+    
+    Signature Architecture:
+    - signature: ECDSA signature of promise_hash by politician
+    - Proves politician authored this manifesto
+    - Cannot be forged (backend never has private key)
     """
     __tablename__ = 'manifestos'
     
@@ -117,8 +143,24 @@ class Manifesto(Base):
     description = Column(Text, nullable=False)
     category = Column(String(50), nullable=False)  # infrastructure, economy, education, etc.
     status = Column(String(20), default='pending')  # pending, kept, broken
-    promise_hash = Column(String(66), nullable=True)  # Keccak256 hash for blockchain
+    promise_hash = Column(String(66), nullable=True)  # SHA256 hash for blockchain
     grace_period_end = Column(DateTime, nullable=False)  # When voting opens
+    
+    # ========= Digital Signature Fields =========
+    signature = Column(Text, nullable=True)  # ECDSA signature (hex string)
+    signed_at = Column(DateTime, nullable=True)  # When signature was created
+    signer_address = Column(String(42), nullable=True)  # Address that signed (for key rotation)
+    signer_key_version = Column(Integer, nullable=True)  # Which key version was used
+    
+    # ========= Blockchain Integration =========
+    blockchain_tx = Column(String(66), nullable=True)  # Transaction hash on blockchain
+    blockchain_confirmed = Column(Boolean, default=False)  # True if confirmed on-chain
+    blockchain_block = Column(Integer, nullable=True)  # Block number where recorded
+    
+    # ========= Legacy Data Handling =========
+    legacy_unverified = Column(Boolean, default=False)  # True for pre-signature manifestos
+    
+    # Existing fields
     vote_kept = Column(Integer, default=0)  # Cached aggregate
     vote_broken = Column(Integer, default=0)  # Cached aggregate
     created_at = Column(DateTime, default=datetime.utcnow)
