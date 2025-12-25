@@ -90,6 +90,37 @@ export async function verifyZKProof(proof: {
   return response.json();
 }
 
+// New ZK login endpoint (commitment-based)
+export async function zkLogin(data: {
+  nullifier: string;
+  merkle_root: string;
+  credential?: string;
+  proof?: any;
+  publicSignals?: string[];
+}): Promise<ZKVerifyResult> {
+  const response = await fetch(`${API_BASE_URL}/zk/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Failed to login with ZK proof');
+  return response.json();
+}
+
+// Get shuffled anonymity set for commitment-based ZK
+export async function getAnonymitySet() {
+  const response = await fetch(`${API_BASE_URL}/zk/leaves`);
+  if (!response.ok) throw new Error('Failed to fetch anonymity set');
+  return response.json();
+}
+
+// Get demo secret for testing (demo only)
+export async function getDemoSecret(voterId: string) {
+  const response = await fetch(`${API_BASE_URL}/zk/demo-secret/${encodeURIComponent(voterId)}`);
+  if (!response.ok) throw new Error('Voter not found');
+  return response.json();
+}
+
 // Voter lookup
 export async function lookupVoter(voterId: string) {
   const response = await fetch(`${API_BASE_URL}/registry/lookup`, {

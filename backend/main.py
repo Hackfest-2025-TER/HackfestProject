@@ -31,6 +31,7 @@ from crypto_utils import (
     verify_signature, get_verification_bundle, is_valid_address, format_address_short
 )
 from blockchain_service import get_blockchain_service, BlockchainService
+from utils.merkle_tree import registry
 
 app = FastAPI(
     title="PromiseThread API",
@@ -39,6 +40,7 @@ app = FastAPI(
 )
 
 # ============= Merkle Tree Implementation =============
+# Merkle Tree logic moved to utils/merkle_tree.py
 
 class MerkleTree:
     """Binary Merkle Tree for voter registry."""
@@ -109,27 +111,10 @@ DEMO_SECRET = "1234567890"
 # In-memory cache for expected nullifiers (temporary during auth flow)
 expected_nullifiers_cache: dict = {}
 
-# Cached Merkle tree (rebuilt from DB)
-_merkle_tree_cache: Optional[MerkleTree] = None
-_merkle_root_cache: str = ""
-_voter_ids_cache: List[str] = []
-
-
+# Use the global registry from utils.merkle_tree
 def get_merkle_tree(db: Session) -> tuple[MerkleTree, str, List[str]]:
-    """Get or rebuild Merkle tree from database."""
-    global _merkle_tree_cache, _merkle_root_cache, _voter_ids_cache
-    
-    if _merkle_tree_cache is None:
-        # Load voter IDs from database
-        voters = db.query(Voter.voter_id).order_by(Voter.id).all()
-        _voter_ids_cache = [v.voter_id for v in voters]
-        
-        if _voter_ids_cache:
-            _merkle_tree_cache = MerkleTree(_voter_ids_cache)
-            _merkle_root_cache = _merkle_tree_cache.root
-            print(f"✓ Built Merkle tree with {len(_voter_ids_cache)} voters. Root: {_merkle_root_cache[:16]}...")
-    
-    return _merkle_tree_cache, _merkle_root_cache, _voter_ids_cache
+    """Get Merkle tree from the global registry."""
+    return registry.merkle_tree, registry.merkle_tree.root, registry.leaves
 
 
 # CORS middleware
@@ -381,9 +366,131 @@ async def search_voters(
 
 # ============= ZK Proof Endpoints =============
 
+@app.get("/api/zk/leaves")
+async def get_anonymity_set():
+    """
+    PURIST APPROACH with Cryptographic Shuffling:
+    
+    Returns the SHUFFLED commitments (anonymity set).
+    Each leaf = hash(secret + voterID), then shuffled.
+    
+    The client:
+    1. Downloads all leaves
+    2. Computes their commitment: hash(their_secret + their_voterID)
+    3. Finds their commitment in the shuffled array
+    4. Builds Merkle proof from that position
+    
+    Privacy: Even EC doesn't know which position belongs to which voter
+    (mapping deleted after shuffle)
+    """
+    return {
+        "root": registry.merkle_tree.root,
+        "leaves": registry.leaves,
+        "total_voters": registry.voter_count,
+        "shuffle_seed": registry.shuffle_seed,  # Published for auditability
+        "commitment_scheme": "hash(secret + voterID)",
+        "note": "Leaves are shuffled - position reveals nothing about voter identity"
+    }
+
+@app.get("/api/zk/demo-secret/{voter_id}")
+async def get_demo_secret_endpoint(voter_id: str):
+    """
+    DEMO ONLY: Look up the test secret for a voter ID.
+    
+    In production:
+    - This endpoint would NOT exist
+    - Voters would know their citizenship number
+    - EC would have deleted all mappings after tree construction
+    """
+    secret = registry.get_demo_secret(voter_id)
+    if not secret:
+        raise HTTPException(status_code=404, detail="Voter ID not found")
+    
+    # Also compute what their commitment should be
+    commitment = registry.compute_commitment(secret, voter_id)
+    leaf_index = registry.find_leaf_index(commitment)
+    
+    return {
+        "voter_id": voter_id,
+        "demo_secret": secret,
+        "commitment": commitment,
+        "found_in_tree": leaf_index >= 0,
+        "leaf_index": leaf_index if leaf_index >= 0 else None,
+        "warning": "DEMO ONLY - In production, voters must know their citizenship number"
+    }
+
+@app.post("/api/zk/login", response_model=ZKProofResponse)
+async def zk_login(request: ZKProofRequest, db: Session = Depends(get_db)):
+    """Verify a zero-knowledge proof and issue anonymous credential (new commitment-based)."""
+    
+    # Support both explicit fields (preferred) and publicSignals array
+    if request.nullifier and request.merkle_root:
+        # New explicit format
+        nullifier = request.nullifier
+        client_root = request.merkle_root
+    elif request.publicSignals and len(request.publicSignals) >= 2:
+        # Legacy format: publicSignals[0] = nullifier, publicSignals[1] = root
+        nullifier = request.publicSignals[0]
+        client_root = request.publicSignals[1]
+    else:
+        return ZKProofResponse(
+            valid=False,
+            message="Invalid request: missing nullifier or merkle_root"
+        )
+
+    # Verify Root matches current registry
+    if client_root != registry.merkle_tree.root:
+        return ZKProofResponse(
+            valid=False,
+            message="Obsolete or invalid Merkle Root. Please refresh the page."
+        )
+
+    # Check if nullifier already used (prevents double voting)
+    existing = db.query(ZKCredential).filter(
+        ZKCredential.nullifier_hash == nullifier
+    ).first()
+    
+    if existing:
+        # Return existing credential for session recovery
+        votes = db.query(ManifestoVote.manifesto_id).filter(
+            ManifestoVote.nullifier == nullifier
+        ).all()
+        used_votes = [v.manifesto_id for v in votes]
+        
+        return ZKProofResponse(
+            valid=True,
+            credential=existing.credential_hash,
+            nullifier=nullifier,
+            nullifier_short=nullifier[:12] + "...",
+            message="✓ Welcome back! Your credential has been restored.",
+            merkle_root=client_root[:16] + "...",
+            used_votes=used_votes
+        )
+    
+    # Use client-provided credential or generate new one
+    credential = request.credential or generate_credential()
+    
+    # Store in database
+    zk_cred = ZKCredential(
+        nullifier_hash=nullifier,
+        credential_hash=credential,
+        is_valid=True
+    )
+    db.add(zk_cred)
+    db.commit()
+    
+    return ZKProofResponse(
+        valid=True,
+        credential=credential,
+        nullifier=nullifier,
+        nullifier_short=nullifier[:12] + "...",
+        message="✓ Zero-knowledge proof verified. Anonymous credential issued.",
+        merkle_root=client_root[:16] + "..."
+    )
+
 @app.post("/api/zk/verify", response_model=ZKProofResponse)
 async def verify_zk_proof(request: ZKProofRequest, db: Session = Depends(get_db)):
-    """Verify a zero-knowledge proof and issue anonymous credential."""
+    """Verify a zero-knowledge proof and issue anonymous credential (legacy endpoint)."""
     
     # Check if nullifier already used - return existing credential for session recovery
     existing = db.query(ZKCredential).filter(
