@@ -1,8 +1,19 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
-	plugins: [sveltekit()],
+	plugins: [
+		sveltekit(),
+		nodePolyfills({
+			include: ['buffer', 'crypto', 'stream', 'util', 'events', 'process'],
+			globals: {
+				Buffer: true,
+				global: true,
+				process: true
+			}
+		})
+	],
 	server: {
 		host: '0.0.0.0',
 		port: 3000,
@@ -13,28 +24,13 @@ export default defineConfig({
 			}
 		}
 	},
-	resolve: {
-		alias: {
-			// Polyfills for Node.js modules in browser
-			buffer: 'buffer/',
-			events: 'events/',
-			util: 'util/',
-			stream: 'stream-browserify',
-			crypto: 'crypto-browserify'
-		}
-	},
 	define: {
-		// Define global for browser compatibility
-		global: 'globalThis',
-		'process.env': {}
+		global: 'globalThis'
 	},
 	optimizeDeps: {
-		esbuildOptions: {
-			// Enable polyfills
-			define: {
-				global: 'globalThis'
-			}
-		},
-		include: ['buffer', 'events', 'util', 'stream-browserify', 'crypto-browserify']
+		include: ['snarkjs', 'circomlibjs', 'ethers']
+	},
+	ssr: {
+		noExternal: ['snarkjs', 'circomlibjs', 'ffjavascript']
 	}
 });
