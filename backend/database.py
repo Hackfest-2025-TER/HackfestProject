@@ -4,7 +4,7 @@ Database Connection Module for PromiseThread
 Handles PostgreSQL connection, session management, and initialization.
 
 Credentials:
-- Host: localhost
+- Host: localhost (or postgres in Docker)
 - Port: 5432
 - Database: promisethread
 - Username: promisethread
@@ -23,15 +23,24 @@ from models import Base
 # DATABASE CONFIGURATION
 # =============================================================================
 
-# Database credentials (visible for development)
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "promisethread")
-DB_USER = os.getenv("DB_USER", "promisethread")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "hackfest2025")
+# Support both DATABASE_URL (docker-compose) and individual env vars (local dev)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Connection URL
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+if not DATABASE_URL:
+    # Fall back to individual environment variables
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT", "5432")
+    DB_NAME = os.getenv("DB_NAME", "promisethread")
+    DB_USER = os.getenv("DB_USER", "promisethread")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "hackfest2025")
+    DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+else:
+    # Parse from DATABASE_URL for display
+    DB_HOST = "from DATABASE_URL"
+    DB_PORT = "from DATABASE_URL"
+    DB_NAME = "from DATABASE_URL"
+    DB_USER = "from DATABASE_URL"
+    DB_PASSWORD = "***"
 
 # Print connection info for debugging (remove in production)
 print(f"""

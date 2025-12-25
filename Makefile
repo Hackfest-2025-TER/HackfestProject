@@ -109,13 +109,37 @@ stop:
 # =============================================================================
 
 deploy:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Building and Starting PromiseThread (Docker)"
+	@echo "════════════════════════════════════════════════════════════"
 	docker-compose up --build -d
+	@echo ""
+	@echo "  ✓ Services starting..."
+	@echo ""
+	@echo "  Frontend:         http://localhost:3000"
+	@echo "  Backend API:      http://localhost:8000"
+	@echo "  API Docs:         http://localhost:8000/docs"
+	@echo "  Blockchain RPC:   http://localhost:8545"
+	@echo "  PostgreSQL:       localhost:5432"
+	@echo ""
+	@echo "  Run 'make deploy-logs' to view logs"
+	@echo "════════════════════════════════════════════════════════════"
 
 deploy-down:
 	docker-compose down
 
 deploy-logs:
 	docker-compose logs -f
+
+deploy-restart:
+	docker-compose restart
+
+deploy-clean:
+	docker-compose down -v --rmi local
+	@echo "✓ Removed containers, volumes, and local images"
+
+deploy-status:
+	docker-compose ps
 
 # =============================================================================
 # Blockchain
