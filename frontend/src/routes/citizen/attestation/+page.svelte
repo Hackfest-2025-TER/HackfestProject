@@ -1,6 +1,4 @@
 <script lang="ts">
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
   import { Building2, Shield, CheckCircle, Lock, ChevronRight, Calendar, AlertCircle, Fingerprint, Clock, ThumbsUp, ThumbsDown, ExternalLink } from 'lucide-svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -113,33 +111,31 @@
   <title>Vote on Promise - PromiseThread</title>
 </svelte:head>
 
-<Header variant="citizen" />
-
 <main class="attestation-page">
   <div class="container">
     <!-- Page Header -->
     <div class="page-header">
       <span class="header-badge">
         <Building2 size={14} />
-        ANONYMOUS VOTING PORTAL
+        FEEDBACK PORTAL
       </span>
-      <h1>Cast Your Vote</h1>
-      <p>Evaluate this political promise anonymously. Your vote is cryptographically verified but your identity remains hidden.</p>
+      <h1>Share Your Feedback</h1>
+      <p>Evaluate this political promise anonymously. Your identity stays private.</p>
     </div>
     
-    <!-- ZK Identity Banner -->
+    <!-- Identity Banner -->
     {#if isAuth}
       <div class="zk-banner">
         <div class="zk-left">
           <Shield size={20} />
           <div>
-            <strong>Identity: Verified (Zero-Knowledge)</strong>
-            <span>Nullifier: {userCredential?.nullifierShort}</span>
+            <strong>Verified Citizen</strong>
+            <span>Your identity is protected</span>
           </div>
         </div>
         <span class="session-badge">
           <span class="status-dot online"></span>
-          Secure Session Active
+          Active Session
         </span>
       </div>
     {:else}
@@ -227,21 +223,8 @@
               <div class="success-icon">
                 <CheckCircle size={48} />
               </div>
-              <h3>Vote Recorded!</h3>
-              <p>Your anonymous vote has been recorded on the blockchain.</p>
-              
-              {#if voteResult}
-                <div class="vote-receipt">
-                  <div class="receipt-row">
-                    <span>Vote Hash</span>
-                    <code>{voteResult.vote_hash?.slice(0, 20)}...</code>
-                  </div>
-                  <div class="receipt-row">
-                    <span>Block Height</span>
-                    <code>#{voteResult.block_height?.toLocaleString()}</code>
-                  </div>
-                </div>
-              {/if}
+              <h3>Feedback Recorded</h3>
+              <p>Your anonymous feedback has been recorded.</p>
               
               <a href="/manifestos" class="back-btn">
                 <ChevronRight size={18} />
@@ -263,8 +246,8 @@
           {:else if hasAlreadyVoted}
             <div class="already-voted card">
               <CheckCircle size={32} />
-              <h3>You've Already Voted</h3>
-              <p>Your nullifier shows you have already cast a vote on this promise. Each citizen can only vote once.</p>
+              <h3>Already Submitted</h3>
+              <p>You have already given feedback on this promise. Each citizen can only vote once.</p>
               <a href="/manifestos" class="back-btn">
                 Back to Promises
               </a>
@@ -333,33 +316,23 @@
         
         <!-- Sidebar -->
         <aside class="sidebar">
-          <!-- Blockchain Record -->
+          <!-- Session Info -->
           <div class="sidebar-card card">
             <div class="card-header">
-              <span class="card-label">BLOCKCHAIN RECORD</span>
+              <span class="card-label">SESSION INFO</span>
               <Lock size={14} />
             </div>
             
             <div class="record-field">
-              <span class="field-label">YOUR NULLIFIER</span>
+              <span class="field-label">YOUR ID</span>
               <div class="field-value mono">{userCredential?.nullifierShort || '...'}</div>
-              <span class="field-hint">Prevents double-voting without revealing identity</span>
+              <span class="field-hint">Anonymous identifier for this session</span>
             </div>
             
             <div class="record-field">
-              <span class="field-label">CURRENT BLOCK</span>
-              <div class="field-value">#{currentBlock.toLocaleString()}</div>
+              <span class="field-label">STATUS</span>
+              <div class="field-value">Verified Citizen</div>
             </div>
-            
-            <div class="record-field">
-              <span class="field-label">MERKLE ROOT</span>
-              <div class="field-value mono">{merkleRoot?.slice(0, 16)}...</div>
-            </div>
-            
-            <a href="/audit-trail" class="audit-link">
-              <ExternalLink size={14} />
-              View Full Audit Trail
-            </a>
           </div>
           
           <!-- Privacy Guarantee -->
@@ -369,10 +342,10 @@
               Privacy Guarantee
             </h4>
             <ul class="privacy-list">
-              <li>Your vote is verified using Zero-Knowledge Proofs</li>
-              <li>Only your <strong>nullifier</strong> is stored - never your voter ID</li>
-              <li>Vote aggregates are public; individual votes are private</li>
-              <li>All records are immutably stored on-chain</li>
+              <li>Your vote is verified privately</li>
+              <li>Only an anonymous ID is stored - never your personal info</li>
+              <li>Vote totals are public; individual votes are private</li>
+              <li>All records are permanently stored</li>
             </ul>
           </div>
           
@@ -380,10 +353,10 @@
           <div class="sidebar-card card">
             <h4>How Voting Works</h4>
             <ol class="how-list">
-              <li>Your ZK credential proves you're an eligible voter</li>
-              <li>Your nullifier ensures one vote per promise</li>
-              <li>Vote is recorded with only the nullifier</li>
-              <li>Aggregates update on-chain immediately</li>
+              <li>Your verification proves you're an eligible voter</li>
+              <li>Your anonymous ID ensures one vote per promise</li>
+              <li>Vote is recorded with only your anonymous ID</li>
+              <li>Totals update immediately</li>
             </ol>
           </div>
         </aside>
@@ -391,8 +364,6 @@
     {/if}
   </div>
 </main>
-
-<Footer />
 
 <style>
   .attestation-page {

@@ -1011,6 +1011,7 @@ async def get_politicians(db: Session = Depends(get_db)):
         result.append({
             "id": p.id,
             "name": p.name,
+            "slug": p.slug,
             "title": p.position or "Politician",
             "party": p.party,
             "integrity_score": integrity_score,
@@ -1023,10 +1024,16 @@ async def get_politicians(db: Session = Depends(get_db)):
     
     return {"politicians": result}
 
-@app.get("/api/politicians/{politician_id}")
-async def get_politician(politician_id: int, db: Session = Depends(get_db)):
-    """Get politician details."""
-    p = db.query(Politician).filter(Politician.id == politician_id).first()
+@app.get("/api/politicians/{politician_identifier}")
+async def get_politician(politician_identifier: str, db: Session = Depends(get_db)):
+    """Get politician details by ID or slug."""
+    # Try to parse as integer ID first
+    try:
+        politician_id = int(politician_identifier)
+        p = db.query(Politician).filter(Politician.id == politician_id).first()
+    except ValueError:
+        # Treat as slug
+        p = db.query(Politician).filter(Politician.slug == politician_identifier).first()
     
     if not p:
         raise HTTPException(status_code=404, detail="Politician not found")
@@ -1046,13 +1053,28 @@ async def get_politician(politician_id: int, db: Session = Depends(get_db)):
     total = kept + broken
     integrity_score = round(kept / total * 100) if total > 0 else 50
     
+    # Format manifestos for response
+    manifesto_list = []
+    for m in manifestos:
+        manifesto_list.append({
+            "id": m.id,
+            "title": m.title,
+            "status": m.status,
+            "deadline": m.grace_period_end.isoformat() if m.grace_period_end else None,
+            "category": m.category,
+            "vote_kept": m.vote_kept,
+            "vote_broken": m.vote_broken
+        })
+    
     return {
         "id": p.id,
         "name": p.name,
+        "slug": p.slug,
         "title": p.position or "Politician",
         "party": p.party,
         "integrity_score": integrity_score,
-        "manifestos": manifesto_count,
+        "manifestos": manifesto_list,
+        "manifesto_count": manifesto_count,
         "verified": True,
         "public_key": p.wallet_address or generate_hash(f"pk_{p.id}")[:42],
         "wallet_address": p.wallet_address,

@@ -6,6 +6,7 @@ Seeds initial data for politicians and sample manifestos.
 
 from datetime import datetime, timedelta
 import hashlib
+import re
 from sqlalchemy.orm import Session
 
 from database import get_db_context, init_db
@@ -16,6 +17,15 @@ def generate_promise_hash(title: str, description: str, politician_id: int) -> s
     """Generate a hash for a promise (simulating blockchain hash)."""
     data = f"{title}:{description}:{politician_id}".encode('utf-8')
     return '0x' + hashlib.sha256(data).hexdigest()
+
+
+def generate_slug(name: str) -> str:
+    """Generate URL-friendly slug from politician name."""
+    # Remove special characters, lowercase, replace spaces with hyphens
+    slug = name.lower()
+    slug = re.sub(r'[^\w\s-]', '', slug)
+    slug = re.sub(r'[-\s]+', '-', slug)
+    return slug.strip('-')
 
 
 def generate_block_hash(data: str, prev_hash: str) -> str:
@@ -204,7 +214,11 @@ def seed_politicians(db: Session) -> list[Politician]:
     
     politicians = []
     for data in POLITICIANS:
-        politician = Politician(**data)
+        # Generate slug from name
+        data_with_slug = data.copy()
+        data_with_slug['slug'] = generate_slug(data['name'])
+        
+        politician = Politician(**data_with_slug)
         db.add(politician)
         politicians.append(politician)
     
@@ -213,12 +227,19 @@ def seed_politicians(db: Session) -> list[Politician]:
     return politicians
 
 
-def seed_manifestos(db: Session) -> list[Manifesto]:
+def seed_manifestos(db: Session, politicians: list[Politician]) -> list[Manifesto]:
     """Seed manifestos into database."""
     print("\n📥 Seeding manifestos...")
     
+    # Create mapping of old IDs (1-5) to actual politician IDs
+    politician_id_map = {i + 1: politician.id for i, politician in enumerate(politicians)}
+    
     manifestos = []
     for data in get_manifestos_data():
+        # Map the hardcoded politician_id to the actual one
+        original_id = data["politician_id"]
+        data["politician_id"] = politician_id_map[original_id]
+        
         manifesto = Manifesto(**data)
         # Generate promise hash
         manifesto.promise_hash = generate_promise_hash(
@@ -310,7 +331,7 @@ def main():
         
         # Seed data
         politicians = seed_politicians(db)
-        manifestos = seed_manifestos(db)
+        manifestos = seed_manifestos(db, politicians)
         seed_audit_logs(db, manifestos)
         
         db.commit()

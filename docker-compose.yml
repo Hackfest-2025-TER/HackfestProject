@@ -74,6 +74,9 @@ services:
     networks:
       - promisethread-network
 
+volumes:
+  postgres_data:
+
 networks:
   promisethread-network:
     driver: bridge

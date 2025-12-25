@@ -1,10 +1,7 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
-  import HashDisplay from '$lib/components/HashDisplay.svelte';
-  import { Shield, FileText, CheckCircle, Clock, Activity, TrendingUp, Eye, AlertCircle, Fingerprint, MessageCircle, Users, Info } from 'lucide-svelte';
+  import { Shield, FileText, CheckCircle, Clock, TrendingUp, Eye, MessageCircle, Users, Info, ArrowRight } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore, isAuthenticated, credential } from '$lib/stores';
@@ -46,8 +43,6 @@
   <title>Citizen Portal - PromiseThread</title>
 </svelte:head>
 
-<Header variant="citizen" />
-
 <main class="citizen-dashboard">
   <div class="container">
     <!-- Welcome Banner -->
@@ -58,7 +53,7 @@
         </div>
         <div class="banner-text">
           <h1>Citizen Portal</h1>
-          <p>Track election promises, share your opinions anonymously, and hold leaders accountable.</p>
+          <p>Track promises and share your feedback anonymously.</p>
         </div>
       </div>
       {#if isAuth}
@@ -80,21 +75,21 @@
         <MessageCircle size={24} />
         <div class="stat-content">
           <span class="stat-value">{isAuth ? (userCredential?.usedVotes?.length || 0) : '-'}</span>
-          <span class="stat-label">Opinions Shared</span>
+          <span class="stat-label">Feedback Given</span>
         </div>
       </div>
       <div class="stat-card">
         <FileText size={24} />
         <div class="stat-content">
           <span class="stat-value">{manifestos.length}</span>
-          <span class="stat-label">Active Promises</span>
+          <span class="stat-label">Open Promises</span>
         </div>
       </div>
       <div class="stat-card">
         <Shield size={24} />
         <div class="stat-content">
-          <span class="stat-value">{isAuth ? 'Verified' : 'Not Yet'}</span>
-          <span class="stat-label">Citizen Status</span>
+          <span class="stat-value">{isAuth ? 'Yes' : 'No'}</span>
+          <span class="stat-label">Verified</span>
         </div>
       </div>
     </div>
@@ -189,15 +184,18 @@
             {/if}
           </div>
           
-          <!-- Nullifier Info -->
-          <div class="nullifier-card card">
+          <!-- Status Card -->
+          <div class="status-card card">
             <h4>
               <Shield size={16} />
-              Your Anonymous ID
+              Your Status
             </h4>
-            <HashDisplay hash={userCredential?.nullifier || ''} />
-            <p class="nullifier-note">
-              This ID proves you're a verified citizen without revealing who you are.
+            <div class="status-badge verified">
+              <CheckCircle size={16} />
+              Verified Citizen
+            </div>
+            <p class="status-note">
+              You can share feedback on promises anonymously.
             </p>
           </div>
         {/if}
@@ -214,22 +212,16 @@
         </a>
         <a href={isAuth ? "/citizen/attestation" : "/auth"} class="action-card">
           <MessageCircle size={24} />
-          <span>Share Opinion</span>
-        </a>
-        <a href="/audit-trail" class="action-card">
-          <Activity size={24} />
-          <span>View Audit Trail</span>
+          <span>Give Feedback</span>
         </a>
         <a href="/politicians" class="action-card">
           <Users size={24} />
-          <span>View Representatives</span>
+          <span>View Politicians</span>
         </a>
       </div>
     </div>
   </div>
 </main>
-
-<Footer />
 
 <style>
   .citizen-dashboard {
@@ -575,22 +567,34 @@
     color: var(--gray-400);
   }
   
-  /* Nullifier Card */
-  .nullifier-card {
+  /* Status Card */
+  .status-card {
     padding: var(--space-4);
   }
   
-  .nullifier-card h4 {
+  .status-card h4 {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     font-size: 0.85rem;
     margin-bottom: var(--space-3);
-    color: var(--primary-600);
+    color: var(--primary-800);
   }
   
-  .nullifier-note {
-    font-size: 0.75rem;
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--success-100);
+    color: var(--success-700);
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+  
+  .status-note {
+    font-size: 0.8rem;
     color: var(--gray-500);
     line-height: 1.5;
     margin-top: var(--space-3);
