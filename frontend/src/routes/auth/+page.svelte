@@ -2,8 +2,9 @@
   import { Shield, User, Lock, CheckCircle, AlertCircle, ChevronRight, Eye, EyeOff, Loader2, KeyRound } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores';
-  import { lookupVoter, verifyZKProof, getMerkleRoot, type ZKVerifyResult } from '$lib/api';
+  import { lookupVoter, zkLogin, getMerkleRoot, getAnonymitySet, getDemoSecret, type ZKVerifyResult } from '$lib/api';
   import { generateZKProof, generateNullifier, isValidVoterId, isValidSecret, formatNullifier } from '$lib/utils/zkProof';
+  import { authenticateCitizen } from '$lib/zk/auth';
   
   // UI State
   let currentStep: 'search' | 'verify' | 'success' = 'search';
@@ -71,25 +72,18 @@
     authStore.setLoading(true);
     
     try {
-      const proof = await generateZKProof(
+      // Use the new commitment-based authentication system
+      const result = await authenticateCitizen(
         voterIdInput.trim(),
         secretInput,
-        voterLookupData.merkle_proof
+        (status) => { console.log('ZK Status:', status); }
       );
       
-      generatedProof = proof;
-      
-      const result = await verifyZKProof({
-        voter_id_hash: proof.voter_id_hash,
-        nullifier: proof.nullifier,
-        merkle_proof: proof.merkle_proof,
-        commitment: proof.commitment
-      });
-      
-      if (!result.valid) {
+      if (!result.success) {
         error = result.message || 'Verification failed. Please try again.';
         authStore.setError(error);
         isLoading = false;
+        authStore.setLoading(false);
         return;
       }
       
@@ -111,7 +105,7 @@
       
       authStore.setCredential({
         nullifier: result.nullifier!,
-        nullifierShort: result.nullifier_short || formatNullifier(result.nullifier!),
+        nullifierShort: result.nullifier!.substring(0, 12) + "...",
         credential: result.credential!,
         createdAt: new Date().toISOString(),
         usedVotes: usedVotes,
@@ -119,13 +113,14 @@
       });
       
       currentStep = 'success';
-    } catch (e) {
-      error = 'Verification failed. Please check your connection.';
-      console.error(e);
+    } catch (e: any) {
+      error = e.message || 'Verification failed. Please check your connection.';
+      console.error('Auth error:', e);
       authStore.setError(error);
     }
     
     isLoading = false;
+    authStore.setLoading(false);
   }
   
   function goToManifestos() {
