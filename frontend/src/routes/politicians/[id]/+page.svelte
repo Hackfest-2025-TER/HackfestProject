@@ -1,69 +1,33 @@
 <script lang="ts">
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
+  import { onMount } from 'svelte';
   import ProgressRing from '$lib/components/ProgressRing.svelte';
-  import HashDisplay from '$lib/components/HashDisplay.svelte';
   import { Shield, Award, FileText, Calendar, ExternalLink, CheckCircle, XCircle, Clock, ChevronRight, Share2 } from 'lucide-svelte';
   import { page } from '$app/stores';
   
   $: id = $page.params.id;
   
-  // Sample politician data
-  const politician = {
-    id: 1,
-    name: 'Jane Doe',
-    title: 'Governor',
-    party: 'Progressive Party',
-    state: 'State of Democracy',
-    avatar: null,
-    verified: true,
-    integrityScore: 87,
-    publicKey: '0x8a72f92b45c1e98d3a7b6f1c2d4e5f6a7b8c9d0e',
-    joinedDate: 'Jan 2020',
-    manifestos: [
-      {
-        id: 1,
-        title: 'Universal Healthcare Act',
-        status: 'kept',
-        deadline: '2024-06-30',
-        hash: '0x7f8e9d0c1b2a3f4e5d6c7b8a9'
-      },
-      {
-        id: 2,
-        title: 'North-South Rail Link',
-        status: 'pending',
-        deadline: '2025-12-31',
-        hash: '0x3c4d5e6f7a8b9c0d1e2f3a4b'
-      },
-      {
-        id: 3,
-        title: 'Green Energy Initiative',
-        status: 'kept',
-        deadline: '2024-03-15',
-        hash: '0x9a0b1c2d3e4f5a6b7c8d9e0f'
-      },
-      {
-        id: 4,
-        title: 'Education Reform Bill',
-        status: 'broken',
-        deadline: '2023-09-01',
-        hash: '0x1d2e3f4a5b6c7d8e9f0a1b2c'
-      },
-      {
-        id: 5,
-        title: 'Housing Affordability Plan',
-        status: 'kept',
-        deadline: '2024-01-01',
-        hash: '0x5f6a7b8c9d0e1f2a3b4c5d6e'
-      }
-    ]
-  };
+  let politician: any = null;
+  let loading = true;
+  let error = '';
   
-  const stats = {
-    kept: politician.manifestos.filter(m => m.status === 'kept').length,
-    broken: politician.manifestos.filter(m => m.status === 'broken').length,
-    pending: politician.manifestos.filter(m => m.status === 'pending').length
-  };
+  $: stats = politician ? {
+    kept: politician.manifestos.filter((m: any) => m.status === 'kept').length,
+    broken: politician.manifestos.filter((m: any) => m.status === 'broken').length,
+    pending: politician.manifestos.filter((m: any) => m.status === 'pending').length
+  } : { kept: 0, broken: 0, pending: 0 };
+  
+  onMount(async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/politicians/${id}`);
+      if (!response.ok) throw new Error('Politician not found');
+      const data = await response.json();
+      politician = data;
+      loading = false;
+    } catch (err: any) {
+      error = err.message || 'Failed to load politician data';
+      loading = false;
+    }
+  });
   
   function getStatusBadge(status: string) {
     switch (status) {
@@ -72,183 +36,255 @@
       default: return { icon: Clock, class: 'warning', label: 'Pending' };
     }
   }
+  
+  function formatDate(dateStr: string) {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+  }
+  
+  function handleImageError(event: Event) {
+    const img = event.target as HTMLImageElement;
+    img.style.display = 'none';
+  }
 </script>
 
 <svelte:head>
-  <title>{politician.name} - PromiseThread</title>
+  <title>{politician?.name || 'Loading...'} - PromiseThread</title>
 </svelte:head>
 
-<Header />
-
-<main class="politician-profile">
-  <div class="container">
-    <!-- Profile Header -->
-    <div class="profile-header card">
-      <div class="profile-main">
-        <div class="avatar">
-          {politician.name.split(' ').map(n => n[0]).join('')}
-        </div>
-        
-        <div class="profile-info">
-          <div class="name-row">
-            <h1>{politician.name}</h1>
-            {#if politician.verified}
-              <span class="verified-badge">
-                <Shield size={18} />
-                Verified
-              </span>
+{#if loading}
+  <main class="politician-profile">
+    <div class="container">
+      <div class="loading-state">Loading politician profile...</div>
+    </div>
+  </main>
+{:else if error}
+  <main class="politician-profile">
+    <div class="container">
+      <div class="error-state">
+        <h2>Politician Not Found</h2>
+        <p>{error}</p>
+        <a href="/politicians" class="btn-secondary">← Back to Politicians</a>
+      </div>
+    </div>
+  </main>
+{:else if politician}
+  <main class="politician-profile">
+    <div class="container">
+      <!-- Back Navigation -->
+      <a href="/politicians" class="back-link">
+        ← Back to Politicians
+      </a>
+      
+      <!-- Profile Header -->
+      <div class="profile-header card">
+        <div class="profile-top">
+          <div class="profile-avatar-section">
+            {#if politician.image_url}
+              <img 
+                src={politician.image_url} 
+                alt={politician.name}
+                class="avatar-img"
+                on:error={handleImageError}
+              />
             {/if}
+            <div class="avatar" style={politician.image_url ? 'display: none;' : ''}>
+              {politician.name.split(' ').map(n => n[0]).join('')}
+            </div>
           </div>
-          <p class="title">{politician.title} · {politician.state}</p>
-          <p class="party">{politician.party}</p>
           
-          <div class="meta-row">
-            <span class="meta-item">
-              <Calendar size={14} />
-              Joined {politician.joinedDate}
-            </span>
-            <span class="meta-item">
-              <FileText size={14} />
-              {politician.manifestos.length} Manifestos
-            </span>
+          <div class="profile-info">
+            <div class="name-row">
+              <h1>{politician.name}</h1>
+              {#if politician.verified}
+                <span class="verified-badge">
+                  <Shield size={16} />
+                  Verified
+                </span>
+              {/if}
+            </div>
+            <p class="title">{politician.title}</p>
+            <p class="party">{politician.party}</p>
           </div>
         </div>
         
-        <div class="score-ring">
-          <ProgressRing 
-            progress={politician.integrityScore} 
-            size={100} 
-            strokeWidth={8}
-            color="var(--success-500)"
-          />
-          <div class="score-center">
-            <span class="score-value">{politician.integrityScore}%</span>
-            <span class="score-label">Integrity</span>
+        <!-- Stats Summary - Integrated into header -->
+        <div class="stats-row">
+          <div class="stat-item">
+            <div class="stat-icon success">
+              <CheckCircle size={18} />
+            </div>
+            <div class="stat-info">
+              <span class="stat-value">{stats.kept}</span>
+              <span class="stat-label">Kept</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon error">
+              <XCircle size={18} />
+            </div>
+            <div class="stat-info">
+              <span class="stat-value">{stats.broken}</span>
+              <span class="stat-label">Broken</span>
+            </div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-icon warning">
+              <Clock size={18} />
+            </div>
+            <div class="stat-info">
+              <span class="stat-value">{stats.pending}</span>
+              <span class="stat-label">Pending</span>
+            </div>
+          </div>
+          <div class="stat-item score-item">
+            <div class="integrity-display">
+              <div class="integrity-number">{politician.integrity_score}%</div>
+              <div class="integrity-label">Integrity</div>
+            </div>
           </div>
         </div>
       </div>
       
-      <!-- Public Key -->
-      <div class="public-key">
-        <span class="key-label">Public Key:</span>
-        <HashDisplay hash={politician.publicKey} />
-      </div>
-      
-      <div class="profile-actions">
-        <button class="btn-secondary">
-          <Share2 size={16} />
-          Share Profile
-        </button>
-        <a href="https://etherscan.io" target="_blank" class="btn-secondary">
-          <ExternalLink size={16} />
-          View on Etherscan
-        </a>
-      </div>
-    </div>
-    
-    <!-- Stats Cards -->
-    <div class="stats-grid">
-      <div class="stat-card success">
-        <CheckCircle size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{stats.kept}</span>
-          <span class="stat-label">Promises Kept</span>
+      <!-- Manifestos List -->
+      <div class="manifestos-section">
+        <div class="section-header">
+          <h2>Promise Records</h2>
+          <span class="count-badge">{politician.manifestos.length} total</span>
         </div>
-      </div>
-      <div class="stat-card error">
-        <XCircle size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{stats.broken}</span>
-          <span class="stat-label">Promises Broken</span>
-        </div>
-      </div>
-      <div class="stat-card warning">
-        <Clock size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{stats.pending}</span>
-          <span class="stat-label">Pending</span>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Manifestos List -->
-    <div class="manifestos-section">
-      <h2>Manifesto Records</h2>
-      
-      <div class="manifestos-list">
-        {#each politician.manifestos as manifesto}
-          {@const badge = getStatusBadge(manifesto.status)}
-          <a href="/manifestos/{manifesto.id}" class="manifesto-item card">
-            <div class="manifesto-main">
-              <div class="status-icon {badge.class}">
-                <svelte:component this={badge.icon} size={20} />
-              </div>
-              <div class="manifesto-info">
-                <h3>{manifesto.title}</h3>
-                <div class="manifesto-meta">
-                  <span class="hash">
-                    <code>{manifesto.hash.slice(0, 12)}...</code>
-                  </span>
-                  <span class="deadline">Deadline: {manifesto.deadline}</span>
+        
+        {#if politician.manifestos.length > 0}
+          <div class="manifestos-list">
+            {#each politician.manifestos as manifesto}
+              {@const badge = getStatusBadge(manifesto.status)}
+              <a href="/manifestos/{manifesto.id}" class="manifesto-item card">
+                <div class="manifesto-main">
+                  <div class="status-icon {badge.class}">
+                    <svelte:component this={badge.icon} size={20} />
+                  </div>
+                  <div class="manifesto-info">
+                    <h3>{manifesto.title}</h3>
+                    <div class="manifesto-meta">
+                      <span class="deadline">
+                        <Calendar size={12} />
+                        {formatDate(manifesto.deadline)}
+                      </span>
+                      {#if manifesto.category}
+                        <span class="category">{manifesto.category}</span>
+                      {/if}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div class="manifesto-status">
-              <span class="status-badge {badge.class}">{badge.label}</span>
-              <ChevronRight size={18} />
-            </div>
-          </a>
-        {/each}
+                <div class="manifesto-status">
+                  <span class="status-badge {badge.class}">{badge.label}</span>
+                  <ChevronRight size={18} />
+                </div>
+              </a>
+            {/each}
+          </div>
+        {:else}
+          <div class="empty-state card">
+            <FileText size={40} />
+            <p>No promises recorded yet</p>
+          </div>
+        {/if}
       </div>
     </div>
-  </div>
-</main>
-
-<Footer />
+  </main>
+{/if}
 
 <style>
   .politician-profile {
     min-height: 100vh;
     background: var(--gray-50);
-    padding-bottom: var(--space-12);
+    padding-bottom: var(--space-16);
   }
   
   .container {
-    max-width: 900px;
+    max-width: 800px;
     margin: 0 auto;
-    padding: var(--space-8) var(--space-4);
+    padding: var(--space-6) var(--space-4);
+  }
+  
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    color: var(--gray-600);
+    font-size: 0.875rem;
+    margin-bottom: var(--space-6);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  
+  .back-link:hover {
+    color: var(--primary-600);
+    text-decoration: none;
   }
   
   /* Profile Header */
   .profile-header {
-    padding: var(--space-6);
+    padding: var(--space-8);
+    margin-bottom: var(--space-8);
+  }
+  
+  .profile-top {
+    display: flex;
+    gap: var(--space-6);
+    align-items: center;
     margin-bottom: var(--space-6);
   }
   
-  .profile-main {
-    display: flex;
-    gap: var(--space-5);
-    align-items: flex-start;
-    flex-wrap: wrap;
+  .profile-avatar-section {
+    flex-shrink: 0;
   }
   
   .avatar {
-    width: 80px;
-    height: 80px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
-    background: var(--primary-100);
+    background: linear-gradient(135deg, var(--primary-100), var(--primary-200));
     color: var(--primary-700);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2rem;
+    font-size: 2.25rem;
     font-weight: 600;
-    flex-shrink: 0;
+  }
+  
+  .avatar-img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid white;
+    box-shadow: var(--shadow-md);
+  }
+  
+  .loading-state, .error-state {
+    text-align: center;
+    padding: var(--space-16) var(--space-4);
+    color: var(--gray-600);
+  }
+  
+  .error-state h2 {
+    color: var(--error-600);
+    margin-bottom: var(--space-4);
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: var(--space-12);
+    color: var(--gray-500);
+  }
+  
+  .empty-state :global(svg) {
+    margin-bottom: var(--space-4);
+    opacity: 0.4;
   }
   
   .profile-info {
     flex: 1;
-    min-width: 250px;
   }
   
   .name-row {
@@ -260,17 +296,19 @@
   }
   
   .name-row h1 {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     margin: 0;
+    color: var(--gray-900);
+    font-weight: 700;
   }
   
   .verified-badge {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    padding: var(--space-1) var(--space-2);
-    background: var(--primary-100);
-    color: var(--primary-700);
+    padding: var(--space-1) var(--space-3);
+    background: var(--success-100);
+    color: var(--success-700);
     border-radius: var(--radius-full);
     font-size: 0.75rem;
     font-weight: 600;
@@ -278,79 +316,110 @@
   
   .title {
     color: var(--gray-700);
-    font-size: 0.95rem;
+    font-size: 1rem;
     margin-bottom: var(--space-1);
+    font-weight: 500;
   }
   
   .party {
     color: var(--gray-500);
-    font-size: 0.875rem;
-    margin-bottom: var(--space-3);
+    font-size: 0.9rem;
+    margin: 0;
   }
   
-  .meta-row {
+  /* Stats Row */
+  .stats-row {
     display: flex;
     gap: var(--space-4);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--gray-100);
     flex-wrap: wrap;
   }
   
-  .meta-item {
+  .stat-item {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
-    font-size: 0.8rem;
-    color: var(--gray-500);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+    flex: 1;
+    min-width: 120px;
   }
   
-  .score-ring {
-    position: relative;
+  .stat-item.score-item {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+  }
+  
+  .integrity-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+  }
+  
+  .integrity-number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--success-600);
+    line-height: 1;
+  }
+  
+  .integrity-label {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-weight: 600;
+  }
+  
+  .stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
   }
   
-  .score-center {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-  }
-  
-  .score-center .score-value {
-    display: block;
-    font-size: 1.25rem;
-    font-weight: 700;
+  .stat-icon.success {
+    background: var(--success-100);
     color: var(--success-600);
   }
   
-  .score-center .score-label {
-    font-size: 0.65rem;
-    color: var(--gray-500);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+  .stat-icon.error {
+    background: var(--error-100);
+    color: var(--error-600);
   }
   
-  .public-key {
+  .stat-icon.warning {
+    background: var(--warning-100);
+    color: var(--warning-600);
+  }
+  
+  .stat-info {
     display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-4);
-    background: var(--gray-50);
-    border-radius: var(--radius-lg);
-    margin: var(--space-5) 0;
-    flex-wrap: wrap;
+    flex-direction: column;
   }
   
-  .key-label {
+  .stat-info .stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    line-height: 1.2;
+  }
+  
+  .stat-info .stat-label,
+  .stat-item .stat-label {
     font-size: 0.75rem;
     color: var(--gray-500);
-    font-weight: 600;
     text-transform: uppercase;
-  }
-  
-  .profile-actions {
-    display: flex;
-    gap: var(--space-3);
-    flex-wrap: wrap;
+    letter-spacing: 0.02em;
   }
   
   .btn-secondary {
@@ -372,77 +441,46 @@
   .btn-secondary:hover {
     border-color: var(--primary-500);
     color: var(--primary-600);
-  }
-  
-  /* Stats Grid */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-4);
-    margin-bottom: var(--space-6);
-  }
-  
-  @media (max-width: 640px) {
-    .stats-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-  
-  .stat-card {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-5);
-    background: white;
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--gray-200);
-  }
-  
-  .stat-card.success :global(svg) {
-    color: var(--success-600);
-  }
-  
-  .stat-card.error :global(svg) {
-    color: var(--error-600);
-  }
-  
-  .stat-card.warning :global(svg) {
-    color: var(--warning-600);
-  }
-  
-  .stat-content {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .stat-content .stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--gray-900);
-  }
-  
-  .stat-content .stat-label {
-    font-size: 0.8rem;
-    color: var(--gray-500);
+    text-decoration: none;
   }
   
   /* Manifestos Section */
-  .manifestos-section h2 {
+  .manifestos-section {
+    margin-top: var(--space-2);
+  }
+  
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+  }
+  
+  .section-header h2 {
     font-size: 1.25rem;
-    margin-bottom: var(--space-4);
+    color: var(--gray-900);
+    margin: 0;
+  }
+  
+  .count-badge {
+    font-size: 0.8rem;
+    color: var(--gray-500);
+    background: var(--gray-100);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
   }
   
   .manifestos-list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-4);
   }
   
   .manifesto-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-4);
+    padding: var(--space-5);
     text-decoration: none;
     color: inherit;
     transition: all 0.2s;
@@ -450,18 +488,21 @@
   
   .manifesto-item:hover {
     box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    text-decoration: none;
   }
   
   .manifesto-main {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--space-4);
+    flex: 1;
+    min-width: 0;
   }
   
   .status-icon {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
@@ -484,21 +525,35 @@
     color: var(--warning-600);
   }
   
+  .manifesto-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
   .manifesto-info h3 {
-    font-size: 0.95rem;
-    margin-bottom: var(--space-1);
+    font-size: 1rem;
+    margin-bottom: var(--space-2);
+    color: var(--gray-900);
+    font-weight: 600;
   }
   
   .manifesto-meta {
     display: flex;
     gap: var(--space-4);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: var(--gray-500);
   }
   
-  .hash code {
-    font-family: var(--font-mono);
-    color: var(--primary-600);
+  .manifesto-meta .deadline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  
+  .manifesto-meta .category {
+    background: var(--gray-100);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
   }
   
   .manifesto-status {
@@ -506,6 +561,7 @@
     align-items: center;
     gap: var(--space-3);
     color: var(--gray-400);
+    flex-shrink: 0;
   }
   
   .status-badge {
@@ -530,5 +586,37 @@
   .status-badge.warning {
     background: var(--warning-100);
     color: var(--warning-700);
+  }
+  
+  /* Responsive */
+  @media (max-width: 640px) {
+    .profile-top {
+      flex-direction: column;
+      align-items: flex-start;
+      text-align: left;
+    }
+    
+    .stats-row {
+      flex-direction: column;
+    }
+    
+    .stat-item {
+      min-width: 100%;
+    }
+    
+    .stat-item.score {
+      flex-direction: row;
+      justify-content: center;
+    }
+    
+    .manifesto-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-4);
+    }
+    
+    .manifesto-status {
+      align-self: flex-end;
+    }
   }
 </style>

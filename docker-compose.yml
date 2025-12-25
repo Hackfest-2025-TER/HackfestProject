@@ -1,31 +1,88 @@
 services:
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: promisethread-db
     environment:
-      - VITE_API_URL=http://localhost:8000
-      - VITE_BLOCKCHAIN_RPC=http://localhost:8545
-    depends_on:
-      - backend
+      POSTGRES_USER: promisethread
+      POSTGRES_PASSWORD: hackfest2025
+      POSTGRES_DB: promisethread
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U promisethread -d promisethread"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - promisethread-network
 
+  # Blockchain - Hardhat Local Node
+  blockchain:
+    build: ./blockchain
+    container_name: promisethread-blockchain
+    ports:
+      - "8545:8545"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-X", "POST", "-H", "Content-Type: application/json", "--data", "{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}", "http://localhost:8545"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - promisethread-network
+
+  # Backend - FastAPI
   backend:
     build: ./backend
+    container_name: promisethread-backend
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=sqlite:///./promisethread.db
-      - SECRET_KEY=change-this-in-production
+      - DATABASE_URL=postgresql://promisethread:hackfest2025@postgres:5432/promisethread
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=promisethread
+      - DB_USER=promisethread
+      - DB_PASSWORD=hackfest2025
+      - SECRET_KEY=change-this-in-production-use-secure-key
       - BLOCKCHAIN_RPC_URL=http://blockchain:8545
     volumes:
       - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      blockchain:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - promisethread-network
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
-  blockchain:
-    build: ./blockchain
+  # Frontend - SvelteKit
+  frontend:
+    build: ./frontend
+    container_name: promisethread-frontend
     ports:
-      - "8545:8545"
+      - "3000:3000"
+    environment:
+      # These are used at build time for Vite
+      - VITE_API_URL=http://localhost:8000
+      - VITE_BLOCKCHAIN_RPC=http://localhost:8545
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - promisethread-network
+
+volumes:
+  postgres_data:
 
 networks:
-  default:
-    name: promisethread-network
+  promisethread-network:
+    driver: bridge

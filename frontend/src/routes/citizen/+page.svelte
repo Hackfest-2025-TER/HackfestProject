@@ -1,10 +1,8 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
-  import { Shield, FileText, CheckCircle, Clock, Activity, TrendingUp, Eye, AlertCircle, Fingerprint, MessageCircle, Users, Info } from 'lucide-svelte';
+  import { Shield, FileText, CheckCircle, Clock, Activity, TrendingUp, Eye, AlertCircle, Fingerprint, MessageCircle, Users, Info, ChevronRight } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore, isAuthenticated, credential } from '$lib/stores';
@@ -46,56 +44,69 @@
   <title>Citizen Portal - PromiseThread</title>
 </svelte:head>
 
-<Header variant="citizen" />
-
-<main class="citizen-dashboard">
+<main class="citizen-page">
   <div class="container">
-    <!-- Welcome Banner -->
-    <div class="welcome-banner card">
-      <div class="banner-content">
-        <div class="banner-icon">
-          <Users size={32} />
-        </div>
-        <div class="banner-text">
-          <h1>Citizen Portal</h1>
-          <p>Track election promises, share your opinions anonymously, and hold leaders accountable.</p>
-        </div>
-      </div>
-      {#if isAuth}
-        <div class="session-info verified">
-          <span class="status-indicator online"></span>
-          <span class="session-label">Verified Citizen</span>
-        </div>
-      {:else}
-        <a href="/auth" class="verify-cta">
-          <Shield size={18} />
-          Verify as Citizen
-        </a>
-      {/if}
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1>Citizen Portal</h1>
+      <p>Track election promises, share your opinions anonymously, and hold leaders accountable.</p>
     </div>
+    
+    <!-- Auth Status Banner -->
+    {#if isAuth}
+      <div class="auth-banner verified">
+        <div class="auth-info">
+          <Shield size={20} />
+          <div>
+            <strong>You're verified</strong>
+            <span>You can share feedback anonymously</span>
+          </div>
+        </div>
+        <span class="opinions-shared">
+          <MessageCircle size={14} />
+          {userCredential?.usedVotes?.length || 0} feedback given
+        </span>
+      </div>
+    {:else}
+      <div class="auth-banner info">
+        <div class="auth-info">
+          <Info size={20} />
+          <div>
+            <strong>Want to share feedback?</strong>
+            <span>Verify once to participate anonymously</span>
+          </div>
+        </div>
+        <a href="/auth" class="verify-btn">
+          Get Started
+        </a>
+      </div>
+    {/if}
     
     <!-- Stats Grid -->
     <div class="stats-grid">
-      <div class="stat-card">
-        <MessageCircle size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{isAuth ? (userCredential?.usedVotes?.length || 0) : '-'}</span>
-          <span class="stat-label">Opinions Shared</span>
+      <div class="stat-card card">
+        <div class="stat-header">
+          <span class="stat-label">Feedback Given</span>
+          <MessageCircle size={20} />
         </div>
+        <div class="stat-value">{isAuth ? (userCredential?.usedVotes?.length || 0) : '-'}</div>
+        <div class="stat-trend">Your opinions shared</div>
       </div>
-      <div class="stat-card">
-        <FileText size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{manifestos.length}</span>
+      <div class="stat-card card">
+        <div class="stat-header">
           <span class="stat-label">Active Promises</span>
+          <FileText size={20} />
         </div>
+        <div class="stat-value">{manifestos.length}</div>
+        <div class="stat-trend">Currently tracking</div>
       </div>
-      <div class="stat-card">
-        <Shield size={24} />
-        <div class="stat-content">
-          <span class="stat-value">{isAuth ? 'Verified' : 'Not Yet'}</span>
+      <div class="stat-card card">
+        <div class="stat-header">
           <span class="stat-label">Citizen Status</span>
+          <Shield size={20} />
         </div>
+        <div class="stat-value status-{isAuth ? 'verified' : 'pending'}">{isAuth ? 'Verified' : 'Not Yet'}</div>
+        <div class="stat-trend">{isAuth ? 'Anonymous participation enabled' : 'Verify to participate'}</div>
       </div>
     </div>
     
@@ -208,80 +219,191 @@
     <div class="quick-actions">
       <h2>Quick Actions</h2>
       <div class="actions-grid">
-        <a href="/manifestos" class="action-card">
+        <a href="/manifestos" class="action-card card">
           <FileText size={24} />
           <span>Browse Promises</span>
+          <ChevronRight size={16} class="action-arrow" />
         </a>
-        <a href={isAuth ? "/citizen/attestation" : "/auth"} class="action-card">
+        <a href={isAuth ? "/citizen/attestation" : "/auth"} class="action-card card">
           <MessageCircle size={24} />
           <span>Share Opinion</span>
+          <ChevronRight size={16} class="action-arrow" />
         </a>
-        <a href={isAuth ? "/citizen/votes" : "/auth"} class="action-card">
+        <a href={isAuth ? "/citizen/votes" : "/auth"} class="action-card card">
           <CheckCircle size={24} />
           <span>My Votes</span>
+          <ChevronRight size={16} class="action-arrow" />
         </a>
-        <a href="/audit-trail" class="action-card">
+        <a href="/audit-trail" class="action-card card">
           <Activity size={24} />
           <span>View Audit Trail</span>
+          <ChevronRight size={16} class="action-arrow" />
         </a>
-        <a href="/politicians" class="action-card">
+        <a href="/politicians" class="action-card card">
           <Users size={24} />
           <span>View Representatives</span>
+          <ChevronRight size={16} class="action-arrow" />
         </a>
       </div>
     </div>
   </div>
 </main>
 
-<Footer />
-
 <style>
-  .citizen-dashboard {
+  .citizen-page {
     min-height: 100vh;
     background: var(--gray-50);
-    padding-bottom: var(--space-12);
+    padding: var(--space-8) 0;
   }
   
   .container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: var(--space-6) var(--space-4);
+    padding: 0 var(--space-4);
   }
   
-  /* Auth Required Banner */
-  .auth-required {
-    padding: var(--space-12);
-    text-align: center;
-    max-width: 500px;
-    margin: var(--space-12) auto;
-  }
-  
-  .auth-required :global(svg) {
-    color: var(--warning-500);
-    margin-bottom: var(--space-4);
-  }
-  
-  .auth-required h2 {
-    margin-bottom: var(--space-2);
-  }
-  
-  .auth-required p {
-    color: var(--gray-500);
+  /* Page Header - Matches manifestos/politicians */
+  .page-header {
     margin-bottom: var(--space-6);
   }
   
-  .auth-required .btn {
-    display: inline-flex;
+  .page-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: var(--space-2);
+  }
+  
+  .page-header p {
+    color: var(--gray-600);
+    font-size: 1rem;
+    max-width: 600px;
+  }
+  
+  /* Auth Banner - Matches manifestos page */
+  .auth-banner {
+    display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-6);
-    background: var(--primary-600);
-    color: white;
+    justify-content: space-between;
+    padding: var(--space-4);
     border-radius: var(--radius-lg);
-    text-decoration: none;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  
+  .auth-banner.verified {
+    background: var(--success-50);
+    border: 1px solid var(--success-200);
+  }
+  
+  .auth-banner.info {
+    background: var(--primary-50);
+    border: 1px solid var(--primary-200);
+  }
+  
+  .auth-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  
+  .auth-banner.verified .auth-info :global(svg) {
+    color: var(--success-600);
+  }
+  
+  .auth-banner.info .auth-info :global(svg) {
+    color: var(--primary-600);
+  }
+  
+  .auth-info div {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .auth-info strong {
+    font-size: 0.9rem;
+    color: var(--gray-900);
+  }
+  
+  .auth-info span {
+    font-size: 0.8rem;
+    color: var(--gray-600);
+  }
+  
+  .opinions-shared {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.85rem;
+    color: var(--success-700);
     font-weight: 500;
   }
   
+  .verify-btn {
+    padding: var(--space-2) var(--space-4);
+    background: var(--primary-600);
+    color: white;
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  
+  .verify-btn:hover {
+    background: var(--primary-700);
+  }
+  
+  /* Stats Grid - Matches manifestos page */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-8);
+  }
+  
+  .stat-card {
+    padding: var(--space-5);
+  }
+  
+  .stat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+  }
+  
+  .stat-header .stat-label {
+    font-size: 0.85rem;
+    color: var(--gray-500);
+    font-weight: 500;
+  }
+  
+  .stat-header :global(svg) {
+    color: var(--primary-500);
+  }
+  
+  .stat-card .stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--gray-900);
+    margin-bottom: var(--space-1);
+  }
+  
+  .stat-card .stat-value.status-verified {
+    color: var(--success-600);
+  }
+  
+  .stat-card .stat-value.status-pending {
+    color: var(--gray-500);
+  }
+  
+  .stat-trend {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+  }
+
   .loading, .empty {
     padding: var(--space-8);
     text-align: center;
@@ -293,141 +415,6 @@
     text-align: center;
     color: var(--gray-400);
     font-size: 0.875rem;
-  }
-  
-  /* Welcome Banner */
-  .welcome-banner {
-    padding: var(--space-6);
-    margin-bottom: var(--space-6);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: var(--space-4);
-    background: linear-gradient(135deg, #e8f4fc, white);
-    border: 1px solid #b3d4fc;
-  }
-  
-  .banner-content {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-  }
-  
-  .banner-icon {
-    width: 56px;
-    height: 56px;
-    background: #082770;
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .banner-text h1 {
-    font-size: 1.5rem;
-    margin-bottom: var(--space-1);
-    color: #082770;
-  }
-  
-  .banner-text p {
-    color: var(--gray-600);
-    font-size: 0.95rem;
-  }
-  
-  .session-info {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    background: white;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--gray-200);
-  }
-  
-  .session-info.verified {
-    background: var(--success-50);
-    border-color: var(--success-200);
-    color: var(--success-700);
-    font-weight: 500;
-  }
-  
-  .verify-cta {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-5);
-    background: #082770;
-    color: white;
-    border-radius: var(--radius-lg);
-    text-decoration: none;
-    font-weight: 600;
-    transition: all 0.2s;
-  }
-  
-  .verify-cta:hover {
-    background: #0a3490;
-    transform: translateY(-1px);
-  }
-  
-  .status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-  
-  .status-indicator.online {
-    background: var(--success-500);
-  }
-  
-  .session-label {
-    font-size: 0.75rem;
-    color: var(--gray-500);
-  }
-  
-  .session-info code {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--gray-700);
-  }
-  
-  /* Stats Grid */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-4);
-    margin-bottom: var(--space-8);
-  }
-  
-  .stat-card {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    padding: var(--space-5);
-    background: white;
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--gray-200);
-  }
-  
-  .stat-card :global(svg) {
-    color: var(--primary-600);
-  }
-  
-  .stat-content {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--gray-900);
-  }
-  
-  .stat-label {
-    font-size: 0.8rem;
-    color: var(--gray-500);
   }
   
   /* Content Grid */
@@ -456,6 +443,8 @@
     align-items: center;
     gap: var(--space-2);
     font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--gray-900);
   }
   
   .section-header h2 :global(svg) {
@@ -466,6 +455,7 @@
     font-size: 0.85rem;
     color: var(--primary-600);
     text-decoration: none;
+    font-weight: 500;
   }
   
   .view-all:hover {
@@ -477,67 +467,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
-  }
-  
-  .manifesto-item {
-    padding: var(--space-5);
-    text-decoration: none;
-    color: inherit;
-    transition: all 0.2s;
-  }
-  
-  .manifesto-item:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-  }
-  
-  .manifesto-header {
-    display: flex;
-    gap: var(--space-2);
-    margin-bottom: var(--space-3);
-  }
-  
-  .category-badge {
-    padding: var(--space-1) var(--space-2);
-    background: var(--gray-100);
-    color: var(--gray-600);
-    font-size: 0.65rem;
-    font-weight: 600;
-    border-radius: var(--radius-sm);
-    text-transform: uppercase;
-  }
-  
-  .integrity-badge {
-    padding: var(--space-1) var(--space-2);
-    background: var(--success-100);
-    color: var(--success-700);
-    font-size: 0.65rem;
-    font-weight: 600;
-    border-radius: var(--radius-sm);
-  }
-  
-  .manifesto-item h3 {
-    font-size: 1rem;
-    margin-bottom: var(--space-2);
-  }
-  
-  .politician-info {
-    font-size: 0.85rem;
-    color: var(--gray-500);
-    margin-bottom: var(--space-3);
-  }
-  
-  .manifesto-stats {
-    display: flex;
-    gap: var(--space-4);
-  }
-  
-  .manifesto-stats .stat {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    font-size: 0.8rem;
-    color: var(--gray-500);
   }
   
   /* Activity Section */
@@ -572,6 +501,7 @@
   .activity-content p {
     font-size: 0.875rem;
     margin-bottom: var(--space-1);
+    color: var(--gray-700);
   }
   
   .activity-time {
@@ -579,18 +509,119 @@
     color: var(--gray-400);
   }
   
+  /* Info Card */
+  .info-card {
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+  }
+  
+  .info-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--primary-50);
+    color: var(--primary-600);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-4);
+  }
+  
+  .info-content h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+    color: var(--gray-900);
+  }
+  
+  .info-content p {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+    margin-bottom: var(--space-4);
+    line-height: 1.5;
+  }
+  
+  .info-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    background: var(--primary-600);
+    color: white;
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  
+  .info-btn:hover {
+    background: var(--primary-700);
+  }
+  
+  /* How it works */
+  .how-it-works {
+    padding: var(--space-5);
+    margin-bottom: var(--space-4);
+  }
+  
+  .how-it-works h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+    color: var(--gray-900);
+  }
+  
+  .how-it-works ul {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 var(--space-4) 0;
+  }
+  
+  .how-it-works li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    font-size: 0.875rem;
+    color: var(--gray-700);
+  }
+  
+  .how-it-works li :global(svg) {
+    color: var(--success-500);
+    flex-shrink: 0;
+  }
+  
+  .privacy-note {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--primary-50);
+    color: var(--primary-700);
+    border-radius: var(--radius-md);
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+  
+  .privacy-note :global(svg) {
+    color: var(--primary-600);
+    flex-shrink: 0;
+  }
+  
   /* Nullifier Card */
   .nullifier-card {
-    padding: var(--space-4);
+    padding: var(--space-5);
   }
   
   .nullifier-card h4 {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 600;
     margin-bottom: var(--space-3);
-    color: var(--primary-600);
+    color: var(--primary-700);
   }
   
   .nullifier-note {
@@ -601,41 +632,56 @@
   }
   
   /* Quick Actions */
+  .quick-actions {
+    margin-top: var(--space-8);
+  }
+  
   .quick-actions h2 {
     font-size: 1.1rem;
+    font-weight: 600;
     margin-bottom: var(--space-4);
+    color: var(--gray-900);
   }
   
   .actions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: var(--space-4);
   }
   
   .action-card {
     display: flex;
-    flex-direction: column;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-6);
-    background: white;
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius-xl);
+    padding: var(--space-4) var(--space-5);
     text-decoration: none;
-    color: var(--gray-600);
+    color: var(--gray-700);
     transition: all 0.2s;
   }
   
-  .action-card:hover {
-    border-color: var(--primary-500);
-    color: var(--primary-600);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
+  .action-card :global(svg:first-child) {
+    color: var(--primary-500);
+    flex-shrink: 0;
   }
   
   .action-card span {
-    font-size: 0.85rem;
+    flex: 1;
+    font-size: 0.9rem;
     font-weight: 500;
-    text-align: center;
+  }
+  
+  .action-card :global(.action-arrow) {
+    color: var(--gray-400);
+    transition: transform 0.2s;
+  }
+  
+  .action-card:hover {
+    border-color: var(--primary-300);
+    background: var(--primary-50);
+  }
+  
+  .action-card:hover :global(.action-arrow) {
+    transform: translateX(4px);
+    color: var(--primary-500);
   }
 </style>

@@ -37,8 +37,9 @@ blockchain/circuits/*.sym
 # OS
 .DS_Store
 Thumbs.db
+
 # ====================================
-# Python Virtual Env__pycache__ackend specific)
+# Python Virtual Env (backend specific)
 # ====================================
 backend/myenv/
 backend/.venv/

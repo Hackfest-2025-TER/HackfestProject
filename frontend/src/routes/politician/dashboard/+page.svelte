@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { Shield, FileText, Users, Settings, BarChart3, LogOut, CheckCircle, TrendingUp, Vote, Eye, Key } from 'lucide-svelte';
+  import { Shield, FileText, Users, BarChart3, LogOut, CheckCircle, TrendingUp, Vote, Copy, Settings, Eye, Key } from 'lucide-svelte';
+  import { onMount } from 'svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
   
-  // Politician data
-  const politician = {
+  // Politician data - will be loaded from auth or localStorage
+  let politician: any = {
     name: 'Senator Doe',
     id: '0x4a...9f2',
     avatarUrl: null,
@@ -13,37 +14,43 @@
     voteParticipation: 95
   };
   
-  // Sample manifesto data
-  const manifesto = {
-    id: 'MAN-2024-0042',
-    title: 'Economic Reform 2024',
-    description: 'A comprehensive framework for revitalizing the national economy through tax incentives for small businesses, digital currency integration, and sustainable energy subsidies.',
-    status: 'active',
-    publicationDate: 'Oct 12, 2024',
-    blockHeight: 19402112,
-    manifestoHash: '0x7f8a93a2b1c9d8e7f6a5b4c3d2e1'
-  };
-  
-  const comments = [
-    {
-      id: '1',
-      author: 'Verified Citizen',
-      zkCredential: '0x8a...99',
-      date: 'Oct 14, 2024 • 14:32 UTC',
-      content: 'This proposal fails to address the rural transport deficit sufficiently. While the tax incentives are a good start for urban centers, Section 4 needs a dedicated clause for agricultural supply chain logistics. Without it, the economic reform remains unbalanced.',
-      evidenceProof: 'tx_0x92f8...4a2b'
-    },
-    {
-      id: '2',
-      author: 'Verified Citizen',
-      zkCredential: '0x3b...11',
-      date: 'Oct 14, 2024 • 12:15 UTC',
-      content: 'Strongly agree with the digital currency integration points. It\'s about time we modernized the treasury systems. Transparency is key here.',
-      evidenceProof: 'tx_0x11a7...88e3'
-    }
-  ];
+  // Dynamic data from API
+  let manifestos: any[] = [];
+  let manifesto: any = null;
+  let comments: any[] = [];
+  let loading = true;
   
   let activeNav = 'manifestos';
+  
+  onMount(async () => {
+    await loadPoliticianData();
+  });
+  
+  async function loadPoliticianData() {
+    try {
+      // Load politician's manifestos
+      const manifestoResponse = await fetch('http://localhost:8000/api/manifestos');
+      if (manifestoResponse.ok) {
+        const data = await manifestoResponse.json();
+        manifestos = data.manifestos || [];
+        
+        // Get the first manifesto as example
+        if (manifestos.length > 0) {
+          manifesto = manifestos[0];
+          
+          // Load comments for this manifesto
+          const commentsResponse = await fetch(`http://localhost:8000/api/manifestos/${manifesto.id}/comments`);
+          if (commentsResponse.ok) {
+            const commentsData = await commentsResponse.json();
+            comments = commentsData.comments || [];
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load politician data:', error);
+    }
+    loading = false;
+  }
 </script>
 
 <svelte:head>
@@ -82,14 +89,6 @@
         <Users size={18} />
         Voters
       </a>
-      <a href="/politician/audit-logs" class="nav-item" class:active={activeNav === 'audit-logs'}>
-        <Eye size={18} />
-        Audit Logs
-      </a>
-      <a href="/politician/settings" class="nav-item" class:active={activeNav === 'settings'}>
-        <Settings size={18} />
-        Settings
-      </a>
     </nav>
     
     <div class="sidebar-footer">
@@ -111,9 +110,8 @@
       <div class="header-right">
         <span class="node-status">
           <span class="status-dot online"></span>
-          Node: Active
+          Active
         </span>
-        <button class="icon-btn">🔔</button>
       </div>
     </header>
     
@@ -127,13 +125,16 @@
     </div>
     
     <!-- Manifesto Detail -->
+    {#if loading}
+      <div class="loading-state">Loading...</div>
+    {:else if manifesto}
     <div class="manifesto-detail">
       <div class="detail-header">
         <div class="status-row">
-          <span class="status-badge active">ACTIVE</span>
+          <span class="status-badge {manifesto.status}">{manifesto.status.toUpperCase()}</span>
           <span class="manifesto-id">ID: {manifesto.id}</span>
         </div>
-        <a href="#" class="view-doc">↗ View Original Document</a>
+        <a href="/manifestos/{manifesto.id}" class="view-doc">↗ View Full Details</a>
       </div>
       
       <h2>{manifesto.title}</h2>
@@ -141,26 +142,30 @@
       
       <div class="meta-grid">
         <div class="meta-item">
-          <span class="meta-label">PUBLICATION DATE</span>
-          <span class="meta-value">{manifesto.publicationDate}</span>
+          <span class="meta-label">PUBLISHED</span>
+          <span class="meta-value">{manifesto.created_at ? new Date(manifesto.created_at).toLocaleDateString() : 'N/A'}</span>
         </div>
         <div class="meta-item">
-          <span class="meta-label">BLOCK HEIGHT</span>
-          <span class="meta-value">#{manifesto.blockHeight.toLocaleString()}</span>
+          <span class="meta-label">RECORD ID</span>
+          <span class="meta-value">{manifesto.id}</span>
         </div>
         <div class="meta-item">
-          <span class="meta-label">MANIFESTO HASH</span>
-          <HashDisplay hash={manifesto.manifestoHash} />
+          <span class="meta-label">VOTES</span>
+          <span class="meta-value">{(manifesto.vote_kept || 0) + (manifesto.vote_broken || 0)}</span>
         </div>
       </div>
     </div>
+    {:else}
+      <div class="empty-state">No manifestos found. <a href="/politician/new-manifesto">Create your first manifesto</a></div>
+    {/if}
     
     <!-- Comments Section -->
+    {#if manifesto}
     <div class="comments-section">
       <div class="comments-header">
         <div class="comments-title">
           <h3>Citizen Comments</h3>
-          <span class="comment-count">142</span>
+          <span class="comment-count">{comments.length}</span>
         </div>
         <div class="comments-controls">
           <div class="search-box">
@@ -173,6 +178,7 @@
       </div>
       
       <div class="comments-list">
+        {#if comments.length > 0}
         {#each comments as comment}
           <div class="comment-item">
             <div class="comment-avatar">
@@ -180,21 +186,27 @@
             </div>
             <div class="comment-content">
               <div class="comment-header">
-                <span class="author">{comment.author}</span>
-                <HashDisplay hash={comment.zkCredential} copyable={false} />
-                <span class="date">{comment.date}</span>
+                <span class="author">Verified Citizen</span>
+                <span class="citizen-id">{comment.nullifier || 'Anonymous'}</span>
+                <span class="date">{comment.created_at ? new Date(comment.created_at).toLocaleString() : 'N/A'}</span>
               </div>
               <p class="comment-text">{comment.content}</p>
-              <div class="evidence">
-                <span class="evidence-label">EVIDENCE PROOF:</span>
-                <a href="#" class="evidence-link">{comment.evidenceProof}</a>
+              <div class="comment-stats">
+                <span class="upvotes">👍 {comment.upvotes || 0}</span>
+                <span class="downvotes">👎 {comment.downvotes || 0}</span>
               </div>
             </div>
-            <button class="copy-btn" title="Copy">📋</button>
+            <button class="copy-btn" title="Copy">
+              <Copy size={14} />
+            </button>
           </div>
         {/each}
+        {:else}
+          <div class="empty-comments">No comments yet</div>
+        {/if}
       </div>
     </div>
+    {/if}
   </main>
 </div>
 

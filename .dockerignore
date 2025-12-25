@@ -1,0 +1,33 @@
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation (except README)
+*.md
+!README.md
+docs/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Design files
+design/
+
+# Local data (except sample data)
+data/*.db
+data/*.sqlite
+
+# GitHub
+.github/

@@ -166,8 +166,6 @@
   <title>Draft New Manifesto - Politician Portal</title>
 </svelte:head>
 
-<Header variant="politician" />
-
 <main class="draft-page">
   <div class="container">
     <!-- Breadcrumb -->
@@ -180,11 +178,11 @@
     <div class="page-header">
       <div class="header-content">
         <h1>Draft New Manifesto</h1>
-        <p>Define your commitments for the 2024 Election Cycle. All data is cryptographically signed and publicly verifiable.</p>
+        <p>Define your commitments for the 2024 Election Cycle. All promises are publicly tracked.</p>
       </div>
       <div class="secure-badge">
         <span class="status-dot online"></span>
-        SECURE NODE CONNECTED
+        CONNECTED
       </div>
     </div>
     
@@ -225,7 +223,7 @@
       <!-- Campaign Promises -->
       <div class="form-section promises-section">
         <h2>Campaign Promises</h2>
-        <p class="section-desc">Add specific, trackable commitments. These will be converted to smart contracts upon publishing.</p>
+        <p class="section-desc">Add specific, trackable commitments that citizens can monitor.</p>
         
         <!-- Add Promise Form -->
         <div class="add-promise-form card">
@@ -295,8 +293,8 @@
       <div class="warning-notice">
         <Info size={20} />
         <div>
-          <strong>Immutable Action</strong>
-          <p>Once published, this manifesto is hashed to the ledger. Future changes require transparent amendments. Deletion is not possible.</p>
+          <strong>Permanent Record</strong>
+          <p>Once published, this manifesto becomes a permanent record. Future changes require transparent amendments.</p>
         </div>
       </div>
       
@@ -399,10 +397,10 @@
       <!-- Footer Actions -->
       <div class="form-footer">
         <div class="hash-preview">
-          <span class="preview-label">MERKLE ROOT PREVIEW</span>
-          <HashDisplay hash={previewHash} />
+          <span class="preview-label">STATUS</span>
+          <span class="preview-value">Draft - Not Published</span>
         </div>
-        
+
         <div class="action-buttons">
           <button type="button" class="btn btn-secondary btn-lg">Save Draft</button>
           <button 
@@ -423,8 +421,6 @@
     </form>
   </div>
 </main>
-
-<Footer />
 
 <style>
   .draft-page {

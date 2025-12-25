@@ -2,8 +2,8 @@
   export let percentage = 0;
   export let size = 120;
   export let strokeWidth = 10;
-  export let color = '#10b981'; // emerald-500
-  export let bgColor = '#334155'; // slate-700
+  export let color = 'var(--success-500)'; // Accessible green
+  export let bgColor = 'var(--gray-200)'; // Light gray track
   export let label = '';
   
   $: radius = (size - strokeWidth) / 2;
@@ -37,9 +37,9 @@
     />
   </svg>
   <div class="absolute inset-0 flex flex-col items-center justify-center">
-    <span class="text-2xl font-bold text-white">{percentage}%</span>
+    <span class="text-2xl font-bold text-gray-900">{percentage}%</span>
     {#if label}
-      <span class="text-xs text-slate-400">{label}</span>
+      <span class="text-xs text-gray-500">{label}</span>
     {/if}
   </div>
 </div>

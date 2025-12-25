@@ -15,17 +15,27 @@
     "@sveltejs/kit": "^2.0.0",
     "@sveltejs/vite-plugin-svelte": "^3.0.0",
     "autoprefixer": "^10.4.23",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
+    "events": "^3.3.0",
     "postcss": "^8.5.6",
+    "stream-browserify": "^3.0.0",
     "svelte": "^4.2.0",
     "svelte-check": "^3.6.0",
     "tailwindcss": "3.4.17",
     "typescript": "^5.0.0",
+    "util": "^0.12.5",
     "vite": "^5.0.0"
   },
   "dependencies": {
     "chart.js": "^4.4.0",
+    "circomlibjs": "^0.1.7",
+    "crypto-js": "^4.2.0",
     "ethers": "^5.7.2",
-    "lucide-svelte": "^0.300.0"
+    "ffjavascript": "^0.2.60",
+    "lucide-svelte": "^0.300.0",
+    "merkletreejs": "^0.3.11",
+    "snarkjs": "^0.7.5"
   },
   "type": "module"
 }

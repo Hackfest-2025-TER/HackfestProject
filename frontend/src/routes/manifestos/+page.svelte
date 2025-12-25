@@ -1,7 +1,5 @@
 <script lang="ts">
   import { browser } from '$app/environment';
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
   import { Search, CheckCircle, Clock, FileText, Shield, AlertCircle, Users, MessageCircle, ChevronRight, Info, ExternalLink } from 'lucide-svelte';
   import { onMount } from 'svelte';
   import { authStore, isAuthenticated, credential } from '$lib/stores';
@@ -105,8 +103,6 @@
   <title>Election Promises - PromiseThread</title>
 </svelte:head>
 
-<Header variant="default" />
-
 <main class="manifestos-page">
   <div class="container">
     <!-- Page Header -->
@@ -122,12 +118,12 @@
           <Shield size={20} />
           <div>
             <strong>You're verified</strong>
-            <span>You can share your opinion anonymously</span>
+            <span>You can share feedback anonymously</span>
           </div>
         </div>
         <span class="opinions-shared">
           <MessageCircle size={14} />
-          {userCredential?.usedVotes?.length || 0} opinions shared
+          {userCredential?.usedVotes?.length || 0} feedback given
         </span>
       </div>
     {:else}
@@ -135,12 +131,12 @@
         <div class="auth-info">
           <Info size={20} />
           <div>
-            <strong>Want to share your opinion?</strong>
-            <span>Verify once to participate anonymously</span>
+            <strong>Want to share feedback?</strong>
+            <span>Verify once to participate</span>
           </div>
         </div>
         <a href="/auth" class="verify-btn">
-          Verify as Citizen
+          Get Started
         </a>
       </div>
     {/if}
@@ -153,26 +149,26 @@
           <FileText size={20} />
         </div>
         <div class="stat-value">{manifestos.length}</div>
-        <div class="stat-trend">From all political parties</div>
+        <div class="stat-trend">From all parties</div>
       </div>
       
       <div class="stat-card card">
         <div class="stat-header">
-          <span class="stat-label">Citizen Opinions</span>
+          <span class="stat-label">Citizen Feedback</span>
           <Users size={20} />
         </div>
         <div class="stat-value">{networkStats?.total_votes?.toLocaleString() || '...'}</div>
-        <div class="stat-trend">Total feedback received</div>
+        <div class="stat-trend">Total responses</div>
       </div>
       
       <div class="stat-card card">
         <div class="stat-header">
-          <span class="stat-label">System Trust Score</span>
+          <span class="stat-label">Trust Score</span>
           <Shield size={20} />
         </div>
-        <div class="stat-value">{networkStats?.integrity_score || 99.97}%</div>
+        <div class="stat-value">{networkStats?.integrity_score?.toFixed(2) || '...'}%</div>
         <div class="integrity-bar">
-          <div class="integrity-fill" style="width: {networkStats?.integrity_score || 99.97}%"></div>
+          <div class="integrity-fill" style="width: {networkStats?.integrity_score || 100}%"></div>
         </div>
       </div>
     </div>
@@ -334,8 +330,6 @@
   </div>
 </main>
 
-<Footer />
-
 <style>
   .manifestos-page {
     min-height: 100vh;
@@ -353,16 +347,24 @@
     margin-bottom: var(--space-6);
   }
   
+  .page-header {
+    text-align: center;
+    margin-bottom: var(--space-8);
+  }
+  
   .page-header h1 {
-    font-size: 2rem;
-    margin-bottom: var(--space-2);
-    color: #082770;
+    font-size: 2.5rem;
+    margin-bottom: var(--space-3);
+    color: var(--gray-900);
+    font-weight: 700;
   }
   
   .page-header p {
     color: var(--gray-600);
-    font-size: 1.1rem;
-    max-width: 600px;
+    font-size: 1.125rem;
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.6;
   }
   
   /* Auth Banner - Softer, info style */
@@ -383,8 +385,8 @@
   }
   
   .auth-banner.info {
-    background: #e8f4fc;
-    border: 1px solid #b3d4fc;
+    background: var(--primary-50);
+    border: 1px solid var(--primary-200);
   }
   
   .auth-info {
@@ -398,7 +400,7 @@
   }
   
   .auth-banner.info .auth-info :global(svg) {
-    color: #082770;
+    color: var(--primary-600);
   }
   
   .auth-info strong {
@@ -548,9 +550,9 @@
   }
   
   .filter-tab.active {
-    background: #082770;
+    background: var(--primary-600);
     color: white;
-    border-color: #082770;
+    border-color: var(--primary-600);
   }
   
   .filter-tab.kept.active {
@@ -786,7 +788,7 @@
     width: 40px;
     height: 40px;
     border: 3px solid var(--gray-200);
-    border-top-color: #082770;
+    border-top-color: var(--primary-600);
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -811,7 +813,7 @@
     flex-wrap: wrap;
     gap: var(--space-4);
     padding: var(--space-4) var(--space-6);
-    background: #082770;
+    background: var(--primary-800);
     color: white;
     font-size: 0.85rem;
   }
@@ -825,7 +827,7 @@
   .status-dot {
     width: 8px;
     height: 8px;
-    background: #10b981;
+    background: var(--success-500);
     border-radius: 50%;
     animation: pulse 2s infinite;
   }

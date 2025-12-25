@@ -145,28 +145,28 @@
     {:else}
       <!-- Stats -->
       <div class="grid grid-cols-3 gap-4 mb-8">
-        <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-          <div class="text-2xl font-bold text-white mb-1">{stats.total}</div>
-          <div class="text-slate-400 text-sm">Total Votes</div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-gray-900 mb-1">{stats.total}</div>
+          <div class="text-gray-600 text-sm">Total Votes</div>
         </div>
-        <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-          <div class="text-2xl font-bold text-emerald-400 mb-1">{stats.kept}</div>
-          <div class="text-slate-400 text-sm">Voted Kept</div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-emerald-600 mb-1">{stats.kept}</div>
+          <div class="text-gray-600 text-sm">Voted Kept</div>
         </div>
-        <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-          <div class="text-2xl font-bold text-red-400 mb-1">{stats.broken}</div>
-          <div class="text-slate-400 text-sm">Voted Broken</div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-red-600 mb-1">{stats.broken}</div>
+          <div class="text-gray-600 text-sm">Voted Broken</div>
         </div>
       </div>
       
       <!-- Privacy Notice -->
-      <div class="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 mb-6">
+      <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
         <div class="flex gap-3">
-          <Shield class="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
+          <Shield class="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
           <div>
-            <h3 class="text-purple-400 font-medium mb-1">Your Privacy is Protected</h3>
-            <p class="text-slate-400 text-sm">
-              This history is stored locally in your browser. No one else can see your individual votes. 
+            <h3 class="text-purple-800 font-medium mb-1">Your Privacy is Protected</h3>
+            <p class="text-purple-700 text-sm">
+              This history is stored locally in your browser. No one else can see your individual votes.
               Only aggregate totals are public.
             </p>
           </div>
@@ -175,26 +175,26 @@
       
       <!-- Filter -->
       <div class="flex items-center gap-4 mb-6">
-        <Filter class="w-5 h-5 text-slate-500" />
+        <Filter class="w-5 h-5 text-gray-500" />
         <div class="flex gap-2">
           <button
             on:click={() => voteFilter = 'all'}
             class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
-              {voteFilter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}"
+              {voteFilter === 'all' ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:text-gray-900'}"
           >
             All
           </button>
           <button
             on:click={() => voteFilter = 'kept'}
             class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
-              {voteFilter === 'kept' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400 hover:text-white'}"
+              {voteFilter === 'kept' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:text-gray-900'}"
           >
             Kept
           </button>
           <button
             on:click={() => voteFilter = 'broken'}
             class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
-              {voteFilter === 'broken' ? 'bg-red-500/20 text-red-400' : 'text-slate-400 hover:text-white'}"
+              {voteFilter === 'broken' ? 'bg-red-100 text-red-700' : 'text-gray-600 hover:text-gray-900'}"
           >
             Broken
           </button>
@@ -203,10 +203,10 @@
       
       <!-- Votes List -->
       {#if filteredManifestos.length === 0}
-        <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-12 text-center">
-          <Vote class="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3 class="text-xl font-semibold text-white mb-2">No votes yet</h3>
-          <p class="text-slate-400 mb-6">
+        <div class="bg-white border border-gray-200 rounded-xl p-12 text-center">
+          <Vote class="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 class="text-xl font-semibold text-gray-900 mb-2">No votes yet</h3>
+          <p class="text-gray-600 mb-6">
             {votedManifestos.length === 0 
               ? "You haven't voted on any promises yet."
               : "No votes match this filter."}
@@ -214,7 +214,7 @@
           {#if votedManifestos.length === 0}
             <a 
               href="/manifestos"
-              class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-lg transition-colors"
+              class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-lg transition-colors"
             >
               Browse Promises
               <ChevronRight class="w-5 h-5" />
@@ -226,28 +226,28 @@
           {#each filteredManifestos as manifesto}
             {@const total = (manifesto.vote_kept || 0) + (manifesto.vote_broken || 0)}
             {@const keptPercent = total > 0 ? ((manifesto.vote_kept || 0) / total) * 100 : 50}
-            <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-5">
+            <div class="bg-white border border-gray-200 rounded-xl p-5">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-3 mb-2">
                     <a 
                       href="/manifestos/{manifesto.id}"
-                      class="text-lg font-semibold text-white hover:text-emerald-400 transition-colors truncate"
+                      class="text-lg font-semibold text-gray-900 hover:text-emerald-600 transition-colors truncate"
                     >
                       {manifesto.title}
                     </a>
                   </div>
                   
-                  <p class="text-slate-400 text-sm line-clamp-2 mb-3">
+                  <p class="text-gray-600 text-sm line-clamp-2 mb-3">
                     {manifesto.description}
                   </p>
                   
                   <div class="flex flex-wrap items-center gap-4 text-sm">
-                    <div class="flex items-center gap-1 text-slate-500">
-                      <span class="text-slate-400">By:</span>
-                      <span class="text-white">{manifesto.politician_name}</span>
+                    <div class="flex items-center gap-1 text-gray-500">
+                      <span class="text-gray-600">By:</span>
+                      <span class="text-gray-900">{manifesto.politician_name}</span>
                     </div>
-                    <div class="flex items-center gap-1 text-slate-500">
+                    <div class="flex items-center gap-1 text-gray-500">
                       <Calendar class="w-4 h-4" />
                       <span>Voted {formatDate(manifesto.votedAt)}</span>
                     </div>
@@ -262,26 +262,26 @@
                   </span>
                   
                   <!-- Current Status -->
-                  <span class="text-xs text-slate-500">
+                  <span class="text-xs text-gray-500">
                     Current: {manifesto.status || 'pending'}
                   </span>
                 </div>
               </div>
               
               <!-- Vote Comparison -->
-              <div class="mt-4 pt-4 border-t border-slate-700">
+              <div class="mt-4 pt-4 border-t border-gray-200">
                 <div class="flex items-center justify-between text-sm">
-                  <span class="text-slate-400">Community Consensus:</span>
+                  <span class="text-gray-600">Community Consensus:</span>
                   <div class="flex items-center gap-4">
-                    <span class="text-emerald-400">
+                    <span class="text-emerald-600">
                       {manifesto.vote_kept || 0} kept
                     </span>
-                    <span class="text-red-400">
+                    <span class="text-red-600">
                       {manifesto.vote_broken || 0} broken
                     </span>
                   </div>
                 </div>
-                <div class="mt-2 h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
                   <div 
                     class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400"
                     style="width: {keptPercent}%"
@@ -294,15 +294,15 @@
       {/if}
       
       <!-- Nullifier Info -->
-      <div class="mt-8 bg-slate-800/50 border border-slate-700 rounded-xl p-4">
+      <div class="mt-8 bg-white border border-gray-200 rounded-xl p-4">
         <div class="flex items-center gap-3 mb-2">
-          <Hash class="w-5 h-5 text-slate-500" />
-          <span class="text-slate-400 text-sm">Your Anonymous ID:</span>
-          <code class="text-emerald-400 font-mono text-xs bg-slate-900 px-2 py-1 rounded">
+          <Hash class="w-5 h-5 text-gray-500" />
+          <span class="text-gray-600 text-sm">Your Anonymous ID:</span>
+          <code class="text-emerald-600 font-mono text-xs bg-gray-100 px-2 py-1 rounded">
             {userCredential?.nullifierShort || userCredential?.nullifier?.slice(0, 16) || 'N/A'}...
           </code>
         </div>
-        <p class="text-slate-500 text-xs">
+        <p class="text-gray-500 text-xs">
           This anonymous identifier prevents double voting without revealing your identity.
         </p>
       </div>

@@ -17,9 +17,10 @@
     "circuit:export": "snarkjs zkey export verificationkey build/circuits/circuit_final.zkey build/circuits/verification_key.json"
   },
   "dependencies": {
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7",
     "dotenv": "^16.3.1",
-    "snarkjs": "^0.7.0",
-    "circomlibjs": "^0.1.7"
+    "snarkjs": "^0.7.0"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.0",

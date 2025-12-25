@@ -1,21 +1,31 @@
 // Zero-Knowledge Proof utilities (simplified for MVP)
 
+// Simple SHA256 hash using Web Crypto API (browser-native)
+async function sha256(message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function isValidVoterId(voterId: string): boolean {
-  // Voter ID format: alphanumeric, 8-12 characters
-  const regex = /^[A-Z0-9]{8,12}$/;
+  // Voter ID format: numeric, 5-15 characters (Nepal voter IDs are numeric)
+  const regex = /^[0-9]{5,15}$/;
   return regex.test(voterId);
 }
 
 export function isValidSecret(secret: string): boolean {
-  // Secret must be at least 8 characters
-  return secret.length >= 8;
+  // Secret must be at least 6 characters
+  return secret.length >= 6;
 }
 
-export function generateNullifier(voterId: string, secret: string): string {
-  // In production, this would use a proper hash function (Poseidon, SHA256, etc.)
-  // For MVP, we simulate with a simple concatenation + encoding
-  const combined = `${voterId}:${secret}:${Date.now()}`;
-  return btoa(combined).replace(/[+/=]/g, '').substring(0, 64);
+// MUST match backend's compute_expected_nullifier function!
+// Backend: sha256(f"{voter_id}:{secret}")
+export async function generateNullifier(voterId: string, secret: string): Promise<string> {
+  const combined = `${voterId}:${secret}`;
+  const hash = await sha256(combined);
+  return `0x${hash}`;
 }
 
 export function formatNullifier(nullifier: string): string {
@@ -29,33 +39,31 @@ export interface ZKProof {
   proof: string;
   nullifier: string;
   voter_id_hash?: string;
-  merkle_proof?: string[];
+  merkle_proof?: Array<{hash: string, position: string}>;
 }
 
-export function generateZKProof(
+export async function generateZKProof(
   voterId: string,
   secret: string,
-  merkleProof?: string[]
-): ZKProof {
-  // In production, this would use SnarkJS to generate actual zk-SNARK proofs
-  // For MVP, we simulate the proof structure
-  
-  const nullifier = generateNullifier(voterId, secret);
+  merkleProof?: Array<{hash: string, position: string}>
+): Promise<ZKProof> {
+  // Generate nullifier deterministically using same algorithm as backend
+  const nullifier = await generateNullifier(voterId, secret);
   
   // Generate voter ID hash (one-way hash of voter ID for privacy)
-  const voterIdHash = btoa(`voter:${voterId}`).replace(/[+/=]/g, '').substring(0, 64);
+  const voterIdHash = await sha256(`voter:${voterId}`);
   
   // Simulate commitment (hash of public inputs)
-  const commitment = btoa(`${voterId}:${Date.now()}`).replace(/[+/=]/g, '').substring(0, 64);
+  const commitment = await sha256(`${voterId}:commitment:${Date.now()}`);
   
   // Simulate proof (would be actual SNARK proof in production)
-  const proof = btoa(`proof:${voterId}:${Date.now()}`).replace(/[+/=]/g, '').substring(0, 256);
+  const proof = await sha256(`proof:${voterId}:${Date.now()}`);
   
   return {
-    commitment,
-    proof,
+    commitment: `0x${commitment}`,
+    proof: `0x${proof}`,
     nullifier,
-    voter_id_hash: voterIdHash,
+    voter_id_hash: `0x${voterIdHash.substring(0, 40)}`,
     merkle_proof: merkleProof
   };
 }

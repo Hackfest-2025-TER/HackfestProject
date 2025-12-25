@@ -1,5 +1,7 @@
 // API client for PromiseThread backend
-const API_BASE_URL = 'http://localhost:8000/api';
+// Use Vite's import.meta.env for environment variables
+// In Docker/Production, we use relative path /api which is proxied
+const API_BASE_URL = '/api';
 
 // Helper function to handle fetch errors
 async function fetchWithErrorHandling(url: string, options?: RequestInit) {
@@ -63,19 +65,60 @@ export async function getVoteVerification(voteHash: string) {
 }
 
 // ZK Proofs
+export interface ZKVerifyResult {
+  valid: boolean;
+  credential?: string;
+  nullifier?: string;
+  nullifier_short?: string;
+  message: string;
+  merkle_root?: string;
+  used_votes?: number[];  // Manifesto IDs the user has already voted on
+}
+
 export async function verifyZKProof(proof: {
   commitment: string;
   proof?: string;
   nullifier: string;
   voter_id_hash?: string;
-  merkle_proof?: string[];
-}) {
+  merkle_proof?: Array<{hash: string, position: string}>;
+}): Promise<ZKVerifyResult> {
   const response = await fetch(`${API_BASE_URL}/zk/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(proof),
   });
   if (!response.ok) throw new Error('Failed to verify ZK proof');
+  return response.json();
+}
+
+// New ZK login endpoint (commitment-based)
+export async function zkLogin(data: {
+  nullifier: string;
+  merkle_root: string;
+  credential?: string;
+  proof?: any;
+  publicSignals?: string[];
+}): Promise<ZKVerifyResult> {
+  const response = await fetch(`${API_BASE_URL}/zk/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error('Failed to login with ZK proof');
+  return response.json();
+}
+
+// Get shuffled anonymity set for commitment-based ZK
+export async function getAnonymitySet() {
+  const response = await fetch(`${API_BASE_URL}/zk/leaves`);
+  if (!response.ok) throw new Error('Failed to fetch anonymity set');
+  return response.json();
+}
+
+// Get demo secret for testing (demo only)
+export async function getDemoSecret(voterId: string) {
+  const response = await fetch(`${API_BASE_URL}/zk/demo-secret/${encodeURIComponent(voterId)}`);
+  if (!response.ok) throw new Error('Voter not found');
   return response.json();
 }
 
@@ -87,6 +130,20 @@ export async function lookupVoter(voterId: string) {
     body: JSON.stringify({ voter_id: voterId }),
   });
   if (!response.ok) throw new Error('Voter not found');
+  return response.json();
+}
+
+// Check credential validity and get voting history from backend
+export async function checkCredential(nullifier: string): Promise<{
+  valid: boolean;
+  used_votes: string[];
+  can_vote: boolean;
+  created_at?: string;
+}> {
+  const response = await fetch(`${API_BASE_URL}/zk/credential/${encodeURIComponent(nullifier)}`);
+  if (!response.ok) {
+    return { valid: false, used_votes: [], can_vote: false };
+  }
   return response.json();
 }
 

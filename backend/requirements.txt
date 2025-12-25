@@ -16,7 +16,7 @@ alembic==1.14.0
 python-dotenv==1.0.1
 
 # Blockchain/Cryptography
-eth-account==0.13.0
+eth-account>=0.13.1
 web3==7.5.0
 
 # ML/NLP for comment moderation

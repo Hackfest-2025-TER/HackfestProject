@@ -1,6 +1,6 @@
 <script lang="ts">
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
+  import { onMount } from 'svelte';
+  import { page } from '$app/stores';
   import CommentThread from '$lib/components/CommentThread.svelte';
   import VoteBox from '$lib/components/VoteBox.svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
@@ -49,6 +49,7 @@
 </script>
 
 <svelte:head>
+  <title>{manifesto?.title || 'Loading...'} - PromiseThread</title>
   <title>{manifesto?.title || 'Loading...'} - PromiseThread</title>
 </svelte:head>
 
@@ -152,27 +153,20 @@
             <span class="quorum-text">{manifesto.vote_kept} Kept / {manifesto.vote_broken} Broken</span>
           </div>
           
-          <div class="sidebar-section">
-            <span class="section-label">IMMUTABLE ID</span>
-            <HashDisplay hash={manifesto.hash} />
-          </div>
-        </div>
-        
-        <!-- Discussion Rules -->
-        <div class="sidebar-card card">
-          <h4>Discussion Rules</h4>
-          <ul class="rules-list">
-            <li>
+          <div class="sidebar-card card">
+            <h4>Community Guidelines</h4>
+            <ul class="rules-list">
+              <li>
               <Shield size={14} />
-              All comments are cryptographically signed. You cannot edit or delete after 5 minutes.
+              All comments are permanent. You cannot edit or delete after 5 minutes.
             </li>
             <li>
               <Shield size={14} />
-              Identities are hidden, but your reputation is persistent via Nullifier Hash.
+              Your identity is hidden, but your reputation is persistent.
             </li>
             <li>
               <Shield size={14} />
-              Civil discourse is enforced by community consensus voting.
+              Civil discourse is enforced by community voting.
             </li>
           </ul>
         </div>
@@ -181,12 +175,12 @@
         <div class="sidebar-card card">
           <h4>Related Proposals</h4>
           <div class="related-list">
-            <a href="#" class="related-item">
+            <a href="/manifestos/4011" class="related-item">
               <span class="related-id">#4011</span>
               <span class="related-title">Digital ID Implementation</span>
               <span class="related-status closed">Closed</span>
             </a>
-            <a href="#" class="related-item">
+            <a href="/manifestos/4088" class="related-item">
               <span class="related-id">#4088</span>
               <span class="related-title">Tax Reform 2024</span>
               <span class="related-status voting">Voting</span>
@@ -500,6 +494,178 @@
   
   .sidebar-card {
     padding: var(--space-4);
+  }
+  
+  .politician-info {
+    margin: var(--space-3) 0;
+  }
+  
+  .politician-link {
+    color: var(--primary-600);
+    text-decoration: none;
+    font-size: 0.875rem;
+  }
+  
+  .politician-link:hover {
+    text-decoration: underline;
+  }
+  
+  .category-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    background: var(--primary-100);
+    color: var(--primary-700);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
+  .voting-locked {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    background: var(--warning-50);
+    border: 1px solid var(--warning-200);
+    border-radius: var(--radius-xl);
+  }
+  
+  .voting-locked :global(svg) {
+    color: var(--warning-600);
+    flex-shrink: 0;
+  }
+  
+  .voting-locked h4 {
+    margin: 0 0 var(--space-1) 0;
+    color: var(--gray-900);
+    font-size: 0.95rem;
+  }
+  
+  .voting-locked p {
+    margin: 0;
+    color: var(--gray-600);
+    font-size: 0.85rem;
+  }
+  
+  .auth-prompt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: var(--gray-50);
+    text-align: center;
+    justify-content: center;
+  }
+  
+  .auth-prompt :global(svg) {
+    color: var(--gray-400);
+  }
+  
+  .auth-prompt a {
+    color: var(--primary-600);
+    text-decoration: underline;
+  }
+  
+  .empty-comments {
+    text-align: center;
+    padding: var(--space-8);
+    color: var(--gray-500);
+  }
+  
+  .empty-comments :global(svg) {
+    margin: 0 auto var(--space-4) auto;
+    opacity: 0.5;
+  }
+  
+  .loading-state, .error-state {
+    text-align: center;
+    padding: var(--space-12) var(--space-4);
+  }
+  
+  .error-state h2 {
+    color: var(--error-600);
+    margin-bottom: var(--space-4);
+  }
+  
+  .status-display {
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  
+  .status-display.success {
+    background: var(--success-100);
+    color: var(--success-700);
+  }
+  
+  .status-display.error {
+    background: var(--error-100);
+    color: var(--error-700);
+  }
+  
+  .status-display.warning {
+    background: var(--warning-100);
+    color: var(--warning-700);
+  }
+  
+  .vote-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  
+  .vote-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  
+  .vote-label {
+    font-size: 0.75rem;
+    color: var(--gray-600);
+    width: 50px;
+  }
+  
+  .bar-container {
+    flex: 1;
+    height: 6px;
+    background: var(--gray-200);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+  
+  .bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+  
+  .bar-fill.success {
+    background: var(--success-500);
+  }
+  
+  .bar-fill.error {
+    background: var(--error-500);
+  }
+  
+  .vote-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    width: 40px;
+    text-align: right;
+  }
+  
+  .category-tag {
+    display: inline-block;
+    padding: var(--space-1) var(--space-3);
+    background: var(--gray-100);
+    color: var(--gray-700);
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    font-weight: 500;
   }
   
   .sidebar-header {

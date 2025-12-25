@@ -2,6 +2,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install curl for healthcheck (better RPC testing)
+RUN apk add --no-cache curl
+
 # Copy package files
 COPY package*.json pnpm-lock.yaml* ./
 
@@ -12,8 +15,11 @@ RUN pnpm install
 # Copy source files
 COPY . .
 
+# Compile contracts during build
+RUN pnpm run compile
+
 # Expose Hardhat node port
 EXPOSE 8545
 
-# Compile and start at runtime (not during build)
-CMD ["sh", "-c", "pnpm run compile && pnpm run node"]
+# Start Hardhat node listening on all interfaces
+CMD ["npx", "hardhat", "node", "--hostname", "0.0.0.0"]
