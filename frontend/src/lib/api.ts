@@ -1,6 +1,7 @@
 // API client for PromiseThread backend
 // Use Vite's import.meta.env for environment variables
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api';
+// In Docker/Production, we use relative path /api which is proxied
+const API_BASE_URL = '/api';
 
 // Helper function to handle fetch errors
 async function fetchWithErrorHandling(url: string, options?: RequestInit) {

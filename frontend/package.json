@@ -25,7 +25,12 @@
   "dependencies": {
     "chart.js": "^4.4.0",
     "ethers": "^5.7.2",
-    "lucide-svelte": "^0.300.0"
+    "lucide-svelte": "^0.300.0",
+    "snarkjs": "^0.7.0",
+    "circomlibjs": "^0.1.7",
+    "ffjavascript": "^0.2.60",
+    "merkletreejs": "^0.3.11",
+    "crypto-js": "^4.2.0"
   },
   "type": "module"
 }

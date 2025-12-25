@@ -2,14 +2,15 @@
   import { Shield, User, Lock, CheckCircle, AlertCircle, ChevronRight, Eye, EyeOff, Loader2, KeyRound } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores';
-  import { lookupVoter, zkLogin, getMerkleRoot, getAnonymitySet, getDemoSecret, type ZKVerifyResult } from '$lib/api';
-  import { generateZKProof, generateNullifier, isValidVoterId, isValidSecret, formatNullifier } from '$lib/utils/zkProof';
+  import { lookupVoter, getMerkleRoot } from '$lib/api';
+  import { isValidSecret } from '$lib/utils/zkProof';
   import { authenticateCitizen } from '$lib/zk/auth';
   
   // UI State
   let currentStep: 'search' | 'verify' | 'success' = 'search';
   let isLoading = false;
   let error = '';
+  let statusMessage = ''; // New status message for ZK steps
   
   // Form State
   let voterIdInput = '';
@@ -18,7 +19,6 @@
   
   // Data State
   let voterLookupData: any = null;
-  let generatedProof: any = null;
   let verificationResult: any = null;
   let merkleRoot = '';
   
@@ -30,7 +30,6 @@
       console.error('Failed to load merkle root:', e);
     }
   }
-  
   async function lookupAndProceed() {
     error = '';
     
@@ -62,6 +61,7 @@
   
   async function generateAndVerify() {
     error = '';
+    statusMessage = '';
     
     if (!isValidSecret(secretInput)) {
       error = 'Your secret must be at least 6 characters.';
@@ -69,7 +69,6 @@
     }
     
     isLoading = true;
-    authStore.setLoading(true);
     
     try {
       // Use the new commitment-based authentication system
@@ -209,7 +208,7 @@
         <button class="submit-btn" on:click={lookupAndProceed} disabled={isLoading || !voterIdInput.trim()}>
           {#if isLoading}
             <Loader2 size={18} class="spinner" />
-            Looking up...
+            {statusMessage || 'Looking up...'}
           {:else}
             Continue
             <ChevronRight size={18} />
@@ -291,7 +290,7 @@
           <button class="submit-btn" on:click={generateAndVerify} disabled={isLoading || !secretInput}>
             {#if isLoading}
               <Loader2 size={18} class="spinner" />
-              Verifying...
+              {statusMessage || 'Verifying...'}
             {:else}
               Verify
             {/if}
