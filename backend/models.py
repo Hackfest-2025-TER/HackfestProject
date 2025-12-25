@@ -63,8 +63,8 @@ class ZKCredential(Base):
     __tablename__ = 'zk_credentials'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    nullifier_hash = Column(String(66), unique=True, nullable=False, index=True)
-    credential_hash = Column(String(66), nullable=False)
+    nullifier_hash = Column(String(128), unique=True, nullable=False, index=True)  # ZK nullifiers can be ~78 chars
+    credential_hash = Column(String(128), nullable=False)
     is_valid = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     

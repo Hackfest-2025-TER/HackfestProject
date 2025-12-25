@@ -6,6 +6,11 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="description" content="PromiseThread - Decentralized Political Accountability Platform" />
 		<title>PromiseThread</title>
+		<script>
+			// Polyfill for Buffer and process (required by snarkjs/circomlibjs)
+			window.global = window;
+			window.process = { env: {} };
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

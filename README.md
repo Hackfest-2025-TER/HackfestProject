@@ -6,6 +6,41 @@ A transparent platform where citizens anonymously track and evaluate political p
 
 ![PromiseThread](./design/banner.png)
 
+## 🚨 Important Security Notice
+
+### Current ZK Implementation Status
+
+**⚠️ MVP Limitation:** This demo uses a **simplified commitment-based authentication** system. While the architecture for zero-knowledge proofs is in place, **actual zk-SNARK proof verification is not yet implemented**.
+
+**What works:**
+- ✅ Merkle tree construction from voter registry (1,048 voters)
+- ✅ Client-side commitment computation: `hash(secret + voterID)`
+- ✅ Anonymous authentication (identity never sent to server)
+- ✅ Double-voting prevention via nullifier tracking
+- ✅ Commitment verification against Merkle tree
+
+**What's missing for production:**
+- ❌ **Cryptographic proof verification** - Server currently trusts client claims
+- ❌ **Circom circuit compilation** - ZK circuits exist but aren't compiled
+- ❌ **zk-SNARK generation** - Using commitment scheme instead of real proofs
+- ❌ **Server-side proof validation** - No verification key checking
+
+**Security implications:**
+- In this MVP, an attacker could theoretically submit fake nullifiers
+- Server only validates: (1) Merkle root matches, (2) Nullifier is new
+- No cryptographic guarantee that user knows a valid secret+voterID combination
+
+**For production deployment:**
+1. Compile Circom circuits (`blockchain/circuits/citizen_credential.circom`)
+2. Generate trusted setup (Powers of Tau ceremony)
+3. Implement client-side zk-SNARK generation with snarkjs
+4. Add server-side proof verification (py_ecc or verification endpoint)
+5. Implement Merkle proof caching to avoid downloading entire tree
+
+See [SECURITY_ANALYSIS.md](SECURITY_ANALYSIS.md) for detailed technical analysis.
+
+---
+
 ## 🌟 Vision
 
 PromiseThread solves the fundamental problem of political accountability: **How do you have transparent, tamper-proof political accountability while protecting citizen privacy?**

@@ -1,5 +1,6 @@
 <script lang="ts">
   import '../app.css';
+  import '$lib/polyfills'; // Import polyfills for ZK libraries
   import { onMount } from 'svelte';
   import { authStore } from '$lib/stores';
   import { checkCredential } from '$lib/api';

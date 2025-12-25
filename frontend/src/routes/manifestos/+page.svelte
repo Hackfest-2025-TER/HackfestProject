@@ -166,9 +166,9 @@
           <span class="stat-label">Trust Score</span>
           <Shield size={20} />
         </div>
-        <div class="stat-value">{networkStats?.integrity_score || 99.97}%</div>
+        <div class="stat-value">{networkStats?.integrity_score?.toFixed(2) || '...'}%</div>
         <div class="integrity-bar">
-          <div class="integrity-fill" style="width: {networkStats?.integrity_score || 99.97}%"></div>
+          <div class="integrity-fill" style="width: {networkStats?.integrity_score || 100}%"></div>
         </div>
       </div>
     </div>

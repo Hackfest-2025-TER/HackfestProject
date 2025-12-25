@@ -12,9 +12,9 @@
 
 pragma circom 2.0.0;
 
-include "circomlib/circuits/poseidon.circom";
-include "circomlib/circuits/comparators.circom";
-include "circomlib/circuits/bitify.circom";
+include "../node_modules/circomlib/circuits/poseidon.circom";
+include "../node_modules/circomlib/circuits/comparators.circom";
+include "../node_modules/circomlib/circuits/bitify.circom";
 
 // Merkle proof verification for binary tree
 template MerkleProof(levels) {
@@ -124,4 +124,4 @@ component main {public [merkleRoot]} = VoterCredential(15);
  * - Only voters in the CSV can generate valid proofs
  * - Each voter can only vote once per manifesto (nullifier check)
  * - Merkle root is published on-chain (immutable reference)
- */component main {public [currentYear, minAge, registrationCutoff]} = CitizenCredential();
+ */

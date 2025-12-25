@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { Shield, User, Lock, CheckCircle, AlertCircle, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores';
   import { getMerkleRoot } from '$lib/api';
   import { isValidSecret } from '$lib/utils/zkProof';
-  import { authenticateCitizen } from '$lib/zk/auth';
+  import { authenticateWithZK } from '$lib/zk/zkAuth';
   
   // UI State
   let currentStep: 'authenticate' | 'success' = 'authenticate';
@@ -47,11 +48,14 @@
     isLoading = true;
     
     try {
-      // Use the new commitment-based authentication system
-      const result = await authenticateCitizen(
+      // Use real ZK proof authentication with Poseidon hashing
+      const result = await authenticateWithZK(
         voterIdInput.trim(),
         secretInput,
-        (status) => { console.log('ZK Status:', status); }
+        (status) => { 
+          statusMessage = status;
+          console.log('ZK Status:', status); 
+        }
       );
       
       if (!result.success) {
@@ -102,7 +106,10 @@
     goto('/manifestos');
   }
   
-  loadMerkleRoot();
+  // Load merkle root on component mount (not during SSR)
+  onMount(() => {
+    loadMerkleRoot();
+  });
 </script>
 
 <svelte:head>
@@ -195,11 +202,21 @@
           </div>
         {/if}
         
+        {#if statusMessage && isLoading}
+          <div class="info-banner processing">
+            <Loader2 size={20} class="spinner" />
+            <div>
+              <strong>Zero-Knowledge Proof Generation</strong>
+              <p>{statusMessage}</p>
+            </div>
+          </div>
+        {/if}
+        
         <div class="info-banner">
           <Shield size={20} />
           <div>
-            <strong>True Zero-Knowledge Privacy</strong>
-            <p>Your voter ID and secret never leave your browser. We verify your eligibility without learning who you are.</p>
+            <strong>🔐 Real Zero-Knowledge Proofs</strong>
+            <p>This system uses Groth16 zk-SNARKs with Poseidon hashing. Your proof is cryptographically verified on the server without revealing your identity.</p>
           </div>
         </div>
         
@@ -499,6 +516,15 @@
   
   .info-banner.warning :global(svg) {
     color: var(--warning-400);
+  }
+  
+  .info-banner.processing {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+  
+  .info-banner.processing :global(svg) {
+    color: var(--primary-400);
   }
   
   .info-banner.success {

@@ -12,5 +12,29 @@ export default defineConfig({
 				changeOrigin: true
 			}
 		}
+	},
+	resolve: {
+		alias: {
+			// Polyfills for Node.js modules in browser
+			buffer: 'buffer/',
+			events: 'events/',
+			util: 'util/',
+			stream: 'stream-browserify',
+			crypto: 'crypto-browserify'
+		}
+	},
+	define: {
+		// Define global for browser compatibility
+		global: 'globalThis',
+		'process.env': {}
+	},
+	optimizeDeps: {
+		esbuildOptions: {
+			// Enable polyfills
+			define: {
+				global: 'globalThis'
+			}
+		},
+		include: ['buffer', 'events', 'util', 'stream-browserify', 'crypto-browserify']
 	}
 });
