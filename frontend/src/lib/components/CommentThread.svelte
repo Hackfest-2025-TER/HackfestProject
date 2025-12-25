@@ -357,7 +357,6 @@
             </div>
           </div>
         </div>
-        <svelte:self comment={reply} />
       {/each}
     </div>
   {/if}
