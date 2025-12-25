@@ -6,12 +6,13 @@ export default defineConfig({
 	plugins: [
 		sveltekit(),
 		nodePolyfills({
-			include: ['buffer', 'crypto', 'stream', 'util', 'events', 'process'],
+			include: ['buffer', 'crypto', 'stream', 'util', 'events'],
 			globals: {
 				Buffer: true,
 				global: true,
 				process: true
-			}
+			},
+			protocolImports: true
 		})
 	],
 	server: {

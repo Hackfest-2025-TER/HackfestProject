@@ -5,8 +5,6 @@
   import VoteBox from '$lib/components/VoteBox.svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
   import { Shield, ThumbsUp, MessageSquare, Share2, ExternalLink, Clock, CheckCircle, Info, Search, Send, AlertCircle } from 'lucide-svelte';
-  import { page } from '$app/stores';
-  import { onMount } from 'svelte';
   
   // Get manifesto ID from URL
   $: manifestoId = parseInt($page.params.id);
@@ -50,10 +48,7 @@
 
 <svelte:head>
   <title>{manifesto?.title || 'Loading...'} - PromiseThread</title>
-  <title>{manifesto?.title || 'Loading...'} - PromiseThread</title>
 </svelte:head>
-
-<Header variant="citizen" />
 
 {#if isLoading}
   <main class="manifesto-detail">
@@ -192,8 +187,6 @@
   </div>
 </main>
 {/if}
-
-<Footer />
 
 <style>
   .manifesto-detail {

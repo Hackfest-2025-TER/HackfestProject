@@ -1,6 +1,4 @@
 <script lang="ts">
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
   import { 
     Vote, CheckCircle, XCircle, Clock, Calendar, Hash,
     ChevronRight, Shield, AlertCircle, ExternalLink, Filter
@@ -100,8 +98,6 @@
 <svelte:head>
   <title>My Votes - PromiseThread</title>
 </svelte:head>
-
-<Header />
 
 <main class="min-h-screen bg-gray-50 py-8">
   <div class="max-w-4xl mx-auto px-4">
@@ -309,5 +305,3 @@
     {/if}
   </div>
 </main>
-
-<Footer />
