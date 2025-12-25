@@ -4,68 +4,77 @@
   import CommentThread from '$lib/components/CommentThread.svelte';
   import VoteBox from '$lib/components/VoteBox.svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
-  import { Shield, ThumbsUp, MessageSquare, Share2, ExternalLink, Clock, CheckCircle, Info, Search, Send } from 'lucide-svelte';
+  import { Shield, ThumbsUp, MessageSquare, Share2, ExternalLink, Clock, CheckCircle, Info, Search, Send, AlertCircle } from 'lucide-svelte';
+  import { page } from '$app/stores';
+  import { onMount } from 'svelte';
   
-  // Sample manifesto data
-  const manifesto = {
-    id: '4992',
-    title: 'Universal Basic Income Pilot',
-    status: 'verified',
-    hash: '0x7a82...9f2',
-    merkleRoot: '0x3b...1c',
-    description: 'This manifesto proposes a 2-year pilot program to introduce a universal basic income for all citizens, funded by a restructuring of existing tax brackets. The primary goal is to assess the impact on economic stability and entrepreneurship rates within the designated pilot zones.',
-    details: 'All funding allocations will be transparently tracked via the attached smart contract addresses, ensuring real-time auditability of public funds.',
-    voteCount: 12500,
-    commentCount: 84,
-    timeline: 'Discussion Phase (Ends in 4d)',
-    quorum: 78,
-    postedAgo: '2 days ago'
-  };
+  // Get manifesto ID from URL
+  $: manifestoId = parseInt($page.params.id);
   
-  const comments = [
-    {
-      id: '1',
-      content: 'While the funding model appears sound in the short term, has there been any modeling done on the impact of tax bracket restructuring on middle-income households specifically in the pilot zones? The whitepaper seems vague on this.',
-      zkCredential: '0x4f...82',
-      upvotes: 142,
-      downvotes: 5,
-      createdAt: '2024-10-14T14:32:00Z',
-      isVerifiedCitizen: true,
-      evidenceProof: 'tx_0x92f8...4a2b',
-      replies: [
-        {
-          id: '1-1',
-          content: 'Page 42 of the technical addendum addresses this. The bracket shift only affects the top 5% of earners in the zone. Middle income remains neutral.',
-          zkCredential: '0xb2...9c',
-          upvotes: 56,
-          downvotes: 2,
-          createdAt: '2024-10-14T12:15:00Z',
-          isVerifiedCitizen: true,
-          userRole: 'Verified Economist'
-        }
-      ]
-    },
-    {
-      id: '2',
-      content: 'I support this fully. It\'s time we test UBI in a controlled environment. The current welfare systems are bloated and inefficient.',
-      zkCredential: '0x88...1f',
-      upvotes: 89,
-      downvotes: 12,
-      createdAt: '2024-10-14T10:00:00Z',
-      isVerifiedCitizen: true
-    }
-  ];
-  
-  let newComment = '';
+  // State
+  let manifesto: any = null;
+  let isLoading = true;
+  let error = '';
   let commentSortBy = 'top';
+  
+  // Load manifesto data
+  onMount(async () => {
+    await loadManifesto();
+  });
+  
+  async function loadManifesto() {
+    try {
+      const response = await fetch(`http://localhost:8000/api/manifestos/${manifestoId}`);
+      if (!response.ok) throw new Error('Manifesto not found');
+      manifesto = await response.json();
+    } catch (err: any) {
+      error = err.message || 'Failed to load manifesto';
+    } finally {
+      isLoading = false;
+    }
+  }
+  
+  function formatDate(dateStr: string) {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  }
 </script>
 
 <svelte:head>
-  <title>{manifesto.title} - PromiseThread</title>
+  <title>{manifesto?.title || 'Loading...'} - PromiseThread</title>
 </svelte:head>
 
 <Header variant="citizen" />
 
+{#if isLoading}
+  <main class="manifesto-detail">
+    <div class="container">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading manifesto...</p>
+      </div>
+    </div>
+  </main>
+{:else if error}
+  <main class="manifesto-detail">
+    <div class="container">
+      <div class="error-state">
+        <AlertCircle size={48} />
+        <h2>Manifesto Not Found</h2>
+        <p>{error}</p>
+        <a href="/manifestos" class="btn btn-secondary">← Back to Manifestos</a>
+      </div>
+    </div>
+  </main>
+{:else if manifesto}
 <main class="manifesto-detail">
   <div class="container">
     <div class="content-grid">
@@ -91,22 +100,21 @@
             </div>
             <div class="hash-item">
               <span class="hash-label">🌳 Merkle Root:</span>
-              <HashDisplay hash={manifesto.merkleRoot} />
+              <HashDisplay hash={manifesto.hash?.slice(0, 10) || '0x...'} />
             </div>
             <a href="#" class="view-proof">View On-Chain Proof ↗</a>
           </div>
           
           <p class="description">{manifesto.description}</p>
-          <p class="details">{manifesto.details}</p>
           
           <div class="manifesto-stats">
             <div class="stat">
               <ThumbsUp size={18} />
-              <span>{(manifesto.voteCount / 1000).toFixed(1)}k Votes</span>
+              <span>{manifesto.vote_kept + manifesto.vote_broken} Votes</span>
             </div>
             <div class="stat">
               <MessageSquare size={18} />
-              <span>{manifesto.commentCount} Comments</span>
+              <span>Discussion</span>
             </div>
             <button class="share-btn">
               <Share2 size={18} />
@@ -115,61 +123,8 @@
           </div>
         </div>
         
-        <!-- Comment Input -->
-        <div class="comment-input card">
-          <div class="input-header">
-            <div class="avatar-placeholder"></div>
-            <div class="input-wrapper">
-              <input 
-                type="text" 
-                placeholder="Enter your argument..."
-                bind:value={newComment}
-              />
-            </div>
-          </div>
-          <div class="input-footer">
-            <div class="posting-as">
-              <Shield size={14} />
-              <span>Posting anonymously as</span>
-              <HashDisplay hash="0x8a...3f" copyable={false} />
-              <span class="nullifier-label">(Nullifier ID)</span>
-            </div>
-            <button class="btn btn-primary">
-              <Send size={16} />
-              Sign & Post
-            </button>
-          </div>
-        </div>
-        
-        <!-- Discussion -->
-        <div class="discussion card">
-          <div class="discussion-header">
-            <h3>Discussion</h3>
-            <div class="sort-tabs">
-              <button 
-                class="sort-btn" 
-                class:active={commentSortBy === 'top'}
-                on:click={() => commentSortBy = 'top'}
-              >Top</button>
-              <button 
-                class="sort-btn" 
-                class:active={commentSortBy === 'newest'}
-                on:click={() => commentSortBy = 'newest'}
-              >Newest</button>
-              <button 
-                class="sort-btn" 
-                class:active={commentSortBy === 'controversial'}
-                on:click={() => commentSortBy = 'controversial'}
-              >Controversial</button>
-            </div>
-          </div>
-          
-          <div class="comments-list">
-            {#each comments as comment}
-              <CommentThread {comment} />
-            {/each}
-          </div>
-        </div>
+        <!-- Discussion Section - Using Dynamic CommentThread -->
+        <CommentThread {manifestoId} />
       </div>
       
       <!-- Sidebar -->
@@ -185,16 +140,16 @@
             <span class="section-label">TIMELINE</span>
             <div class="timeline-badge">
               <Clock size={14} />
-              {manifesto.timeline}
+              {manifesto.grace_period_end ? `Until ${new Date(manifesto.grace_period_end).toLocaleDateString()}` : 'Open'}
             </div>
           </div>
           
           <div class="sidebar-section">
-            <span class="section-label">QUORUM REACHED</span>
+            <span class="section-label">VOTE RESULTS</span>
             <div class="quorum-bar">
-              <div class="quorum-fill" style="width: {manifesto.quorum}%"></div>
+              <div class="quorum-fill" style="width: {manifesto.vote_kept / Math.max(1, manifesto.vote_kept + manifesto.vote_broken) * 100}%"></div>
             </div>
-            <span class="quorum-text">{manifesto.quorum}% Verified</span>
+            <span class="quorum-text">{manifesto.vote_kept} Kept / {manifesto.vote_broken} Broken</span>
           </div>
           
           <div class="sidebar-section">
@@ -242,6 +197,7 @@
     </div>
   </div>
 </main>
+{/if}
 
 <Footer />
 
@@ -250,6 +206,36 @@
     min-height: 100vh;
     background: var(--gray-50);
     padding: var(--space-6) 0;
+  }
+  
+  .loading-state,
+  .error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-12);
+    text-align: center;
+    color: var(--gray-500);
+  }
+  
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--gray-200);
+    border-top-color: var(--primary-500);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: var(--space-4);
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  .error-state h2 {
+    margin-bottom: var(--space-2);
+    color: var(--gray-700);
   }
   
   .container {

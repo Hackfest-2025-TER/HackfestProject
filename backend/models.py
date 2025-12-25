@@ -220,19 +220,55 @@ class Comment(Base):
     """
     Discussion comments on manifestos.
     - Threaded via parent_id (self-referential)
-    - Anonymous via nullifier_display (truncated)
+    - Anonymous via session_id (random identifier per session)
     - upvotes/downvotes are cached aggregates
+    - Cosine similarity moderation for spam/relevance
+    
+    Moderation States:
+    - active: Visible to all users
+    - auto_flagged: Flagged by similarity check, needs review
+    - community_flagged: Flagged by user reports
+    - quarantined: Spam detected, hidden from main view
+    - soft_deleted: Deleted (cooling period before hard delete)
+    
+    Auto-Flag Reasons:
+    - off_topic: Low similarity to manifesto promises (< 0.25)
+    - spam_like: High similarity to recent comments (> 0.92)
+    - low_relevance: Marginal relevance (0.25-0.40)
     """
     __tablename__ = 'comments'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     manifesto_id = Column(Integer, ForeignKey('manifestos.id'), nullable=False)
     parent_id = Column(Integer, ForeignKey('comments.id'), nullable=True)  # NULL = top-level
-    nullifier_display = Column(String(20), nullable=False)  # Truncated: "abc123..."
+    
+    # === Legacy field for backward compatibility ===
+    nullifier_display = Column(String(20), nullable=False, default='anonymous')  # Kept for DB compatibility
+    
+    # === Identity (no nullifier required for posting) ===
+    session_id = Column(String(32), nullable=False)  # Random session identifier
+    author_display = Column(String(20), nullable=True)  # Display name: "Citizen-a1b2c3"
+    
+    # === Content ===
     content = Column(Text, nullable=False)
-    upvotes = Column(Integer, default=0)  # Cached aggregate
-    downvotes = Column(Integer, default=0)  # Cached aggregate
-    is_deleted = Column(Boolean, default=False)  # Soft delete
+    
+    # === Voting (cached aggregates) ===
+    upvotes = Column(Integer, default=0)
+    downvotes = Column(Integer, default=0)
+    flag_count = Column(Integer, default=0)  # Community flag reports
+    
+    # === Moderation State ===
+    state = Column(String(20), default='active')  # active, auto_flagged, community_flagged, quarantined, soft_deleted
+    auto_flag_reason = Column(String(20), nullable=True)  # off_topic, spam_like, low_relevance
+    
+    # === Cosine Similarity Scores ===
+    similarity_score = Column(Integer, nullable=True)  # 0-100 (max similarity to any promise)
+    matched_promise_id = Column(Integer, nullable=True)  # ID of most similar promise
+    spam_similarity_score = Column(Integer, nullable=True)  # 0-100 (max similarity to recent comments)
+    
+    # === Timestamps ===
+    is_deleted = Column(Boolean, default=False)  # Soft delete flag
+    delete_scheduled_at = Column(DateTime, nullable=True)  # When deletion was scheduled
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -242,7 +278,7 @@ class Comment(Base):
     comment_votes = relationship("CommentVote", back_populates="comment", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Comment {self.id} by {self.nullifier_display}>"
+        return f"<Comment {self.id} by {self.author_display or self.session_id[:8]}>"
 
 
 # =============================================================================

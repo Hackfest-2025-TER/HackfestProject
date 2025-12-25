@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, desc
 
 from database import get_db, init_db, check_connection
 from models import (
@@ -31,6 +31,7 @@ from crypto_utils import (
     verify_signature, get_verification_bundle, is_valid_address, format_address_short
 )
 from blockchain_service import get_blockchain_service, BlockchainService
+from similarity_service import get_similarity_service
 
 app = FastAPI(
     title="PromiseThread API",
@@ -210,12 +211,16 @@ class VoteResponse(BaseModel):
 class CommentCreate(BaseModel):
     manifesto_id: int
     content: str
-    nullifier: str
+    session_id: Optional[str] = None  # Optional - will be generated if not provided
     parent_id: Optional[int] = None
 
 class CommentVoteRequest(BaseModel):
-    nullifier: str
-    vote_type: str  # "up" or "down"
+    nullifier: str  # Required for voting (ZK authenticated)
+    vote_type: str  # "up", "down", or "flag"
+
+class CommentFlagRequest(BaseModel):
+    nullifier: str  # Required for flagging
+    reason: Optional[str] = None  # Optional reason for flag
 
 class Feedback(BaseModel):
     type: str
@@ -744,25 +749,50 @@ async def verify_vote(vote_hash: str, db: Session = Depends(get_db)):
 # ============= Comment Endpoints =============
 
 @app.get("/api/manifestos/{manifesto_id}/comments")
-async def get_comments(manifesto_id: int, db: Session = Depends(get_db)):
-    """Get all comments for a manifesto."""
-    comments = db.query(CommentModel).filter(
+async def get_comments(
+    manifesto_id: int, 
+    include_flagged: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all comments for a manifesto.
+    By default, only shows 'active' comments.
+    Set include_flagged=true to see auto_flagged and community_flagged.
+    """
+    # Base query - exclude deleted and quarantined
+    query = db.query(CommentModel).filter(
         CommentModel.manifesto_id == manifesto_id,
-        CommentModel.is_deleted == False
-    ).order_by(CommentModel.created_at.desc()).all()
+        CommentModel.is_deleted == False,
+        CommentModel.state != 'soft_deleted'
+    )
+    
+    if not include_flagged:
+        # Only show active comments
+        query = query.filter(CommentModel.state == 'active')
+    else:
+        # Exclude only quarantined
+        query = query.filter(CommentModel.state != 'quarantined')
+    
+    comments = query.order_by(CommentModel.created_at.desc()).all()
     
     # Build thread structure
     def build_comment(c):
-        replies = [build_comment(r) for r in c.replies if not r.is_deleted]
+        replies = [build_comment(r) for r in c.replies if not r.is_deleted and r.state != 'quarantined']
         return {
             "id": c.id,
             "manifesto_id": c.manifesto_id,
             "content": c.content,
-            "nullifier": c.nullifier_display,
+            "author": c.author_display or f"Citizen-{c.session_id[:6]}",
+            "session_id": c.session_id[:8] + "...",
             "parent_id": c.parent_id,
             "created_at": c.created_at.isoformat() if c.created_at else None,
             "upvotes": c.upvotes,
             "downvotes": c.downvotes,
+            "flag_count": c.flag_count,
+            "state": c.state,
+            "auto_flag_reason": c.auto_flag_reason,
+            "similarity_score": c.similarity_score,
+            "matched_promise_id": c.matched_promise_id,
             "replies": replies
         }
     
@@ -771,18 +801,48 @@ async def get_comments(manifesto_id: int, db: Session = Depends(get_db)):
     
     return {"comments": result, "total": len(comments)}
 
+
+@app.get("/api/manifestos/{manifesto_id}/comments/flagged")
+async def get_flagged_comments(manifesto_id: int, db: Session = Depends(get_db)):
+    """
+    Get all flagged comments for a manifesto (for community review).
+    Shows auto_flagged and community_flagged comments.
+    """
+    comments = db.query(CommentModel).filter(
+        CommentModel.manifesto_id == manifesto_id,
+        CommentModel.is_deleted == False,
+        CommentModel.state.in_(['auto_flagged', 'community_flagged'])
+    ).order_by(CommentModel.created_at.desc()).all()
+    
+    result = []
+    for c in comments:
+        result.append({
+            "id": c.id,
+            "manifesto_id": c.manifesto_id,
+            "content": c.content,
+            "author": c.author_display or f"Citizen-{c.session_id[:6]}",
+            "session_id": c.session_id[:8] + "...",
+            "parent_id": c.parent_id,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "upvotes": c.upvotes,
+            "downvotes": c.downvotes,
+            "flag_count": c.flag_count,
+            "state": c.state,
+            "auto_flag_reason": c.auto_flag_reason,
+            "similarity_score": c.similarity_score,
+            "matched_promise_id": c.matched_promise_id
+        })
+    
+    return {"flagged_comments": result, "total": len(result)}
+
+
 @app.post("/api/comments")
 async def create_comment(comment: CommentCreate, db: Session = Depends(get_db)):
-    """Create a new comment."""
-    # Verify nullifier exists
-    cred = db.query(ZKCredential).filter(
-        ZKCredential.nullifier_hash == comment.nullifier,
-        ZKCredential.is_valid == True
-    ).first()
-    
-    if not cred:
-        raise HTTPException(status_code=401, detail="Invalid nullifier - please authenticate first")
-    
+    """
+    Create a new comment.
+    NO nullifier required - anyone can comment (encourages discussion).
+    Uses cosine similarity to detect spam and off-topic content.
+    """
     # Verify manifesto exists
     manifesto = db.query(ManifestoModel).filter(
         ManifestoModel.id == comment.manifesto_id
@@ -791,14 +851,51 @@ async def create_comment(comment: CommentCreate, db: Session = Depends(get_db)):
     if not manifesto:
         raise HTTPException(status_code=404, detail="Manifesto not found")
     
-    # Create comment
+    # Generate session_id if not provided
+    session_id = comment.session_id or secrets.token_hex(16)
+    
+    # Get similarity service
+    similarity_service = get_similarity_service()
+    
+    # Get recent comments for spam detection (last 200)
+    recent_comments = db.query(CommentModel.content).filter(
+        CommentModel.manifesto_id == comment.manifesto_id,
+        CommentModel.is_deleted == False
+    ).order_by(desc(CommentModel.created_at)).limit(200).all()
+    recent_texts = [c.content for c in recent_comments]
+    
+    # Get same author's recent comments
+    same_author_comments = db.query(CommentModel.content).filter(
+        CommentModel.session_id == session_id,
+        CommentModel.is_deleted == False
+    ).order_by(desc(CommentModel.created_at)).limit(20).all()
+    same_author_texts = [c.content for c in same_author_comments]
+    
+    # Analyze comment for moderation
+    analysis = similarity_service.analyze_comment(
+        comment=comment.content,
+        manifesto_title=manifesto.title,
+        manifesto_description=manifesto.description or "",
+        recent_comments=recent_texts,
+        same_author_comments=same_author_texts
+    )
+    
+    # Create comment with moderation data
     new_comment = CommentModel(
         manifesto_id=comment.manifesto_id,
         parent_id=comment.parent_id,
-        nullifier_display=comment.nullifier[:12] + "...",
+        nullifier_display='anonymous',  # Legacy field, kept for DB compatibility
+        session_id=session_id,
+        author_display=f"Citizen-{session_id[:6]}",
         content=comment.content,
         upvotes=0,
-        downvotes=0
+        downvotes=0,
+        flag_count=0,
+        state=analysis['state'],
+        auto_flag_reason=analysis['auto_flag_reason'],
+        similarity_score=analysis['similarity_score'],
+        matched_promise_id=analysis['matched_promise_id'],
+        spam_similarity_score=analysis['spam_similarity_score']
     )
     
     db.add(new_comment)
@@ -809,12 +906,22 @@ async def create_comment(comment: CommentCreate, db: Session = Depends(get_db)):
         "id": new_comment.id,
         "manifesto_id": new_comment.manifesto_id,
         "content": new_comment.content,
-        "nullifier": new_comment.nullifier_display,
+        "author": new_comment.author_display,
+        "session_id": new_comment.session_id[:8] + "...",
         "parent_id": new_comment.parent_id,
         "created_at": new_comment.created_at.isoformat() if new_comment.created_at else None,
         "upvotes": new_comment.upvotes,
-        "downvotes": new_comment.downvotes
+        "downvotes": new_comment.downvotes,
+        "state": new_comment.state,
+        "auto_flag_reason": new_comment.auto_flag_reason,
+        "similarity_score": new_comment.similarity_score,
+        "moderation": {
+            "is_visible": new_comment.state == 'active',
+            "reason": analysis['auto_flag_reason'],
+            "details": analysis['details'] if new_comment.state != 'active' else None
+        }
     }
+
 
 @app.post("/api/comments/{comment_id}/vote")
 async def vote_comment(
@@ -822,20 +929,24 @@ async def vote_comment(
     vote_request: CommentVoteRequest,
     db: Session = Depends(get_db)
 ):
-    """Upvote or downvote a comment."""
+    """
+    Upvote, downvote, or flag a comment.
+    REQUIRES nullifier (ZK authentication) - prevents vote manipulation.
+    vote_type: "up", "down", or "flag"
+    """
     comment = db.query(CommentModel).filter(CommentModel.id == comment_id).first()
     
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
     
-    # Verify nullifier
+    # Verify nullifier (required for voting)
     cred = db.query(ZKCredential).filter(
         ZKCredential.nullifier_hash == vote_request.nullifier,
         ZKCredential.is_valid == True
     ).first()
     
     if not cred:
-        raise HTTPException(status_code=401, detail="Invalid nullifier")
+        raise HTTPException(status_code=401, detail="Invalid nullifier - authentication required for voting")
     
     # Check existing vote
     existing_vote = db.query(CommentVote).filter(
@@ -844,19 +955,23 @@ async def vote_comment(
     ).first()
     
     if existing_vote:
-        # Change vote
+        # Changing vote
         if existing_vote.vote_type != vote_request.vote_type:
             # Reverse old vote
             if existing_vote.vote_type == "up":
-                comment.upvotes -= 1
-            else:
-                comment.downvotes -= 1
+                comment.upvotes = max(0, comment.upvotes - 1)
+            elif existing_vote.vote_type == "down":
+                comment.downvotes = max(0, comment.downvotes - 1)
+            elif existing_vote.vote_type == "flag":
+                comment.flag_count = max(0, comment.flag_count - 1)
             
             # Apply new vote
             if vote_request.vote_type == "up":
                 comment.upvotes += 1
-            else:
+            elif vote_request.vote_type == "down":
                 comment.downvotes += 1
+            elif vote_request.vote_type == "flag":
+                comment.flag_count += 1
             
             existing_vote.vote_type = vote_request.vote_type
     else:
@@ -870,32 +985,56 @@ async def vote_comment(
         
         if vote_request.vote_type == "up":
             comment.upvotes += 1
-        else:
+        elif vote_request.vote_type == "down":
             comment.downvotes += 1
+        elif vote_request.vote_type == "flag":
+            comment.flag_count += 1
+    
+    # Check if comment should be promoted or deleted based on votes
+    total_votes = comment.upvotes + comment.downvotes
+    
+    # Promotion rule: if upvotes >= 5 and ratio >= 0.7 → move back to active
+    if comment.state in ['auto_flagged', 'community_flagged']:
+        if total_votes >= 5 and comment.upvotes / max(1, total_votes) >= 0.7:
+            comment.state = 'active'
+            comment.auto_flag_reason = None
+    
+    # Deletion rule: if downvotes >= 20 and ratio >= 0.8 → soft delete
+    if total_votes >= 20 and comment.downvotes / max(1, total_votes) >= 0.8:
+        comment.state = 'soft_deleted'
+        comment.is_deleted = True
+        comment.delete_scheduled_at = datetime.utcnow()
+    
+    # Community flag rule: if flag_count >= 5 → community_flagged
+    if comment.flag_count >= 5 and comment.state == 'active':
+        comment.state = 'community_flagged'
     
     db.commit()
     
     return {
         "id": comment.id,
         "upvotes": comment.upvotes,
-        "downvotes": comment.downvotes
+        "downvotes": comment.downvotes,
+        "flag_count": comment.flag_count,
+        "state": comment.state
     }
+
 
 @app.put("/api/comments/{comment_id}")
 async def update_comment(
     comment_id: int,
     content: str = Query(...),
-    nullifier: str = Query(...),
+    session_id: str = Query(...),
     db: Session = Depends(get_db)
 ):
-    """Update a comment (only by original author via nullifier)."""
+    """Update a comment (only by original author via session_id)."""
     comment = db.query(CommentModel).filter(CommentModel.id == comment_id).first()
     
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
     
-    # Verify ownership via nullifier display
-    if comment.nullifier_display != nullifier[:12] + "...":
+    # Verify ownership via session_id
+    if comment.session_id != session_id:
         raise HTTPException(status_code=403, detail="Not authorized to edit this comment")
     
     comment.content = content
@@ -903,10 +1042,11 @@ async def update_comment(
     
     return {"id": comment.id, "content": comment.content, "updated": True}
 
+
 @app.delete("/api/comments/{comment_id}")
 async def delete_comment(
     comment_id: int,
-    nullifier: str = Query(...),
+    session_id: str = Query(...),
     db: Session = Depends(get_db)
 ):
     """Delete a comment (soft delete)."""
@@ -915,12 +1055,14 @@ async def delete_comment(
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
     
-    # Verify ownership
-    if comment.nullifier_display != nullifier[:12] + "...":
+    # Verify ownership via session_id
+    if comment.session_id != session_id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
     
     comment.is_deleted = True
+    comment.state = 'soft_deleted'
     comment.content = "[deleted]"
+    comment.delete_scheduled_at = datetime.utcnow()
     db.commit()
     
     return {"id": comment.id, "deleted": True}
