@@ -82,13 +82,32 @@
         localStorage.setItem('user_votes', JSON.stringify(localVotes));
       }
       
+      // Check if this user is a registered politician
+      let politicianData = null;
+      try {
+        const politicianCheck = await fetch(
+          `http://localhost:8000/api/politicians/check-status?nullifier=${encodeURIComponent(result.nullifier!)}`
+        );
+        if (politicianCheck.ok) {
+          const data = await politicianCheck.json();
+          if (data.is_politician) {
+            politicianData = data.politician;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to check politician status:', e);
+      }
+      
       authStore.setCredential({
         nullifier: result.nullifier!,
         nullifierShort: result.nullifier!.substring(0, 12) + "...",
         credential: result.credential!,
         createdAt: new Date().toISOString(),
         usedVotes: usedVotes,
-        verified: true
+        verified: true,
+        isPolitician: !!politicianData,
+        politicianId: politicianData?.id,
+        politicianSlug: politicianData?.slug
       });
       
       currentStep = 'success';
@@ -249,10 +268,29 @@
             </div>
           </div>
           
-          <button class="submit-btn" on:click={goToManifestos}>
-            Browse Promises
-            <ChevronRight size={18} />
-          </button>
+          {#if verificationResult?.is_politician}
+            <div class="info-banner" style="background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.3); margin-top: 1rem;">
+              <User size={18} />
+              <div>
+                <strong>Politician Account Detected</strong>
+                <p>You're registered as a politician. Access your dashboard to manage manifestos.</p>
+              </div>
+            </div>
+            
+            <a href="/politician/dashboard" class="submit-btn" style="margin-top: 1rem; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+              Go to Dashboard
+              <ChevronRight size={18} />
+            </a>
+          {:else}
+            <button class="submit-btn" on:click={goToManifestos}>
+              Browse Promises
+              <ChevronRight size={18} />
+            </button>
+            
+            <a href="/politician/register" class="text-center text-sm text-slate-400 hover:text-white mt-4 block">
+              Want to register as a politician?
+            </a>
+          {/if}
         </div>
       {/if}
       

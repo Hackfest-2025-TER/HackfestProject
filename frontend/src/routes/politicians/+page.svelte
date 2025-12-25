@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, Filter, Shield, Award, Clock, FileText, ChevronRight, CheckCircle, AlertCircle } from 'lucide-svelte';
+  import { Search, Filter, Shield, Award, Clock, FileText, ChevronRight, CheckCircle, AlertCircle, UserPlus } from 'lucide-svelte';
+  import { authStore } from '$lib/stores';
   
   // Fetch politicians from API
   let politicians: any[] = [];
@@ -85,13 +86,20 @@
         />
       </div>
       
-      <div class="filters">
+      <div class="filters flex items-center gap-4">
         <select bind:value={selectedParty}>
           <option value="all">All Parties</option>
           {#each parties as party}
             <option value={party}>{party}</option>
           {/each}
         </select>
+        
+        {#if $authStore.isAuthenticated && !$authStore.credential?.isPolitician}
+          <a href="/politician/register" class="btn btn-primary btn-sm flex items-center gap-2">
+            <UserPlus size={16} />
+            Register as Politician
+          </a>
+        {/if}
       </div>
     </div>
     

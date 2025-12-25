@@ -1,35 +1,60 @@
 <script lang="ts">
-  import { Shield, FileText, Users, BarChart3, LogOut, CheckCircle, TrendingUp, Vote, Copy, Settings, Eye, Key } from 'lucide-svelte';
+  import { Shield, FileText, BarChart3, LogOut, CheckCircle, TrendingUp, Vote, Copy, Settings, Eye, Key, AlertCircle } from 'lucide-svelte';
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { authStore, credential } from '$lib/stores';
+  import { get } from 'svelte/store';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
   
-  // Politician data - will be loaded from auth or localStorage
-  let politician: any = {
-    name: 'Senator Doe',
-    id: '0x4a...9f2',
-    avatarUrl: null,
-    integrityScore: 98,
-    manifestosAudited: 12,
-    voteParticipation: 95
-  };
+  // Politician data - will be loaded from auth and API
+  let politician: any = null;
   
   // Dynamic data from API
   let manifestos: any[] = [];
   let manifesto: any = null;
   let comments: any[] = [];
   let loading = true;
+  let error = '';
   
   let activeNav = 'manifestos';
   
   onMount(async () => {
-    await loadPoliticianData();
+    // Check if user is authenticated and is a politician
+    const cred = get(credential);
+    if (!cred || !cred.isPolitician) {
+      error = 'Access denied. Please register as a politician first.';
+      setTimeout(() => goto('/politician/register'), 2000);
+      return;
+    }
+    
+    await loadPoliticianData(cred.politicianId!);
   });
   
-  async function loadPoliticianData() {
+  async function loadPoliticianData(politicianId: number) {
     try {
+      // Load politician profile
+      const profileResponse = await fetch(`http://localhost:8000/api/politicians/${politicianId}`);
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json();
+        politician = {
+          name: profileData.name,
+          id: politicianId,
+          slug: profileData.slug,
+          party: profileData.party,
+          position: profileData.position,
+          bio: profileData.bio,
+          avatarUrl: profileData.image_url,
+          integrityScore: profileData.integrity_score || 98,
+          manifestosAudited: profileData.manifesto_count || 0,
+          voteParticipation: 95,
+          walletAddress: profileData.wallet_address,
+          hasWallet: profileData.has_wallet
+        };
+      }
+      
       // Load politician's manifestos
-      const manifestoResponse = await fetch('http://localhost:8000/api/manifestos');
+      const manifestoResponse = await fetch(`http://localhost:8000/api/manifestos?politician_id=${politicianId}`);
       if (manifestoResponse.ok) {
         const data = await manifestoResponse.json();
         manifestos = data.manifestos || [];
@@ -46,17 +71,39 @@
           }
         }
       }
-    } catch (error) {
-      console.error('Failed to load politician data:', error);
+    } catch (err) {
+      console.error('Failed to load politician data:', err);
+      error = 'Failed to load dashboard data. Please check your connection.';
     }
     loading = false;
+  }
+  
+  function handleLogout() {
+    authStore.logout();
+    goto('/');
   }
 </script>
 
 <svelte:head>
-  <title>Politician Audit Portal - PromiseThread</title>
+  <title>Politician Dashboard - PromiseThread</title>
 </svelte:head>
 
+{#if error}
+  <div class="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-8 max-w-md text-center">
+      <AlertCircle class="w-12 h-12 text-red-400 mx-auto mb-4" />
+      <h2 class="text-xl font-bold text-white mb-2">Access Denied</h2>
+      <p class="text-slate-300">{error}</p>
+    </div>
+  </div>
+{:else if loading || !politician}
+  <div class="min-h-screen bg-slate-900 flex items-center justify-center">
+    <div class="text-center">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+      <p class="text-slate-300">Loading dashboard...</p>
+    </div>
+  </div>
+{:else}
 <div class="dashboard-layout">
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -85,14 +132,10 @@
         <Key size={18} />
         Wallet & Keys
       </a>
-      <a href="/politician/voters" class="nav-item" class:active={activeNav === 'voters'}>
-        <Users size={18} />
-        Voters
-      </a>
     </nav>
     
     <div class="sidebar-footer">
-      <button class="logout-btn">
+      <button class="logout-btn" on:click={handleLogout}>
         <LogOut size={18} />
         Secure Logout
       </button>
@@ -156,7 +199,23 @@
       </div>
     </div>
     {:else}
-      <div class="empty-state">No manifestos found. <a href="/politician/new-manifesto">Create your first manifesto</a></div>
+      <div class="empty-state">
+        {#if politician && !politician.hasWallet}
+          <div class="info-banner" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); padding: 2rem; border-radius: 12px; text-align: center; max-width: 600px; margin: 2rem auto;">
+            <Key class="w-12 h-12 text-blue-400 mx-auto mb-4" />
+            <h3 style="font-size: 1.25rem; font-weight: 600; color: white; margin-bottom: 0.5rem;">Setup Required</h3>
+            <p style="color: rgb(203, 213, 225); margin-bottom: 1.5rem;">
+              Before creating manifestos, you need to generate a wallet to sign your commitments cryptographically.
+            </p>
+            <a href="/politician/wallet" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; background: rgb(59, 130, 246); color: white; border-radius: 8px; font-weight: 600; text-decoration: none;">
+              <Key size={18} />
+              Generate Wallet
+            </a>
+          </div>
+        {:else}
+          <p>No manifestos found. <a href="/politician/new-manifesto">Create your first manifesto</a></p>
+        {/if}
+      </div>
     {/if}
     
     <!-- Comments Section -->
@@ -639,3 +698,4 @@
     opacity: 1;
   }
 </style>
+{/if}

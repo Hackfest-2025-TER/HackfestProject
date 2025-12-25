@@ -9,7 +9,12 @@ interface Credential {
   verified: boolean;
   usedVotes: string[];
   voterIdHash?: string;
-  merkleProof?: string[];  createdAt?: string;}
+  merkleProof?: string[];
+  createdAt?: string;
+  isPolitician?: boolean;
+  politicianId?: number;
+  politicianSlug?: string;
+}
 
 // Auth store type
 interface AuthState {

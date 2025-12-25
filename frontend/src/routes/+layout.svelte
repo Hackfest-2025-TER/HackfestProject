@@ -40,11 +40,15 @@
           });
           localStorage.setItem('user_votes', JSON.stringify(localVotes));
           
-          // Update auth store if votes changed
-          if (mergedVotes.length !== currentVotes.length) {
+          // Update auth store if votes changed or politician status updated
+          if (mergedVotes.length !== currentVotes.length || 
+              result.is_politician !== storedAuth.credential.isPolitician) {
             authStore.setCredential({
               ...storedAuth.credential,
-              usedVotes: mergedVotes
+              usedVotes: mergedVotes,
+              isPolitician: result.is_politician,
+              politicianId: result.politician_id,
+              politicianSlug: result.politician_slug
             });
           }
         } else {

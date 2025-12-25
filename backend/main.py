@@ -57,6 +57,15 @@ def get_merkle_tree(db: Session) -> tuple[MerkleTree, str, List[str]]:
     return registry.merkle_tree, registry.merkle_tree.root, registry.leaves
 
 
+def generate_slug(name: str) -> str:
+    """Generate URL-friendly slug from name."""
+    import re
+    slug = name.lower()
+    slug = re.sub(r'[^\w\s-]', '', slug)
+    slug = re.sub(r'[-\s]+', '-', slug)
+    return slug.strip('-')
+
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -138,6 +147,7 @@ class VoteResponse(BaseModel):
 class CommentCreate(BaseModel):
     manifesto_id: int
     content: str
+    evidence_url: Optional[str] = None
     session_id: Optional[str] = None  # Optional - will be generated if not provided
     parent_id: Optional[int] = None
 
@@ -148,6 +158,27 @@ class CommentVoteRequest(BaseModel):
 class CommentFlagRequest(BaseModel):
     nullifier: str  # Required for flagging
     reason: Optional[str] = None  # Optional reason for flag
+
+class PoliticianRegisterRequest(BaseModel):
+    """Request from citizen to register as politician."""
+    nullifier: str  # ZK credential proving citizenship
+    name: str  # Full name (matches voter registry)
+    party: Optional[str] = None
+    position: Optional[str] = None  # Aspiring MP, Minister, etc.
+    bio: Optional[str] = None
+    image_url: Optional[str] = None
+    election_commission_id: Optional[str] = None  # If they have official EC ID
+
+class PoliticianVerifyRequest(BaseModel):
+    """Request to verify/approve a politician application."""
+    admin_key: str  # Simple admin authentication (for MVP)
+    approved: bool  # True = approve, False = reject
+    rejection_reason: Optional[str] = None  # Required if approved=False
+    verified_by: str  # Name/ID of admin/officer
+
+class WalletGenerateRequest(BaseModel):
+    """Request to generate wallet for politician."""
+    passphrase: str  # Used to encrypt the private key
 
 class Feedback(BaseModel):
     type: str
@@ -534,11 +565,19 @@ async def check_credential(nullifier: str, db: Session = Depends(get_db)):
         ).all()
         used_votes = [v.manifesto_id for v in votes]
         
+        # Check if registered as politician
+        politician = db.query(Politician).filter(
+            Politician.citizen_nullifier == nullifier
+        ).first()
+        
         return {
             "valid": True,
             "used_votes": used_votes,
             "created_at": cred.created_at.isoformat() if cred.created_at else None,
-            "can_vote": True
+            "can_vote": True,
+            "is_politician": bool(politician),
+            "politician_id": politician.id if politician else None,
+            "politician_slug": politician.slug if politician else None
         }
     
     return {"valid": False, "used_votes": [], "can_vote": False}
@@ -555,13 +594,15 @@ class ZKProofVerifyRequest(BaseModel):
 @app.post("/api/zk/verify-proof")
 async def verify_real_zk_proof(request: ZKProofVerifyRequest, db: Session = Depends(get_db)):
     """
-    Verify a real zk-SNARK proof using snarkjs.
+    [DEPRECATED] Verify a real zk-SNARK proof using snarkjs.
     
     This endpoint performs ACTUAL cryptographic verification:
     1. Validates proof structure
     2. Calls snarkjs Groth16 verification
     3. Checks nullifier uniqueness
     4. Issues credential only if proof is valid
+    
+    NOTE: Not used by frontend. Use /api/zk/verify or /api/zk/login instead.
     """
     from zk_verifier import verify_groth16_proof_nodejs
     
@@ -641,7 +682,7 @@ class MerkleProofRequest(BaseModel):
 @app.post("/api/zk/merkle-proof")
 async def get_merkle_proof(request: MerkleProofRequest):
     """
-    Get Merkle proof for a voter (SCALABLE approach).
+    [DEPRECATED] Get Merkle proof for a voter (SCALABLE approach).
     
     Instead of sending all leaves, this endpoint:
     1. Computes the voter's leaf hash: Poseidon(voterId)
@@ -652,6 +693,8 @@ async def get_merkle_proof(request: MerkleProofRequest):
     NOTE: We only need voterId, not secret, because the Merkle tree
     stores Poseidon(voterId), not Poseidon(secret, voterId).
     The secret is only used in the ZK proof for nullifier generation.
+    
+    NOTE: Not used by frontend. Proof generation is handled client-side.
     """
     # Compute voter leaf: Poseidon(voterId)
     voter_leaf = registry.compute_voter_leaf(request.voter_id)
@@ -760,11 +803,31 @@ async def get_manifesto(manifesto_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/manifestos")
 async def create_manifesto(manifesto: ManifestoCreate, db: Session = Depends(get_db)):
-    """Create a new manifesto."""
+    """Create a new manifesto. Requires verified politician."""
     # Verify politician exists
     politician = db.query(Politician).filter(Politician.id == manifesto.politician_id).first()
     if not politician:
         raise HTTPException(status_code=404, detail="Politician not found")
+    
+    # Check if politician is verified (NEW CHECK)
+    if hasattr(politician, 'is_verified') and not politician.is_verified:
+        status = politician.application_status if hasattr(politician, 'application_status') else 'unknown'
+        if status == 'pending':
+            raise HTTPException(
+                status_code=403, 
+                detail="Your politician application is pending verification. Please wait for election commission approval."
+            )
+        elif status == 'rejected':
+            reason = politician.rejection_reason if hasattr(politician, 'rejection_reason') else 'Application rejected'
+            raise HTTPException(
+                status_code=403,
+                detail=f"Your politician application was rejected. Reason: {reason}"
+            )
+        else:
+            raise HTTPException(
+                status_code=403,
+                detail="You must be a verified politician to post manifestos."
+            )
     
     # Parse deadline
     try:
@@ -1082,7 +1145,21 @@ async def create_comment(comment: CommentCreate, db: Session = Depends(get_db)):
         same_author_comments=same_author_texts
     )
     
-    # Create comment with moderation data
+    # AUTO-DELETE spam and off-topic comments immediately
+    if analysis['state'] in ['quarantined', 'auto_flagged']:
+        if analysis['auto_flag_reason'] in ['spam_like', 'off_topic']:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Comment rejected by auto-moderation",
+                    "reason": analysis['auto_flag_reason'],
+                    "message": "Your comment was flagged as spam or off-topic and has been rejected." if analysis['auto_flag_reason'] == 'spam_like' else "Your comment appears to be off-topic. Please stay relevant to the manifesto.",
+                    "similarity_score": analysis['similarity_score'],
+                    "spam_score": analysis['spam_similarity_score']
+                }
+            )
+    
+    # Create comment with moderation data (only if passed auto-moderation)
     new_comment = CommentModel(
         manifesto_id=comment.manifesto_id,
         parent_id=comment.parent_id,
@@ -1090,6 +1167,7 @@ async def create_comment(comment: CommentCreate, db: Session = Depends(get_db)):
         session_id=session_id,
         author_display=f"Citizen-{session_id[:6]}",
         content=comment.content,
+        evidence_url=comment.evidence_url,
         upvotes=0,
         downvotes=0,
         flag_count=0,
@@ -1107,6 +1185,7 @@ async def create_comment(comment: CommentCreate, db: Session = Depends(get_db)):
     return {
         "id": new_comment.id,
         "manifesto_id": new_comment.manifesto_id,
+        "evidence_url": new_comment.evidence_url,
         "content": new_comment.content,
         "author": new_comment.author_display,
         "session_id": new_comment.session_id[:8] + "...",
@@ -1195,17 +1274,37 @@ async def vote_comment(
     # Check if comment should be promoted or deleted based on votes
     total_votes = comment.upvotes + comment.downvotes
     
+    # AUTO-DELETE based on downvote threshold
+    DOWNVOTE_DELETE_THRESHOLD = 5  # Delete if 5+ downvotes
+    DOWNVOTE_RATIO_THRESHOLD = 0.7  # Or if 70%+ votes are downvotes (with min 3 total)
+    
+    downvote_ratio = comment.downvotes / total_votes if total_votes > 0 else 0
+    
+    should_delete = (
+        comment.downvotes >= DOWNVOTE_DELETE_THRESHOLD or 
+        (total_votes >= 3 and downvote_ratio >= DOWNVOTE_RATIO_THRESHOLD)
+    )
+    
+    if should_delete:
+        # Permanently delete comment and all its replies
+        _delete_comment_cascade(db, comment)
+        db.commit()
+        
+        return {
+            "id": comment_id,
+            "upvotes": 0,
+            "downvotes": 0,
+            "flag_count": 0,
+            "state": "deleted",
+            "deleted": True,
+            "message": "Comment deleted due to community downvotes"
+        }
+    
     # Promotion rule: if upvotes >= 5 and ratio >= 0.7 → move back to active
     if comment.state in ['auto_flagged', 'community_flagged']:
         if total_votes >= 5 and comment.upvotes / max(1, total_votes) >= 0.7:
             comment.state = 'active'
             comment.auto_flag_reason = None
-    
-    # Deletion rule: if downvotes >= 20 and ratio >= 0.8 → soft delete
-    if total_votes >= 20 and comment.downvotes / max(1, total_votes) >= 0.8:
-        comment.state = 'soft_deleted'
-        comment.is_deleted = True
-        comment.delete_scheduled_at = datetime.utcnow()
     
     # Community flag rule: if flag_count >= 5 → community_flagged
     if comment.flag_count >= 5 and comment.state == 'active':
@@ -1245,29 +1344,23 @@ async def update_comment(
     return {"id": comment.id, "content": comment.content, "updated": True}
 
 
-@app.delete("/api/comments/{comment_id}")
-async def delete_comment(
-    comment_id: int,
-    session_id: str = Query(...),
-    db: Session = Depends(get_db)
-):
-    """Delete a comment (soft delete)."""
-    comment = db.query(CommentModel).filter(CommentModel.id == comment_id).first()
+def _delete_comment_cascade(db: Session, comment: CommentModel):
+    """
+    Helper function to delete a comment and all its replies recursively.
+    Used by auto-moderation system only.
+    """
+    # Find all replies
+    replies = db.query(CommentModel).filter(CommentModel.parent_id == comment.id).all()
     
-    if not comment:
-        raise HTTPException(status_code=404, detail="Comment not found")
+    # Delete all replies recursively
+    for reply in replies:
+        _delete_comment_cascade(db, reply)
     
-    # Verify ownership via session_id
-    if comment.session_id != session_id:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
+    # Delete all votes on this comment
+    db.query(CommentVote).filter(CommentVote.comment_id == comment.id).delete()
     
-    comment.is_deleted = True
-    comment.state = 'soft_deleted'
-    comment.content = "[deleted]"
-    comment.delete_scheduled_at = datetime.utcnow()
-    db.commit()
-    
-    return {"id": comment.id, "deleted": True}
+    # Delete the comment itself
+    db.delete(comment)
 
 
 # ============= Audit & Network Endpoints =============
@@ -1444,6 +1537,33 @@ async def get_politicians(db: Session = Depends(get_db)):
     
     return {"politicians": result}
 
+@app.get("/api/politicians/pending")
+async def get_pending_politicians(db: Session = Depends(get_db)):
+    """Get all pending politician applications (for admin review).
+    
+    NOTE: In a fully decentralized system, this endpoint returns empty list
+    since politicians are auto-verified. Kept for backwards compatibility.
+    """
+    pending = db.query(Politician).filter(
+        Politician.application_status == "pending"
+    ).order_by(Politician.created_at.desc()).all()
+    
+    return {
+        "pending_count": len(pending),
+        "applications": [
+            {
+                "id": p.id,
+                "name": p.name,
+                "party": p.party,
+                "position": p.position,
+                "election_commission_id": p.election_commission_id,
+                "submitted_at": p.created_at.isoformat(),
+                "citizenship_verified_at": p.citizenship_verified_at.isoformat() if p.citizenship_verified_at else None
+            }
+            for p in pending
+        ]
+    }
+
 @app.get("/api/politicians/{politician_identifier}")
 async def get_politician(politician_identifier: str, db: Session = Depends(get_db)):
     """Get politician details by ID or slug."""
@@ -1495,7 +1615,9 @@ async def get_politician(politician_identifier: str, db: Session = Depends(get_d
         "integrity_score": integrity_score,
         "manifestos": manifesto_list,
         "manifesto_count": manifesto_count,
-        "verified": True,
+        "verified": p.is_verified if hasattr(p, 'is_verified') else True,
+        "application_status": p.application_status if hasattr(p, 'application_status') else "approved",
+        "verified_at": p.verified_at.isoformat() if hasattr(p, 'verified_at') and p.verified_at else None,
         "public_key": p.wallet_address or generate_hash(f"pk_{p.id}")[:42],
         "wallet_address": p.wallet_address,
         "has_wallet": bool(p.wallet_address),
@@ -1506,10 +1628,188 @@ async def get_politician(politician_identifier: str, db: Session = Depends(get_d
     }
 
 
+# ============= Politician Registration & Verification =============
+
+@app.get("/api/politicians/check-status")
+async def check_politician_status(
+    nullifier: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Check if a nullifier belongs to a registered politician.
+    Used during authentication to restore politician session.
+    """
+    politician = db.query(Politician).filter(
+        Politician.citizen_nullifier == nullifier
+    ).first()
+    
+    if not politician:
+        return {
+            "is_politician": False,
+            "politician": None
+        }
+    
+    return {
+        "is_politician": True,
+        "politician": {
+            "id": politician.id,
+            "name": politician.name,
+            "slug": politician.slug,
+            "party": politician.party,
+            "position": politician.position,
+            "image_url": politician.image_url,
+            "application_status": politician.application_status,
+            "is_verified": politician.is_verified
+        }
+    }
+
+@app.post("/api/politicians/register")
+async def register_as_politician(
+    request: PoliticianRegisterRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Register a verified citizen as a politician applicant.
+    
+    Flow:
+    1. Citizen proves citizenship via ZK (already has nullifier)
+    2. Citizen applies to become politician (this endpoint)
+    3. Election commission verifies application
+    4. Once verified, can post manifestos
+    """
+    # 1. Verify citizen has valid ZK credential
+    credential = db.query(ZKCredential).filter(
+        ZKCredential.nullifier_hash == request.nullifier,
+        ZKCredential.is_valid == True
+    ).first()
+    
+    if not credential:
+        raise HTTPException(
+            status_code=401, 
+            detail="Invalid credential. Please complete citizen verification first."
+        )
+    
+    # 2. Check if nullifier already registered as politician
+    existing = db.query(Politician).filter(
+        Politician.citizen_nullifier == request.nullifier
+    ).first()
+    
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This credential is already registered as politician. Status: {existing.application_status}"
+        )
+    
+    # 3. Generate slug from name
+    slug = generate_slug(request.name)
+    base_slug = slug
+    counter = 1
+    while db.query(Politician).filter(Politician.slug == slug).first():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+    
+    # 4. Create politician application (auto-verified in decentralized system)
+    politician = Politician(
+        name=request.name,
+        slug=slug,
+        party=request.party,
+        position=request.position or "Aspiring Politician",
+        bio=request.bio,
+        image_url=request.image_url,
+        citizen_nullifier=request.nullifier,
+        election_commission_id=request.election_commission_id,
+        citizenship_verified_at=datetime.now(timezone.utc),
+        application_status="approved",  # Auto-approved in decentralized system
+        is_verified=True,  # Auto-verified - any citizen with ZK proof can be politician
+        verified_at=datetime.now(timezone.utc),
+        verified_by="Decentralized System (ZK Proof)"
+    )
+    
+    db.add(politician)
+    db.commit()
+    db.refresh(politician)
+    
+    return {
+        "success": True,
+        "message": "Politician registered successfully. You can now create manifestos.",
+        "politician": {
+            "id": politician.id,
+            "name": politician.name,
+            "slug": politician.slug,
+            "application_status": politician.application_status,
+            "is_verified": politician.is_verified,
+            "submitted_at": politician.created_at.isoformat()
+        }
+    }
+
+
+@app.post("/api/politicians/{politician_id}/verify")
+async def verify_politician(
+    politician_id: int,
+    request: PoliticianVerifyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    DEPRECATED: Verify/approve a politician application.
+    
+    In the decentralized system, politicians are auto-verified on registration.
+    This endpoint is kept for backwards compatibility and testing purposes only.
+    It can be used to update verification status if needed.
+    """
+    # Optional admin check (for backwards compatibility)
+    ADMIN_KEY = "ec_admin_2025"  # Simple key for hackathon demo
+    
+    if request.admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Unauthorized. Invalid admin key.")
+    
+    # Get politician
+    politician = db.query(Politician).filter(Politician.id == politician_id).first()
+    
+    if not politician:
+        raise HTTPException(status_code=404, detail="Politician not found")
+    
+    if politician.application_status != "pending":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Application already processed. Status: {politician.application_status}"
+        )
+    
+    # Update verification status
+    if request.approved:
+        politician.application_status = "approved"
+        politician.is_verified = True
+        politician.verified_at = datetime.now(timezone.utc)
+        politician.verified_by = request.verified_by
+        politician.rejection_reason = None
+        message = f"{politician.name} has been verified as a legitimate politician candidate."
+    else:
+        politician.application_status = "rejected"
+        politician.is_verified = False
+        politician.rejection_reason = request.rejection_reason or "Application did not meet verification criteria"
+        message = f"Application rejected: {politician.rejection_reason}"
+    
+    db.commit()
+    db.refresh(politician)
+    
+    return {
+        "success": True,
+        "message": message,
+        "politician": {
+            "id": politician.id,
+            "name": politician.name,
+            "application_status": politician.application_status,
+            "is_verified": politician.is_verified,
+            "verified_at": politician.verified_at.isoformat() if politician.verified_at else None,
+            "verified_by": politician.verified_by,
+            "rejection_reason": politician.rejection_reason
+        }
+    }
+
+
 # ============= Digital Signature Endpoints =============
 
-class PoliticianRegisterRequest(BaseModel):
-    """Request to register a politician with a new wallet."""
+class WalletGenerationRequest(BaseModel):
+    """Request to generate a new wallet for a politician."""
     passphrase: str  # For encrypting the keystore
 
 class PoliticianKeyResponse(BaseModel):
@@ -1523,7 +1823,7 @@ class PoliticianKeyResponse(BaseModel):
 @app.post("/api/politicians/{politician_id}/generate-wallet")
 async def generate_politician_wallet(
     politician_id: int,
-    request: PoliticianRegisterRequest,
+    request: WalletGenerateRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -1678,7 +1978,7 @@ class SignedManifestoRequest(BaseModel):
     category: str
     politician_id: int
     grace_period_days: int = 7
-    manifesto_hash: str  # SHA256 hash computed by frontend
+    manifesto_hash: str  # keccak256 hash computed by frontend (matches Solidity)
     signature: str  # ECDSA signature of the hash
 
 @app.post("/api/manifestos/submit-signed")
@@ -2017,10 +2317,11 @@ def get_blockchain_config():
     }
 
 
-@app.get("/api/manifesto/{politician_id}/hash")
-async def get_manifesto_onchain_hash(politician_id: int, db: Session = Depends(get_db)):
+# UNUSED ENDPOINT - Kept for reference but not exposed
+# @app.get("/api/manifesto/{politician_id}/hash")
+async def get_manifesto_onchain_hash_UNUSED(politician_id: int, db: Session = Depends(get_db)):
     """
-    🔗 Get On-Chain Hash (REAL BLOCKCHAIN READ)
+    [DEPRECATED] 🔗 Get On-Chain Hash (REAL BLOCKCHAIN READ)
     
     Fetches manifesto data directly from blockchain via Web3.
     Does NOT trust database - returns immutable blockchain data.
@@ -2029,11 +2330,13 @@ async def get_manifesto_onchain_hash(politician_id: int, db: Session = Depends(g
     to verify authenticity WITHOUT trusting this backend.
     
     Returns:
-    - hash: The SHA256 hash stored on blockchain
+    - hash: The keccak256 hash stored on blockchain
     - timestamp: When it was recorded on-chain
     - source: "blockchain" (read via Web3)
     - contract_address: Where to verify independently
     - chain_id: Network identifier
+    
+    NOTE: Not used by frontend. Use /api/manifestos/{id}/verify instead.
     """
     blockchain = get_blockchain_service()
     config = get_blockchain_config()
@@ -2108,7 +2411,7 @@ async def get_manifesto_onchain_hash(politician_id: int, db: Session = Depends(g
         # VERIFICATION INSTRUCTIONS
         "verification_note": "This hash was read directly from blockchain via Web3. Compare with your locally computed hash to verify authenticity.",
         "independent_verification": {
-            "step_1": "Compute SHA256 hash of manifesto text",
+            "step_1": "Compute keccak256 hash of manifesto text (matches Solidity keccak256)",
             "step_2": f"Query contract {config['contract_address']} on chain {config['chain_id']}",
             "step_3": "Call getPoliticianManifestos({politician_id}) or verifyManifesto({politician_id}, hash)",
             "step_4": "Compare hashes - they must match exactly"
@@ -2122,23 +2425,26 @@ class PublicVerifyRequest(BaseModel):
     manifesto_text: str
 
 
-@app.post("/api/manifesto/verify")
-async def verify_manifesto_public(request: PublicVerifyRequest, db: Session = Depends(get_db)):
+# UNUSED ENDPOINT - Kept for reference but not exposed
+# @app.post("/api/manifesto/verify")
+async def verify_manifesto_public_UNUSED(request: PublicVerifyRequest, db: Session = Depends(get_db)):
     """
-    ✅ Verify Manifesto Text (REAL BLOCKCHAIN VERIFICATION)
+    [DEPRECATED] ✅ Verify Manifesto Text (REAL BLOCKCHAIN VERIFICATION)
     
     User submits manifesto text, backend:
-    1. Hashes it (SHA256)
+    1. Hashes it (keccak256)
     2. Calls blockchain contract to verify
     3. Returns verification result from chain
     
     ⚠️ IMPORTANT: This is a HELPER endpoint, not authoritative.
     Independent verification can (and should) be done without this backend:
-    - Hash text locally using SHA256
+    - Hash text locally using keccak256 (Web3.keccak or ethers.utils.keccak256)
     - Read blockchain directly via RPC
     - Compare hashes yourself
     
     This endpoint exists for user convenience only.
+    
+    NOTE: Not used by frontend. Use /api/manifestos/verify-text instead.
     """
     blockchain = get_blockchain_service()
     config = get_blockchain_config()
@@ -2172,7 +2478,7 @@ async def verify_manifesto_public(request: PublicVerifyRequest, db: Session = De
             },
             
             # TRANSPARENCY NOTE
-            "note": "Verification performed via real blockchain call. Independent verification: hash text with SHA256, call verifyManifesto() on contract."
+            "note": "Verification performed via real blockchain call. Independent verification: hash text with keccak256 (Solidity's keccak256(abi.encodePacked(text))), call verifyManifesto() on contract."
         }
     
     # Fallback to database if blockchain unavailable
@@ -2204,10 +2510,11 @@ async def verify_manifesto_public(request: PublicVerifyRequest, db: Session = De
     }
 
 
-@app.get("/api/manifesto/{politician_id}/proof")
-async def get_verification_proof_bundle(politician_id: int, db: Session = Depends(get_db)):
+# UNUSED ENDPOINT - Kept for reference but not exposed
+# @app.get("/api/manifesto/{politician_id}/proof")
+async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session = Depends(get_db)):
     """
-    📦 Get Verification Proof Bundle (COMPLETE EVIDENCE PACKAGE)
+    [DEPRECATED] 📦 Get Verification Proof Bundle (COMPLETE EVIDENCE PACKAGE)
     
     Returns everything needed for:
     - Offline verification
@@ -2223,6 +2530,8 @@ async def get_verification_proof_bundle(politician_id: int, db: Session = Depend
     - Blockchain hash & data (REAL from chain)
     - Authorship proof (on-chain registration)
     - Verification instructions
+    
+    NOTE: Not used by frontend. Verification is handled through simpler endpoints.
     """
     blockchain = get_blockchain_service()
     config = get_blockchain_config()
@@ -2328,8 +2637,8 @@ async def get_verification_proof_bundle(politician_id: int, db: Session = Depend
                 {
                     "step": 1,
                     "title": "Verify Hash Integrity",
-                    "description": "Compute SHA256 hash of the manifesto text",
-                    "code": "hash = SHA256(manifesto.text)",
+                    "description": "Compute keccak256 hash of the manifesto text (matches Solidity)",
+                    "code": "hash = keccak256(manifesto.text)",
                     "expected": computed_hash
                 },
                 {
@@ -2348,7 +2657,7 @@ async def get_verification_proof_bundle(politician_id: int, db: Session = Depend
                 }
             ],
             "tools": [
-                "Any SHA256 implementation (browser crypto.subtle, openssl, Python hashlib)",
+                "Web3.js/ethers.js keccak256, Python web3.py Web3.keccak(), or any keccak256 implementation",
                 "Any Ethereum RPC client (ethers.js, web3.js, Web3.py)",
                 "Block explorer for manual verification"
             ],
@@ -2357,13 +2666,16 @@ async def get_verification_proof_bundle(politician_id: int, db: Session = Depend
     }
 
 
-@app.get("/api/verification/config")
-async def get_verification_config():
+# UNUSED ENDPOINT - Kept for reference but not exposed
+# @app.get("/api/verification/config")
+async def get_verification_config_UNUSED():
     """
-    Get blockchain configuration for independent verification.
+    [DEPRECATED] Get blockchain configuration for independent verification.
     
     Returns all information needed to verify manifestos
     independently without trusting this backend.
+    
+    NOTE: Not used by frontend. Config is available through /health endpoint.
     """
     blockchain = get_blockchain_service()
     config = get_blockchain_config()
@@ -2377,8 +2689,8 @@ async def get_verification_config():
             "connected": config["connected"],
             "block_number": config["block_number"]
         },
-        "hash_algorithm": "SHA256",
-        "hash_format": "0x + hex string (64 chars for SHA256)",
+        "hash_algorithm": "keccak256",
+        "hash_format": "0x + hex string (64 chars for keccak256)",
         "contract_functions": {
             "verifyManifesto": "verifyManifesto(uint256 politicianId, bytes32 contentHash) → (bool verified, uint256 timestamp, uint256 index)",
             "getPoliticianManifestos": "getPoliticianManifestos(uint256 politicianId) → Manifesto[]",
@@ -2430,6 +2742,29 @@ async def startup_event():
     print("🚀 Starting PromiseThread API (PostgreSQL version)...")
     init_db()
     print("✓ Database initialized")
+    
+    # Check if database needs seeding
+    from seed_data import seed_politicians, seed_manifestos, seed_audit_logs
+    db = next(get_db())
+    
+    try:
+        existing_politicians = db.query(Politician).count()
+        existing_manifestos = db.query(ManifestoModel).count()
+        
+        if existing_politicians == 0 and existing_manifestos == 0:
+            print("📊 Seeding initial data...")
+            politicians = seed_politicians(db)
+            manifestos = seed_manifestos(db, politicians)
+            seed_audit_logs(db, manifestos)
+            db.commit()
+            print(f"✓ Seeded {len(politicians)} politicians and {len(manifestos)} manifestos")
+        else:
+            print(f"✓ Database already has data ({existing_politicians} politicians, {existing_manifestos} manifestos)")
+    except Exception as e:
+        print(f"⚠️  Seeding error: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":

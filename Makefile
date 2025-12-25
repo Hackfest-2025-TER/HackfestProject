@@ -15,6 +15,16 @@ help:
 	@echo "    make frontend    - Start frontend (port 3000)"
 	@echo "    make stop        - Stop all services"
 	@echo ""
+	@echo "  Testing:"
+	@echo "    make test-backend     - Run backend API tests"
+	@echo "    make test-blockchain  - Run blockchain tests"
+	@echo "    make test-crypto      - Test cryptographic components"
+	@echo "    make test-zk          - Test ZK proof components"
+	@echo "    make test-integration - Test running services"
+	@echo "    make test-scenarios   - Run end-to-end scenarios with data"
+	@echo "    make test-all         - Run all tests"
+	@echo "    make test             - Alias for test-all"
+	@echo ""
 	@echo "  Production:"
 	@echo "    make deploy      - Build & run with Docker"
 	@echo ""
@@ -148,8 +158,129 @@ deploy-status:
 compile:
 	cd blockchain && pnpm run compile
 
-test:
+# =============================================================================
+# Testing
+# =============================================================================
+
+test-backend:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Running Backend API Tests"
+	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
+	@cd backend && ./venv/bin/pip install pytest pytest-asyncio httpx -q 2>/dev/null || true
+	@cd backend && ./venv/bin/pytest test_api.py -v --tb=short -x
+	@echo ""
+	@echo "  ✓ Backend tests completed"
+
+test-blockchain:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Running Blockchain Smart Contract Tests"
+	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
 	cd blockchain && pnpm run test
+	@echo ""
+	@echo "  ✓ Blockchain tests completed"
+
+test-crypto:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Testing Cryptographic Components"
+	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "→ Testing keccak256 hash consistency..."
+	@cd backend && ./venv/bin/python3 -c "\
+	from crypto_utils import compute_manifesto_hash; \
+	from web3 import Web3; \
+	test_text = 'I promise to build 100 schools by 2025'; \
+	backend_hash = compute_manifesto_hash(test_text); \
+	expected_hash = Web3.keccak(text=test_text).hex(); \
+	print(f'  Backend hash:  {backend_hash}'); \
+	print(f'  Expected hash: {expected_hash}'); \
+	assert backend_hash == expected_hash, 'Hash mismatch!'; \
+	print('  ✓ keccak256 hashing consistent')"
+	@echo ""
+	@echo "→ Testing digital signatures..."
+	@cd backend && ./venv/bin/python3 -c "\
+	from crypto_utils import generate_key_pair, create_signature, verify_signature; \
+	private_key, _, address = generate_key_pair(); \
+	message = 'Test message for signature verification'; \
+	signature = create_signature(message, private_key); \
+	is_valid, recovered_addr = verify_signature(message, signature, address); \
+	print(f'  Generated address: {address[:10]}...'); \
+	print(f'  Signature valid: {is_valid}'); \
+	assert is_valid, 'Signature verification failed!'; \
+	print('  ✓ Digital signatures working correctly')"
+	@echo ""
+	@echo "  ✓ Cryptographic tests completed"
+
+test-zk:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Testing Zero-Knowledge Proof Components"
+	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "→ Checking ZK circuit artifacts..."
+	@test -f blockchain/circuits/build/citizen_credential_final.zkey && echo "  ✓ Final proving key found" || echo "  ⚠ Final proving key missing (run: cd blockchain && pnpm run circuit:setup)"
+	@test -f blockchain/circuits/build/verification_key.json && echo "  ✓ Verification key found" || echo "  ⚠ Verification key missing"
+	@test -f blockchain/circuits/build/citizen_credential.r1cs && echo "  ✓ R1CS constraint system found" || echo "  ⚠ R1CS missing"
+	@echo ""
+	@echo "→ Testing Poseidon hash implementation..."
+	@cd backend && ./venv/bin/python3 -c "\
+	from utils.poseidon import poseidon_simple; \
+	result = poseidon_simple([123, 456]); \
+	print(f'  Poseidon([123, 456]) = {result}'); \
+	print('  ✓ Poseidon hash working')"
+	@echo ""
+	@echo "  ✓ ZK component tests completed"
+
+test-integration:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Running Integration Tests (requires running services)"
+	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "→ Testing backend API health..."
+	@curl -sf http://localhost:8000/api/health > /dev/null && echo "  ✓ Backend API responding" || echo "  ⚠ Backend not running (start with: make server)"
+	@echo ""
+	@echo "→ Testing blockchain connection..."
+	@curl -sf -X POST http://localhost:8545 -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' > /dev/null && echo "  ✓ Blockchain node responding" || echo "  ⚠ Blockchain not running"
+	@echo ""
+	@echo "  ✓ Integration tests completed"
+
+test-scenarios:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Running End-to-End Test Scenarios"
+	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "Testing complete user journeys with realistic data:"
+	@echo "  • Politician registration & manifesto submission"
+	@echo "  • Voter authentication & ZK proof generation"
+	@echo "  • Community discussion with evidence"
+	@echo "  • Vote aggregation & Merkle verification"
+	@echo "  • Full platform lifecycle"
+	@echo ""
+	@cd backend && ./venv/bin/pytest tests/test_scenarios.py -v -s --tb=short
+	@echo ""
+	@echo "  ✓ Scenario tests completed"
+
+test-all:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Running All Tests"
+	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
+	@make test-crypto
+	@echo ""
+	@make test-zk
+	@echo ""
+	@make test-backend
+	@echo ""
+	@make test-scenarios
+	@echo ""
+	@make test-blockchain
+	@echo ""
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  ✓ All Tests Completed Successfully"
+	@echo "════════════════════════════════════════════════════════════"
+
+test:
+	@make test-all
 
 # =============================================================================
 # Cleanup

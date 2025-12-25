@@ -4,6 +4,9 @@
   import { Shield, Upload, Plus, Trash2, FileText, Info, Trees, Lightbulb, Key, Lock, AlertTriangle, CheckCircle, Loader } from 'lucide-svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { credential } from '$lib/stores';
+  import { get } from 'svelte/store';
   import { getPoliticianWalletStatus, submitSignedManifesto } from '$lib/api';
   import { computeSHA256, parseKeystore, signMessage, decryptKeystore, formatAddress } from '$lib/utils/crypto';
   
@@ -28,8 +31,8 @@
   let manifestoHash = '';
   let signature = '';
   
-  // Politician ID (in production, get from auth context)
-  const politicianId = 1;
+  // Get politician ID from auth
+  let politicianId: number | null = null;
   
   const categories = [
     { value: 'economy', label: 'Economy' },
@@ -41,10 +44,18 @@
   ];
   
   onMount(async () => {
+    const cred = get(credential);
+    if (!cred || !cred.isPolitician || !cred.politicianId) {
+      submitError = 'You must be a registered politician to create manifestos';
+      setTimeout(() => goto('/politician/register'), 2000);
+      return;
+    }
+    politicianId = cred.politicianId;
     await checkWalletStatus();
   });
   
   async function checkWalletStatus() {
+    if (!politicianId) return;
     try {
       walletStatus = await getPoliticianWalletStatus(politicianId);
       if (walletStatus?.has_wallet) {

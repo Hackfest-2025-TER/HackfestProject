@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Shield, Users, FileText, Menu, X, LogOut, History } from 'lucide-svelte';
+  import { Shield, Users, FileText, Menu, X, LogOut, History, LayoutDashboard, UserPlus } from 'lucide-svelte';
   import { authStore } from '$lib/stores';
   
   export let variant: string = 'default';
@@ -9,6 +9,7 @@
   // Reactive auth state
   $: isAuthenticated = $authStore.isAuthenticated;
   $: nullifierShort = $authStore.credential?.nullifierShort || '';
+  $: isPolitician = $authStore.credential?.isPolitician;
   
   // Logo destination: authenticated users go to citizen portal, others to landing
   $: logoHref = isAuthenticated ? '/citizen' : '/';
@@ -25,6 +26,10 @@
         { href: '/citizen/votes', label: 'My Votes', icon: History },
         { href: '/manifestos', label: 'Promises', icon: FileText },
         { href: '/politicians', label: 'Politicians', icon: Users },
+        ...(isPolitician 
+          ? [{ href: '/politician/dashboard', label: 'Dashboard', icon: LayoutDashboard }]
+          : [{ href: '/politician/register', label: 'Register as Politician', icon: UserPlus }]
+        )
       ]
     : [
         { href: '/manifestos', label: 'Promises', icon: FileText },

@@ -3,12 +3,15 @@
   import Footer from '$lib/components/Footer.svelte';
   import { Shield, Key, Download, AlertTriangle, Check, Copy, RefreshCw, FileKey } from 'lucide-svelte';
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { credential } from '$lib/stores';
+  import { get } from 'svelte/store';
   import { generatePoliticianWallet, getPoliticianWalletStatus } from '$lib/api';
   import { downloadKeystore, formatAddress } from '$lib/utils/crypto';
   
-  // This would come from auth/session in production
-  let politicianId = 1;
-  let politicianName = 'Politician';
+  // Get from auth
+  let politicianId: number | null = null;
+  let politicianName = '';
   
   // State
   let walletStatus: any = null;
@@ -55,10 +58,19 @@
   }
   
   onMount(async () => {
+    const cred = get(credential);
+    if (!cred || !cred.isPolitician || !cred.politicianId) {
+      error = 'You must be a registered politician to access wallet features';
+      setTimeout(() => goto('/politician/register'), 2000);
+      return;
+    }
+    politicianId = cred.politicianId;
+    // Fetch politician name from backend or use from cred if available
     await loadWalletStatus();
   });
   
   async function loadWalletStatus() {
+    if (!politicianId) return;
     try {
       isLoading = true;
       walletStatus = await getPoliticianWalletStatus(politicianId);
@@ -70,7 +82,7 @@
   }
   
   async function generateWallet() {
-    if (!canGenerate) return;
+    if (!canGenerate || !politicianId) return;
     
     try {
       isGenerating = true;
@@ -78,6 +90,15 @@
       
       const result = await generatePoliticianWallet(politicianId, passphrase);
       generatedKeystore = result;
+      
+      // Auto-download keystore immediately
+      if (generatedKeystore?.keystore) {
+        downloadKeystore(
+          generatedKeystore.keystore,
+          generatedKeystore.keystore_filename || `politician-${politicianId}-key.json`
+        );
+        keystoreDownloaded = true;
+      }
       
       // Refresh wallet status
       await loadWalletStatus();
@@ -117,7 +138,6 @@
   <title>Wallet Management - Politician Portal</title>
 </svelte:head>
 
-<Header variant="politician" />
 
 <main class="wallet-page">
   <div class="container">
@@ -176,6 +196,14 @@
                   <span class="value">{walletStatus.previous_keys_count} (revoked)</span>
                 </div>
               {/if}
+            </div>
+            
+            <div class="wallet-notice">
+              <p class="text-sm text-slate-300 mb-4">
+                <AlertTriangle size={16} class="inline" />
+                <strong>Important:</strong> Your keystore file was provided during wallet creation.
+                If you've lost it, you'll need key rotation (contact admin).
+              </p>
             </div>
             
             <div class="action-buttons">
@@ -369,7 +397,6 @@
   </div>
 </main>
 
-<Footer />
 
 <style>
   .wallet-page {

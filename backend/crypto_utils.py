@@ -159,10 +159,12 @@ def decrypt_keystore(keystore: Dict[str, Any], passphrase: str) -> Optional[str]
 
 def compute_manifesto_hash(manifesto_text: str) -> str:
     """
-    Compute SHA256 hash of manifesto text.
+    Compute keccak256 hash of manifesto text (matches Solidity keccak256).
     
     This is the "commitment" that goes on blockchain.
     Anyone can verify by hashing the text and comparing.
+    
+    IMPORTANT: Uses keccak256 to match smart contract implementation.
     
     Args:
         manifesto_text: Full manifesto text
@@ -170,8 +172,13 @@ def compute_manifesto_hash(manifesto_text: str) -> str:
     Returns:
         Hash as hex string (0x...)
     """
-    hash_bytes = hashlib.sha256(manifesto_text.encode('utf-8')).digest()
-    return "0x" + hash_bytes.hex()
+    if ETH_AVAILABLE:
+        # Use proper keccak256 (matches Solidity)
+        return Web3.keccak(text=manifesto_text).hex()
+    else:
+        # Fallback for development (not cryptographically equivalent!)
+        hash_bytes = hashlib.sha256(manifesto_text.encode('utf-8')).digest()
+        return "0x" + hash_bytes.hex()
 
 
 def compute_message_hash(message: str) -> bytes:
@@ -362,7 +369,7 @@ def get_verification_bundle(
         "overall_valid": hash_matches and sig_valid,
         "verification_instructions": [
             "1. Download the manifesto text",
-            "2. Compute SHA256 hash of the text",
+            "2. Compute keccak256 hash of the text (matches Solidity)",
             "3. Compare with stored_hash (should match)",
             "4. Verify signature recovers to expected_signer",
             "5. Optional: Check blockchain_tx on block explorer"

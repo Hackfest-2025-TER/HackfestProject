@@ -139,6 +139,9 @@ export async function checkCredential(nullifier: string): Promise<{
   used_votes: string[];
   can_vote: boolean;
   created_at?: string;
+  is_politician?: boolean;
+  politician_id?: number;
+  politician_slug?: string;
 }> {
   const response = await fetch(`${API_BASE_URL}/zk/credential/${encodeURIComponent(nullifier)}`);
   if (!response.ok) {

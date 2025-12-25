@@ -96,6 +96,19 @@ class Politician(Base):
     bio = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
+    # ========= Citizen Verification (Required First) =========
+    citizen_nullifier = Column(String(128), unique=True, nullable=True, index=True)  # ZK credential linking to voter registry
+    citizen_voter_id = Column(String(50), nullable=True)  # Original voter ID (for audit, not displayed)
+    citizenship_verified_at = Column(DateTime, nullable=True)  # When they proved citizenship
+    
+    # ========= Politician Verification Status =========
+    application_status = Column(String(20), default='pending')  # pending, approved, rejected
+    is_verified = Column(Boolean, default=False)  # True if approved by election commission
+    verified_by = Column(String(100), nullable=True)  # Admin/commission who verified
+    verified_at = Column(DateTime, nullable=True)  # When verification was approved
+    election_commission_id = Column(String(50), nullable=True)  # Official EC ID if available
+    rejection_reason = Column(Text, nullable=True)  # If rejected, why?
+    
     # ========= Digital Identity (Wallet) =========
     wallet_address = Column(String(42), unique=True, nullable=True)  # Ethereum address (0x...)
     wallet_created_at = Column(DateTime, nullable=True)
@@ -252,6 +265,7 @@ class Comment(Base):
     
     # === Content ===
     content = Column(Text, nullable=False)
+    evidence_url = Column(String(500), nullable=True)
     
     # === Voting (cached aggregates) ===
     upvotes = Column(Integer, default=0)
