@@ -2,7 +2,7 @@
   import { Shield, User, Lock, CheckCircle, AlertCircle, ChevronRight, Eye, EyeOff, Loader2, KeyRound } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores';
-  import { lookupVoter, verifyZKProof, getMerkleRoot } from '$lib/api';
+  import { lookupVoter, verifyZKProof, getMerkleRoot, type ZKVerifyResult } from '$lib/api';
   import { generateZKProof, generateNullifier, isValidVoterId, isValidSecret, formatNullifier } from '$lib/utils/zkProof';
   
   // UI State
@@ -95,12 +95,26 @@
       
       verificationResult = result;
       
+      // Use voting history from backend if available (session recovery)
+      const usedVotes = result.used_votes?.map(String) || [];
+      
+      // Also sync to local votes storage for VoteBox compatibility
+      if (usedVotes.length > 0) {
+        const localVotes = JSON.parse(localStorage.getItem('user_votes') || '{}');
+        usedVotes.forEach((id: string) => {
+          if (!localVotes[id]) {
+            localVotes[id] = 'kept'; // Default, actual type unknown
+          }
+        });
+        localStorage.setItem('user_votes', JSON.stringify(localVotes));
+      }
+      
       authStore.setCredential({
         nullifier: result.nullifier!,
         nullifierShort: result.nullifier_short || formatNullifier(result.nullifier!),
         credential: result.credential!,
         createdAt: new Date().toISOString(),
-        usedVotes: [],
+        usedVotes: usedVotes,
         verified: true
       });
       

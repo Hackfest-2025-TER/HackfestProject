@@ -27,7 +27,7 @@ install:
 	@echo "→ Installing frontend..."
 	cd frontend && pnpm install
 	@echo "→ Installing backend..."
-	cd backend && python3 -m venv venv && . venv/bin/activate && pip install -r requirements.txt -q
+	cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt -q
 	@echo "→ Installing blockchain..."
 	cd blockchain && pnpm install
 	@echo "✓ All dependencies installed"
@@ -63,7 +63,7 @@ server:
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════"
 	@echo ""
-	cd backend && . venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+	cd backend && ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 # Individual services
 frontend:
@@ -85,7 +85,7 @@ backend:
 	@echo "  Backend:   http://localhost:8000"
 	@echo "  API Docs:  http://localhost:8000/docs"
 	@echo ""
-	cd backend && . venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+	cd backend && ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 blockchain:
 	@echo "════════════════════════════════════════════════════════════"

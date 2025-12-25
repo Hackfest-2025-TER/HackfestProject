@@ -4,6 +4,7 @@
   import CommentThread from '$lib/components/CommentThread.svelte';
   import VoteBox from '$lib/components/VoteBox.svelte';
   import { Shield, ThumbsUp, MessageSquare, Share2, ExternalLink, Clock, CheckCircle, Info, Search, Send } from 'lucide-svelte';
+  import { authStore } from '$lib/stores';
   
   $: manifestoId = $page.params.id;
   
@@ -13,12 +14,12 @@
   let error = '';
   let newComment = '';
   let commentSortBy = 'top';
-  let nullifier = '';
+  
+  // Get nullifier reactively from auth store
+  $: nullifier = $authStore.credential?.nullifier || '';
+  $: isAuthenticated = $authStore.isAuthenticated;
   
   onMount(async () => {
-    // Get nullifier from localStorage (if user is authenticated)
-    nullifier = localStorage.getItem('nullifier') || '';
-    
     await loadManifesto();
     await loadComments();
   });

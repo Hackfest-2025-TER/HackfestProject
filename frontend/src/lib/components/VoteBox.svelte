@@ -1,6 +1,7 @@
 <script>
   import { ThumbsUp, ThumbsDown, Lock, Clock, CheckCircle, AlertCircle, Shield, TrendingUp } from 'lucide-svelte';
   import { onMount } from 'svelte';
+  import { authStore } from '$lib/stores';
   
   export let manifestoId;
   export let isLocked = false;
@@ -12,26 +13,38 @@
   let userVote = null;
   let isVoting = false;
   let error = null;
-  let credential = null;
   
   $: totalVotes = voteKept + voteBroken;
   $: keptPercent = totalVotes > 0 ? Math.round((voteKept / totalVotes) * 100) : 0;
   $: brokenPercent = totalVotes > 0 ? Math.round((voteBroken / totalVotes) * 100) : 0;
   $: daysRemaining = Math.max(0, Math.ceil((new Date(gracePeriodEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
   
-  onMount(() => {
-    // Check if user has a credential stored
-    const stored = localStorage.getItem('zk_credential');
-    if (stored) {
-      credential = JSON.parse(stored);
-    }
-    
-    // Check if user already voted on this manifesto
-    const votes = JSON.parse(localStorage.getItem('user_votes') || '{}');
-    if (votes[manifestoId]) {
+  // Reactive credential from auth store
+  $: credential = $authStore.credential;
+  
+  // Check if user has voted on this manifesto whenever credential changes
+  $: if (credential) {
+    checkVoteStatus();
+  }
+  
+  function checkVoteStatus() {
+    // Check from auth store's usedVotes
+    if (credential?.usedVotes?.includes(manifestoId) || credential?.usedVotes?.includes(String(manifestoId))) {
       hasVoted = true;
-      userVote = votes[manifestoId];
+      const votes = JSON.parse(localStorage.getItem('user_votes') || '{}');
+      userVote = votes[manifestoId] || 'kept';
+    } else {
+      // Fallback: Check local votes storage
+      const votes = JSON.parse(localStorage.getItem('user_votes') || '{}');
+      if (votes[manifestoId]) {
+        hasVoted = true;
+        userVote = votes[manifestoId];
+      }
     }
+  }
+  
+  onMount(() => {
+    checkVoteStatus();
   });
   
   async function submitVote(voteType) {
@@ -60,6 +73,9 @@
       const votes = JSON.parse(localStorage.getItem('user_votes') || '{}');
       votes[manifestoId] = voteType;
       localStorage.setItem('user_votes', JSON.stringify(votes));
+      
+      // Update auth store with voted manifesto
+      authStore.markVoted(manifestoId);
       
       hasVoted = true;
       userVote = voteType;

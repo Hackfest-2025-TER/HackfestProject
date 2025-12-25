@@ -168,6 +168,7 @@ class ZKProofResponse(BaseModel):
     nullifier_short: Optional[str] = None
     message: str
     merkle_root: Optional[str] = None
+    used_votes: Optional[List[int]] = None  # List of manifesto IDs user has voted on
 
 class ManifestoResponse(BaseModel):
     id: int
@@ -384,15 +385,29 @@ async def search_voters(
 async def verify_zk_proof(request: ZKProofRequest, db: Session = Depends(get_db)):
     """Verify a zero-knowledge proof and issue anonymous credential."""
     
-    # Check if nullifier already used
+    # Check if nullifier already used - return existing credential for session recovery
     existing = db.query(ZKCredential).filter(
         ZKCredential.nullifier_hash == request.nullifier
     ).first()
     
     if existing:
+        # User already verified - return their existing credential for session recovery
+        # This allows re-authentication without blocking
+        votes = db.query(ManifestoVote.manifesto_id).filter(
+            ManifestoVote.nullifier == request.nullifier
+        ).all()
+        used_votes = [v.manifesto_id for v in votes]
+        
+        _, merkle_root, _ = get_merkle_tree(db)
+        
         return ZKProofResponse(
-            valid=False,
-            message="This credential has already been registered. One person, one vote."
+            valid=True,
+            credential=existing.credential_hash,
+            nullifier=request.nullifier,
+            nullifier_short=request.nullifier[:12] + "...",
+            message="✓ Welcome back! Your credential has been restored.",
+            merkle_root=merkle_root[:16] + "..." if merkle_root else None,
+            used_votes=used_votes  # Include voting history for session sync
         )
     
     # Verify nullifier was computed with correct secret

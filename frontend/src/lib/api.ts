@@ -64,13 +64,23 @@ export async function getVoteVerification(voteHash: string) {
 }
 
 // ZK Proofs
+export interface ZKVerifyResult {
+  valid: boolean;
+  credential?: string;
+  nullifier?: string;
+  nullifier_short?: string;
+  message: string;
+  merkle_root?: string;
+  used_votes?: number[];  // Manifesto IDs the user has already voted on
+}
+
 export async function verifyZKProof(proof: {
   commitment: string;
   proof?: string;
   nullifier: string;
   voter_id_hash?: string;
-  merkle_proof?: string[];
-}) {
+  merkle_proof?: Array<{hash: string, position: string}>;
+}): Promise<ZKVerifyResult> {
   const response = await fetch(`${API_BASE_URL}/zk/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -88,6 +98,20 @@ export async function lookupVoter(voterId: string) {
     body: JSON.stringify({ voter_id: voterId }),
   });
   if (!response.ok) throw new Error('Voter not found');
+  return response.json();
+}
+
+// Check credential validity and get voting history from backend
+export async function checkCredential(nullifier: string): Promise<{
+  valid: boolean;
+  used_votes: string[];
+  can_vote: boolean;
+  created_at?: string;
+}> {
+  const response = await fetch(`${API_BASE_URL}/zk/credential/${encodeURIComponent(nullifier)}`);
+  if (!response.ok) {
+    return { valid: false, used_votes: [], can_vote: false };
+  }
   return response.json();
 }
 
