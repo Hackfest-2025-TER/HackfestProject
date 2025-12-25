@@ -47,7 +47,7 @@
     const cred = get(credential);
     if (!cred || !cred.isPolitician || !cred.politicianId) {
       submitError = 'You must be a registered politician to create manifestos';
-      setTimeout(() => goto('/politician/register'), 2000);
+      setTimeout(() => goto('/representative/register'), 2000);
       return;
     }
     politicianId = cred.politicianId;
@@ -181,7 +181,7 @@
   <div class="container">
     <!-- Breadcrumb -->
     <div class="breadcrumb">
-      <a href="/politician/dashboard">Dashboard</a>
+      <a href="/representative/dashboard">Dashboard</a>
       <span>/</span>
       <span class="current">New Manifesto</span>
     </div>
@@ -320,7 +320,7 @@
             <div>
               <strong>No Wallet Found</strong>
               <p>You need to generate a cryptographic wallet before you can sign manifestos.</p>
-              <a href="/politician/wallet" class="btn btn-primary btn-sm">
+              <a href="/representative/wallet" class="btn btn-primary btn-sm">
                 <Key size={16} />
                 Generate Wallet
               </a>
@@ -390,7 +390,7 @@
                   <code>{signature.slice(0, 20)}...</code>
                 </div>
               </div>
-              <a href="/politician/dashboard" class="btn btn-primary btn-sm">
+              <a href="/representative/dashboard" class="btn btn-primary btn-sm">
                 View in Dashboard
               </a>
             </div>

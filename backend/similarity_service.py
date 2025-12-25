@@ -30,7 +30,7 @@ class SimilarityService:
     """
     
     # Thresholds (0-100 scale)
-    RELEVANCE_LOW = 25       # Below this = off_topic
+    RELEVANCE_LOW = 10       # Below this = off_topic
     RELEVANCE_MEDIUM = 40    # Below this = low_relevance
     SPAM_THRESHOLD = 92      # Above this = spam_like
     

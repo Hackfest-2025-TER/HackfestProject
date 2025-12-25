@@ -208,7 +208,7 @@ class ManifestoVote(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     manifesto_id = Column(Integer, ForeignKey('manifestos.id'), nullable=False)
-    nullifier = Column(String(66), nullable=False, index=True)  # Anonymous voter ID
+    nullifier = Column(String(128), nullable=False, index=True)  # Anonymous voter ID
     vote_type = Column(String(10), nullable=False)  # 'kept' or 'broken'
     vote_hash = Column(String(66), nullable=True)  # For Merkle proof
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -309,7 +309,7 @@ class CommentVote(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     comment_id = Column(Integer, ForeignKey('comments.id'), nullable=False)
-    nullifier = Column(String(66), nullable=False, index=True)  # Anonymous voter
+    nullifier = Column(String(128), nullable=False, index=True)  # Anonymous voter
     vote_type = Column(String(10), nullable=False)  # 'up' or 'down'
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

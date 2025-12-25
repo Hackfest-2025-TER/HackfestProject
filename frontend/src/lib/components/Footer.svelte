@@ -1,57 +1,114 @@
 <script>
-  import { Shield } from 'lucide-svelte';
+  import { Shield } from "lucide-svelte";
 </script>
 
-<footer class="footer-main">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<footer class="bg-gray-50 border-t border-gray-200 mt-auto">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
       <!-- Brand -->
-      <div class="col-span-1">
+      <div class="col-span-1 md:col-span-2">
         <div class="flex items-center space-x-2 mb-4">
-          <Shield class="w-7 h-7 text-emerald-400" />
-          <span class="text-lg font-bold text-white">PromiseThread</span>
+          <div class="bg-primary-700 p-1.5 rounded-lg text-white">
+            <Shield class="w-5 h-5 fill-current" />
+          </div>
+          <span class="text-xl font-bold font-serif text-gray-900"
+            >PromiseThread</span
+          >
         </div>
-        <p class="text-slate-300 text-sm">
-          Track election promises. Hold leaders accountable. Stay anonymous.
+        <p class="text-gray-500 text-sm leading-relaxed max-w-sm">
+          A citizen-led platform to track political promises and hold leaders
+          accountable. Built for transparency, designed for privacy.
         </p>
       </div>
-      
+
       <!-- Quick Links -->
       <div>
-        <h3 class="text-white font-medium mb-3 text-sm">Explore</h3>
-        <ul class="space-y-2">
-          <li><a href="/manifestos" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Promises</a></li>
-          <li><a href="/politicians" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Politicians</a></li>
-          <li><a href="/citizen" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Citizen Portal</a></li>
+        <h3
+          class="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider"
+        >
+          Explore
+        </h3>
+        <ul class="space-y-3">
+          <li>
+            <a
+              href="/manifestos"
+              class="text-gray-600 hover:text-primary-700 transition-colors text-sm font-medium"
+              >Promises</a
+            >
+          </li>
+          <li>
+            <a
+              href="/representatives"
+              class="text-gray-600 hover:text-primary-700 transition-colors text-sm font-medium"
+              >Representatives</a
+            >
+          </li>
+          <li>
+            <a
+              href="/audit-trail"
+              class="text-gray-600 hover:text-primary-700 transition-colors text-sm font-medium"
+              >Audit Trail</a
+            >
+          </li>
+          <li>
+            <a
+              href="/citizen"
+              class="text-gray-600 hover:text-primary-700 transition-colors text-sm font-medium"
+              >Citizen Portal</a
+            >
+          </li>
         </ul>
       </div>
-      
+
       <!-- Resources -->
       <div>
-        <h3 class="text-white font-medium mb-3 text-sm">Help</h3>
-        <ul class="space-y-2">
-          <li><a href="/guide" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Guide</a></li>
-          <li><a href="/faq" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">FAQ</a></li>
-          <li><a href="/verify" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Verify Promise Hash</a></li>
-          <li><a href="/verify-signature" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Verify Digital Signature</a></li>
-          <li><a href="/feedback" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Feedback</a></li>
-          <li><a href="/privacy" class="text-slate-300 hover:text-emerald-400 transition-colors text-sm">Privacy</a></li>
+        <h3
+          class="font-bold text-gray-900 mb-4 text-sm uppercase tracking-wider"
+        >
+          Resources
+        </h3>
+        <ul class="space-y-3">
+          <li>
+            <a
+              href="/guide"
+              class="text-gray-600 hover:text-primary-700 transition-colors text-sm font-medium"
+              >Guide</a
+            >
+          </li>
+          <li>
+            <a
+              href="/faq"
+              class="text-gray-600 hover:text-primary-700 transition-colors text-sm font-medium"
+              >FAQ</a
+            >
+          </li>
+          <li>
+            <a
+              href="/privacy"
+              class="text-gray-600 hover:text-primary-700 transition-colors text-sm font-medium"
+              >Privacy Policy</a
+            >
+          </li>
+          <li>
+            <a
+              href="/about"
+              class="text-gray-600 hover:text-primary-700 transition-colors text-sm font-medium"
+              >About Us</a
+            >
+          </li>
         </ul>
       </div>
     </div>
-    
-    <div class="border-t border-slate-700/50 mt-8 pt-6 text-center">
-      <p class="text-slate-400 text-xs">
-        PromiseThread. Democracy works better when promises are remembered.
+
+    <div
+      class="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center gap-4"
+    >
+      <p class="text-gray-400 text-xs">
+        &copy; 2025 PromiseThread. All rights reserved.
       </p>
+      <a href="/privacy" class="text-gray-400 hover:text-gray-600 text-xs"
+        >Privacy Policy</a
+      >
     </div>
   </div>
 </footer>
-
-<style>
-  .footer-main {
-    background: #0f172a;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    margin-top: auto;
-  }
-</style>

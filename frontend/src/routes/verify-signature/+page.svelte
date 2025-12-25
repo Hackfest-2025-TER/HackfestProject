@@ -393,7 +393,7 @@
     justify-content: center;
     width: 80px;
     height: 80px;
-    background: linear-gradient(135deg, #082770, #0a3490);
+    background: linear-gradient(135deg, var(--primary-700), var(--primary-600));
     border-radius: 20px;
     margin-bottom: 1rem;
     color: white;
@@ -401,7 +401,7 @@
   
   .hero h1 {
     font-size: 2rem;
-    color: #082770;
+    color: var(--primary-700);
     margin-bottom: 0.5rem;
   }
   
@@ -413,7 +413,7 @@
   }
   
   .hero-subtitle strong {
-    color: #082770;
+    color: var(--primary-700);
   }
   
   /* Cards */
@@ -435,7 +435,7 @@
   }
   
   .info-card h3 {
-    color: #082770;
+    color: var(--primary-700);
     margin-bottom: 1rem;
   }
   
@@ -473,7 +473,7 @@
   .step-number {
     width: 28px;
     height: 28px;
-    background: #082770;
+    background: var(--primary-700);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -489,7 +489,7 @@
   
   .step-content strong {
     display: block;
-    color: #082770;
+    color: var(--primary-700);
     font-size: 0.9rem;
   }
   
@@ -516,7 +516,7 @@
     padding: 1.25rem 1.5rem;
     background: #f8fafc;
     border-bottom: 1px solid #e2e8f0;
-    color: #082770;
+    color: var(--primary-700);
   }
   
   .form-header h2 {
@@ -534,7 +534,7 @@
   
   .form-group label {
     display: block;
-    color: #082770;
+    color: var(--primary-700);
     font-weight: 500;
     margin-bottom: 0.5rem;
   }
@@ -554,7 +554,7 @@
     background: white;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    color: #082770;
+    color: var(--primary-700);
     font-size: 1rem;
     transition: border-color 0.2s;
   }
@@ -603,7 +603,7 @@
   }
   
   .btn-primary {
-    background: linear-gradient(135deg, #082770, #0a3490);
+    background: linear-gradient(135deg, var(--primary-700), var(--primary-600));
     color: white;
   }
   
@@ -619,7 +619,7 @@
   
   .btn-secondary {
     background: #e2e8f0;
-    color: #082770;
+    color: var(--primary-700);
   }
   
   .btn-secondary:hover {
@@ -730,7 +730,7 @@
     flex: 1;
     font-family: 'Monaco', 'Consolas', monospace;
     font-size: 0.85rem;
-    color: #082770;
+    color: var(--primary-700);
     word-break: break-all;
   }
   
@@ -752,7 +752,7 @@
   
   .copy-btn:hover {
     background: #cbd5e1;
-    color: #082770;
+    color: var(--primary-700);
   }
   
   /* Explanation */
@@ -762,7 +762,7 @@
   }
   
   .explanation h4 {
-    color: #082770;
+    color: var(--primary-700);
     margin-bottom: 0.75rem;
   }
   
@@ -787,7 +787,7 @@
   }
   
   .comparison-card h3 {
-    color: #082770;
+    color: var(--primary-700);
     margin-bottom: 1rem;
   }
   
@@ -811,7 +811,7 @@
   }
   
   .comparison-item h4 {
-    color: #082770;
+    color: var(--primary-700);
     margin-bottom: 0.75rem;
     font-size: 1.1rem;
   }
@@ -864,7 +864,7 @@
   }
   
   .trust-model h3 {
-    color: #082770;
+    color: var(--primary-700);
     margin-bottom: 1rem;
   }
   
@@ -885,7 +885,7 @@
   }
   
   .trust-item h4 {
-    color: #082770;
+    color: var(--primary-700);
     font-size: 1rem;
     margin-bottom: 0.5rem;
   }

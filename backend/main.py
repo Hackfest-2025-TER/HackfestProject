@@ -1145,15 +1145,16 @@ async def create_comment(comment: CommentCreate, db: Session = Depends(get_db)):
         same_author_comments=same_author_texts
     )
     
-    # AUTO-DELETE spam and off-topic comments immediately
-    if analysis['state'] in ['quarantined', 'auto_flagged']:
-        if analysis['auto_flag_reason'] in ['spam_like', 'off_topic']:
+    # AUTO-DELETE spam (spam_like) immediately
+    # We NO LONGER reject off_topic - we just flag it (handled by state='auto_flagged')
+    if analysis['state'] in ['quarantined']:
+        if analysis['auto_flag_reason'] in ['spam_like']:
             raise HTTPException(
                 status_code=400,
                 detail={
                     "error": "Comment rejected by auto-moderation",
                     "reason": analysis['auto_flag_reason'],
-                    "message": "Your comment was flagged as spam or off-topic and has been rejected." if analysis['auto_flag_reason'] == 'spam_like' else "Your comment appears to be off-topic. Please stay relevant to the manifesto.",
+                    "message": "Your comment has been detected as spam and rejected.",
                     "similarity_score": analysis['similarity_score'],
                     "spam_score": analysis['spam_similarity_score']
                 }
