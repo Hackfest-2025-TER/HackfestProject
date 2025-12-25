@@ -1,369 +1,499 @@
 # PromiseThread
 
-**Decentralized Political Accountability Platform**
-
-A transparent platform where citizens anonymously track and evaluate political promises through community discussion and voting. Built with Svelte, Zero-Knowledge Proofs, and Blockchain technology.
-
-![PromiseThread](./design/banner.png)
-
-## 🚨 Important Security Notice
-
-### Current ZK Implementation Status
-
-**⚠️ MVP Limitation:** This demo uses a **simplified commitment-based authentication** system. While the architecture for zero-knowledge proofs is in place, **actual zk-SNARK proof verification is not yet implemented**.
-
-**What works:**
-- ✅ Merkle tree construction from voter registry (1,048 voters)
-- ✅ Client-side commitment computation: `hash(secret + voterID)`
-- ✅ Anonymous authentication (identity never sent to server)
-- ✅ Double-voting prevention via nullifier tracking
-- ✅ Commitment verification against Merkle tree
-
-**What's missing for production:**
-- ❌ **Cryptographic proof verification** - Server currently trusts client claims
-- ❌ **Circom circuit compilation** - ZK circuits exist but aren't compiled
-- ❌ **zk-SNARK generation** - Using commitment scheme instead of real proofs
-- ❌ **Server-side proof validation** - No verification key checking
-
-**Security implications:**
-- In this MVP, an attacker could theoretically submit fake nullifiers
-- Server only validates: (1) Merkle root matches, (2) Nullifier is new
-- No cryptographic guarantee that user knows a valid secret+voterID combination
-
-**For production deployment:**
-1. Compile Circom circuits (`blockchain/circuits/citizen_credential.circom`)
-2. Generate trusted setup (Powers of Tau ceremony)
-3. Implement client-side zk-SNARK generation with snarkjs
-4. Add server-side proof verification (py_ecc or verification endpoint)
-5. Implement Merkle proof caching to avoid downloading entire tree
-
-See [SECURITY_ANALYSIS.md](SECURITY_ANALYSIS.md) for detailed technical analysis.
+**Decentralized political accountability platform using zero-knowledge proofs and blockchain.**
 
 ---
 
-## 🌟 Vision
+## Overview
 
-PromiseThread solves the fundamental problem of political accountability: **How do you have transparent, tamper-proof political accountability while protecting citizen privacy?**
+PromiseThread enables citizens to anonymously evaluate political promises through community voting and discussion. Built with real voter data from Nepal's Election Commission, the platform combines zero-knowledge cryptography with blockchain immutability to create transparent yet privacy-preserving political accountability.
 
-Our solution combines **Zero-Knowledge Proofs** with a **Hybrid Storage Architecture** to create a platform where:
-- Citizens can vote anonymously while preventing Sybil attacks
-- Vote results are transparent and immutable
-- No personal data is ever stored or tracked
+**Core Innovation:** Anonymous voting with verifiable eligibility using zk-SNARKs and Merkle trees.
 
-## 🚀 Features
+### Key Features
 
-### Core Functionality
-- **Anonymous Voting** - ZK-SNARK proofs ensure one-person-one-vote without revealing identity
-- **Promise Tracking** - Track political promises from creation to completion
-- **Community Discussion** - Reddit-style threaded comments with evidence links
-- **Grace Periods** - Fair timing prevents premature judgment
-- **Blockchain Immutability** - Final results are permanently recorded on-chain
+- **Zero-Knowledge Authentication** - Prove eligibility without revealing identity
+- **Anonymous Voting** - Vote on promises (kept/broken) via nullifier-based system
+- **Threaded Discussion** - Reddit-style comments with evidence links
+- **Blockchain Immutability** - Vote aggregates stored on-chain
+- **Time-Locked Evaluation** - Grace periods prevent premature judgment
+- **Digital Signatures** - Politicians sign promises with crypto wallets
+- **Vote Verification** - Merkle proofs enable independent verification
 
-### Technical Highlights
-- **Zero-Knowledge Proofs** - SnarkJS/Circom for cryptographic privacy
-- **Hybrid Storage** - Aggregates on-chain, details off-chain for scalability
-- **Merkle Proof Verification** - Citizens can verify their vote was counted
-- **Real-time Network Dashboard** - Monitor blockchain integrity
+### System Status
 
-## 🏗️ Architecture
+**Live System** using real government data:
+- **Data Source:** Nepal Election Commission voter registry
+- **Location:** Dhulikhel Municipality, Kavrepalanchok District
+- **Full Dataset:** 26,193 voters collected across 12 wards
+- **Active Subset:** 1,048 voters (optimized for browser performance)
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 18+, Python 3.10+, PostgreSQL 15+
+- Docker & Docker Compose (optional)
+
+### With Docker (Recommended)
+
+```bash
+git clone https://github.com/Hackfest-2025-TER/HackfestProject.git
+cd HackfestProject
+docker-compose up --build
+```
+
+**Access:**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000/docs
+- Blockchain: http://localhost:8545
+
+### Manual Setup
+
+```bash
+# 1. Database
+createdb -U postgres promisethread
+
+# 2. Backend
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+python import_csv.py --file ../data/dhulikhel_voter_list_full.csv --limit 1048
+uvicorn main:app --reload --port 8000
+
+# 3. Blockchain (separate terminal)
+cd blockchain
+npm install && npx hardhat node
+# In another terminal: npx hardhat run scripts/deploy.js --network localhost
+
+# 4. Frontend (separate terminal)
+cd frontend
+npm install && npm run dev
+```
+
+**Full installation guide:** See [Installation](#installation) below.
+
+---
+
+## Architecture
+
+### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         FRONTEND                             │
-│                    (SvelteKit + Vite)                        │
-├─────────────────────────────────────────────────────────────┤
-│  Landing │ Auth │ Manifestos │ Voting │ Audit │ Politician  │
-│   Page   │ Page │   List     │  Box   │ Trail │   Portal    │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                         BACKEND                              │
-│                    (FastAPI + Python)                        │
-├─────────────────────────────────────────────────────────────┤
-│  ZK Proof  │  Manifesto  │   Vote   │  Comment  │   Audit   │
-│ Verification│   CRUD     │ Aggregate│   Thread  │    Logs   │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                       BLOCKCHAIN                             │
-│                  (Hardhat + Solidity)                        │
-├─────────────────────────────────────────────────────────────┤
-│     PromiseRegistry.sol     │       ZKVerifier.sol          │
-│   - Promise hashes          │   - Proof verification        │
-│   - Vote aggregates         │   - Credential issuance       │
-│   - Merkle roots            │   - Nullifier tracking        │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│                     FRONTEND LAYER                         │
+│                (SvelteKit + TypeScript)                    │
+├───────────────────────────────────────────────────────────┤
+│  Auth/ZK │ Manifesto │ Voting │ Discussion │ Audit Trail │
+│   Proof  │   List    │   UI   │   Thread   │  Visualizer │
+└─────────────────────┬─────────────────────────────────────┘
+                      │
+┌─────────────────────▼─────────────────────────────────────┐
+│                     BACKEND LAYER                          │
+│              (FastAPI + SQLAlchemy)                        │
+├───────────────────────────────────────────────────────────┤
+│  Voter   │ ZK Proof │ Manifesto │  Vote   │   Comment    │
+│ Registry │  Verify  │   CRUD    │ Storage │    Thread    │
+│ (Merkle) │(snarkjs) │           │         │              │
+└─────────────────────┬─────────────────────────────────────┘
+                      │
+┌─────────────────────▼─────────────────────────────────────┐
+│                    DATABASE LAYER                          │
+│                   (PostgreSQL 15)                          │
+├───────────────────────────────────────────────────────────┤
+│ voters │ zk_credentials │ manifestos │ votes │ comments   │
+└───────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────┐
+│                   BLOCKCHAIN LAYER                         │
+│            (Hardhat + Solidity + EVM)                      │
+├───────────────────────────────────────────────────────────┤
+│ PromiseRegistry │ ManifestoRegistry │ ZKVerifier          │
+│ Vote aggregates │  Promise hashes   │ Proof verification  │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ### Hybrid Storage Model
 
-| On-Chain (Immutable) | Off-Chain (Database) |
-|---------------------|---------------------|
-| Promise hash + metadata | Full promise text |
-| Vote AGGREGATES only | Individual vote records |
-| Status changes + timestamps | Discussion threads |
-| Merkle root of all votes | Evidence links |
+The system uses a **two-tier architecture** optimized for privacy, scalability, and cost:
 
-## 📦 Project Structure
+| Storage | Purpose | Data Stored |
+|---------|---------|-------------|
+| **Blockchain (On-Chain)** | Immutable records | Vote aggregates, promise hashes, Merkle roots, signatures |
+| **Database (Off-Chain)** | Queryable data | Full text, individual votes (nullifier-linked), comments |
 
-```
-HackfestProject/
-├── frontend/               # SvelteKit application
-│   ├── src/
-│   │   ├── lib/
-│   │   │   ├── components/  # Reusable UI components
-│   │   │   ├── stores.ts    # Svelte stores
-│   │   │   ├── api.ts       # API client
-│   │   │   └── types.ts     # TypeScript interfaces
-│   │   └── routes/          # SvelteKit pages
-│   └── package.json
-├── backend/                # FastAPI backend
-│   ├── main.py             # API endpoints
-│   └── requirements.txt
-├── blockchain/             # Smart contracts
-│   ├── contracts/
-│   │   ├── PromiseRegistry.sol
-│   │   └── ZKVerifier.sol
-│   ├── scripts/deploy.js
-│   └── hardhat.config.js
-├── design/                 # Design assets
-└── docker-compose.yml
-```
+**Why Hybrid?**
+- **Scalability:** Database handles 1K+ voters efficiently (blockchain is expensive)
+- **Privacy:** Individual votes remain off-chain (only aggregates public)
+- **Auditability:** Merkle roots enable verification without exposing details
+- **Cost:** Database ~$0.001/GB vs blockchain ~$100/GB at scale
 
-## 🛠️ Installation
-
-### Prerequisites
-- Node.js 18+
-- Python 3.10+
-- **PostgreSQL 15+** (for database)
-- Docker & Docker Compose (optional)
-
-### Quick Start with Docker
-
-```bash
-# Clone the repository
-git clone https://github.com/your-org/promisethread.git
-cd promisethread
-
-# Start all services
-docker-compose up --build
-```
-
-Access:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000
-- Blockchain RPC: http://localhost:8545
-
-### Manual Setup
-
-**1. Database (PostgreSQL):**
-```bash
-# Install PostgreSQL
-brew install postgresql@15  # macOS
-# or
-sudo apt install postgresql postgresql-contrib  # Ubuntu
-
-# Start PostgreSQL service
-brew services start postgresql@15  # macOS
-# or
-sudo systemctl start postgresql  # Ubuntu
-
-# Create database and user
-psql postgres -c "CREATE USER promisethread WITH PASSWORD 'hackfest2025' CREATEDB;"
-psql postgres -c "CREATE DATABASE promisethread OWNER promisethread;"
-
-# Initialize database with migrations
-cd backend
-pip install -r requirements.txt
-python migrate.py init
-```
-
-**2. Backend:**
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-**3. Frontend:**
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-**4. Blockchain:**
-```bash
-cd blockchain
-npm install
-npx hardhat node  # In one terminal
-npx hardhat run scripts/deploy.js --network localhost  # In another
-```
-
-## 🗄️ Database Management
-
-PromiseThread uses **PostgreSQL** with **Alembic** for migrations.
-
-**Quick Commands:**
-```bash
-cd backend
-
-# Initialize database (first time)
-python migrate.py init
-
-# Check migration status
-python migrate.py status
-
-# Apply migrations
-python migrate.py upgrade
-
-# Import voter data
-python migrate.py import
-
-# Seed sample data
-python migrate.py seed
-
-# Reset database (⚠️ deletes all data)
-python migrate.py reset
-```
-
-**Database Schema:**
-- `voters` - 25,924 voter records from Dhulikhel election commission
-- `zk_credentials` - Anonymous authentication credentials
-- `politicians` - Political figures
-- `manifestos` - Political promises
-- `manifesto_votes` - Individual votes (anonymous via nullifier)
-- `comments` - Discussion threads
-- `comment_votes` - Upvote/downvote tracking
-- `audit_logs` - Blockchain simulation
-- `merkle_roots` - Merkle tree roots
-
-See [`backend/MIGRATIONS.md`](backend/MIGRATIONS.md) for detailed documentation.
-
-## 📱 Pages & Features
-
-| Page | Description |
-|------|-------------|
-| `/` | Landing page with platform overview |
-| `/auth` | Login/Register with ZK authentication |
-| `/manifestos` | Browse all political promises |
-| `/manifestos/[id]` | Promise detail with discussion |
-| `/citizen/attestation` | Vote on promises anonymously |
-| `/politicians` | Directory of all politicians |
-| `/politicians/[id]` | Politician profile & track record |
-| `/audit-trail` | Network integrity dashboard |
-| `/politician/dashboard` | Politician portal |
-| `/politician/new-manifesto` | Create new promise |
-| `/feedback` | Submit bug reports/suggestions |
-| `/settings` | User preferences |
-
-## 🔐 Zero-Knowledge Flow
-
-```
-1. Citizen generates ZK proof  →  Proves "I am eligible" without revealing identity
-2. System issues credential   →  Anonymous credential (e.g., ABC123)
-3. Citizen votes             →  Vote linked to credential, not identity
-4. Nullifier check           →  Prevents double-voting
-5. Votes batched             →  Merkle tree created every N votes
-6. Merkle root on-chain      →  Immutable proof of all votes
-7. Verification              →  Any citizen can verify their vote was counted
-```
-
-## 📊 API Endpoints
-
-### ZK Proof
-- `POST /api/zk/verify` - Verify ZK proof and issue credential
-- `GET /api/zk/credential/{nullifier}` - Check credential status
-
-### Manifestos
-- `GET /api/manifestos` - List all manifestos
-- `GET /api/manifestos/{id}` - Get manifesto details
-- `POST /api/manifestos` - Create new manifesto
-- `GET /api/manifestos/{id}/votes` - Get vote aggregates
-
-### Voting
-- `POST /api/votes` - Submit a vote
-- `GET /api/votes/verify/{hash}` - Verify vote with Merkle proof
-
-### Comments
-- `GET /api/manifestos/{id}/comments` - Get discussion thread
-- `POST /api/comments` - Add comment
-
-### Network
-- `GET /api/network/stats` - Network statistics
-- `GET /api/audit/logs` - Audit trail
-- `GET /api/blockchain/blocks` - Recent blocks
-
-## 🎯 Demo Flow
-
-1. **Generate ZK Credential** - Visit Auth page, generate anonymous credential
-2. **Browse Promises** - See locked (grace period) vs open for voting
-3. **Join Discussion** - Add anonymous comment with evidence
-4. **Cast Vote** - Vote on promise (kept/broken)
-5. **View Blockchain** - See vote aggregate update
-6. **Verify Vote** - Use Merkle proof to verify inclusion
-
-## 🧪 Testing
-
-```bash
-# Frontend tests
-cd frontend && npm test
-
-# Backend tests
-cd backend && pytest
-
-# Smart contract tests
-cd blockchain && npx hardhat test
-```
-
-## 🚀 Deployment
-
-### Testnet Deployment
-
-```bash
-cd blockchain
-
-# Polygon Mumbai
-npx hardhat run scripts/deploy.js --network mumbai
-
-# Avalanche Fuji
-npx hardhat run scripts/deploy.js --network fuji
-
-# Sepolia
-npx hardhat run scripts/deploy.js --network sepolia
-```
-
-### Environment Variables
-
-Create `.env` files from examples:
-- `blockchain/.env` - Private keys, RPC URLs
-- `backend/.env` - Database URL, secrets
-- `frontend/.env` - API URLs
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file.
-
-## 🙏 Acknowledgments
-
-- [SnarkJS](https://github.com/iden3/snarkjs) - Zero-knowledge proof library
-- [Circom](https://github.com/iden3/circom) - ZK circuit compiler
-- [SvelteKit](https://kit.svelte.dev/) - Frontend framework
-- [FastAPI](https://fastapi.tiangolo.com/) - Backend framework
-- [Hardhat](https://hardhat.org/) - Ethereum development environment
+**Component Details:**
+- [backend/README.md](backend/README.md) - API endpoints, database schema
+- [frontend/README.md](frontend/README.md) - UI components, routing
+- [blockchain/README.md](blockchain/README.md) - Smart contracts, ZK circuits
 
 ---
 
-**Built with ❤️ for Hackfest 2024**
+## Cryptographic Protocol
 
-*Democracy can be transparent AND protect citizen privacy.*
+### Shuffled Anonymity Approach
+
+Four-stage protocol ensuring server cannot link voters to votes:
+
+**1. Server Shuffle**
+- Backend shuffles voter commitments (hashes)
+- Deletes original mapping (honest dealer assumption)
+- Builds Merkle tree from shuffled set
+
+**2. Client Download**  
+- User downloads full anonymity set (~33 KB for 1,048 voters)
+- All voter hashes visible, but shuffled (no identity linkage)
+
+**3. Client Proof Generation**
+- Merkle proof computed locally in browser
+- Server never sees which path was used
+- Generates nullifier (anonymous voter ID)
+
+**4. Server Verification**
+- Validates Merkle proof against root
+- Checks nullifier not already used (prevents double-voting)
+- Issues anonymous credential
+
+**Privacy Guarantees:**
+- Server cannot link votes to voters (nullifier-based)
+- Server cannot determine Merkle path (client-side computation)
+- Even malicious server cannot link votes to identities (nullifiers are anonymous)
+
+### Zero-Knowledge Proofs
+
+**Technology:** Circom circuits with Poseidon hash and Groth16 proof system
+
+**Proves:** "I am a registered voter" without revealing which voter
+
+**Circuit constraints:**
+1. Voter ID hash exists in Merkle tree (membership proof)
+2. Nullifier = Hash(voterId, secret) (prevents double-voting)
+3. Commitment binds voter hash to nullifier (prevents forgery)
+
+
+
+**Circuit details:** See [blockchain/README.md](blockchain/README.md)
+
+---
+
+## Data Source
+
+### Authentic Government Voter Registry
+
+Scraped from Nepal Election Commission: https://voterlist.election.gov.np
+
+**Data Specifics:**
+- **Province:** बागमती प्रदेश (Bagmati)
+- **District:** काभ्रेपलाञ्चोक (Kavrepalanchok)  
+- **Municipality:** धुलिखेल नगरपालिका (Dhulikhel)
+- **Wards:** 1-12
+- **Total Collected:** 26,193 voters
+- **Demo Subset:** 1,048 voters
+
+**Why 1,048 Voters?**
+
+Optimal balance for demonstration:
+- **Merkle Tree:** 11 levels (2^11 = 2,048 capacity)
+- **Proof Time:** <1 second in browser
+- **Download Size:** ~33 KB (shuffled commitments)
+- **Privacy:** 1K+ anonymity set provides meaningful unlinkability
+- **Reliability:** Smooth performance on standard laptops
+
+**Scalability Path:**
+- Current: 1,048 voters (11-level tree)
+- Full Dataset: 26,193 voters (15-level tree)
+- Enterprise: 100K+ voters (batched Merkle trees )
+
+### Scraping Methodology
+
+**Technology:** R + Selenium WebDriver (parallel scraping)
+- 3 concurrent Chrome instances
+- All 12 wards × all registration centers
+- Full pagination (100 entries/page)
+- Output: Consolidated CSV
+
+**Scraper Repository:** https://github.com/Hackfest-2025-TER/ScraperElectionCommision
+
+ **Data details:** See [data/README.md](data/README.md) for schema and privacy handling
+
+---
+
+## Installation
+
+### Prerequisites
+
+**Software:**
+- Node.js 18+ ([Download](https://nodejs.org/))
+- Python 3.10+ ([Download](https://www.python.org/))
+- PostgreSQL 15+ ([Download](https://www.postgresql.org/))
+- Docker (optional) ([Download](https://www.docker.com/))
+
+
+### Database Setup
+
+```bash
+# Start PostgreSQL
+sudo systemctl start postgresql  # Linux
+# or
+brew services start postgresql@15  # macOS
+
+# Create database
+sudo -u postgres psql
+```
+
+```sql
+CREATE DATABASE promisethread;
+CREATE USER promisethread WITH PASSWORD 'hackfest2025';
+GRANT ALL PRIVILEGES ON DATABASE promisethread TO promisethread;
+\q
+```
+
+### Backend Setup
+
+```bash
+cd backend
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# or
+venv\Scripts\activate.ps1  # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cat > .env << EOF
+DATABASE_URL=postgresql://promisethread:hackfest2025@localhost:5432/promisethread
+BLOCKCHAIN_RPC_URL=http://localhost:8545
+SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+EOF
+
+# Run migrations
+alembic upgrade head
+
+# Import voter data (1,048 demo subset)
+python import_csv.py --file ../data/dhulikhel_voter_list_full.csv --limit 1048
+
+# Seed sample data
+python seed_data.py
+
+# Start server
+uvicorn main:app --reload --port 8000
+```
+
+**Expected output:**
+```
+INFO: Uvicorn running on http://0.0.0.0:8000
+- Database connected
+- Merkle tree built: 1048 voters, depth 11, root 0xabc...
+```
+
+### Blockchain Setup
+
+```bash
+cd blockchain
+
+# Install dependencies
+npm install
+
+# Compile contracts
+npx hardhat compile
+
+# Start local node (Terminal 1)
+npx hardhat node
+
+# Deploy contracts (Terminal 2)
+npx hardhat run scripts/deploy.js --network localhost
+```
+
+**Save contract addresses from deployment output.**
+
+### Frontend Setup
+
+```bash
+cd frontend
+
+# Install dependencies  
+npm install
+
+# Configure environment
+cat > .env << EOF
+VITE_API_URL=http://localhost:8000
+VITE_BLOCKCHAIN_RPC=http://localhost:8545
+EOF
+
+# Start dev server
+npm run dev
+```
+
+**Access application:** http://localhost:3000
+
+
+
+---
+
+## Docker Deployment
+
+### Quick Start
+
+```bash
+docker-compose up --build
+```
+
+**Services Started:**
+- `postgres` - PostgreSQL database (port 5432)
+- `blockchain` - Hardhat node (port 8545)
+- `backend` - FastAPI server (port 8000)
+- `frontend` - SvelteKit app (port 3000)
+
+### Docker Commands
+
+```bash
+# Start in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f backend
+
+# Stop services
+docker-compose down
+
+# Reset database (deletes data)
+docker-compose down -v
+
+# Execute commands
+docker-compose exec backend bash
+docker-compose exec postgres psql -U promisethread
+```
+
+
+
+---
+
+## Project Structure
+
+```
+HackfestProject/
+├── frontend/              # SvelteKit web app
+│   ├── src/routes/        # Pages (auth, manifestos, voting)
+│   ├── src/lib/           # Components, API client, stores
+│   └── static/zk/         # ZK circuit artifacts (WASM, keys)
+│
+├── backend/               # FastAPI server
+│   ├── main.py            # API endpoints
+│   ├── models.py          # Database models
+│   ├── crypto_utils.py    # Cryptographic functions
+│   └── migrations/        # Alembic migrations
+│
+├── blockchain/            # Smart contracts
+│   ├── contracts/         # Solidity contracts
+│   ├── circuits/          # Circom ZK circuits
+│   └── scripts/           # Deployment scripts
+│
+├── data/                  # Voter registry CSV
+│   └── dhulikhel_voter_list_full.csv
+│
+├── docker-compose.yml     # Development orchestration
+└── README.md              # This file
+```
+
+**Component Documentation:**
+- [backend/README.md](backend/README.md) - API reference, database schema
+- [frontend/README.md](frontend/README.md) - UI components, routing, state management
+- [blockchain/README.md](blockchain/README.md) - Smart contracts, ZK circuits, deployment
+- [data/README.md](data/README.md) - Data collection, schema, privacy
+
+---
+
+## Security Model
+
+### Trust Assumptions
+
+**1. Honest Dealer (Server Shuffle)**
+- Server shuffles voter commitments honestly and deletes mapping
+- If violated: Server could link commitments to voters (but NOT votes to voters)
+- Mitigation: Use verifiable shuffle (MPC) in production
+
+**2. Unique Voter Secrets**
+- Each voter receives unique secret from Election Commission
+- Current MVP: Shared demo secret `"CITIZENSHIP_'CITIZENSHIPNO'"` (demonstration only)
+- Production: SMS/physical card distribution of unique secrets
+
+**3. Client-Side Security**
+- Browser environment is trusted (no malware)
+- If violated: Attacker could steal voter ID + secret
+- Mitigation: Hardware security modules (HSM) for secret storage
+
+
+
+
+**Security details:** See [backend/README.md](backend/README.md) and [blockchain/README.md](blockchain/README.md)
+
+---
+
+## Technology Stack
+
+### Frontend
+- **Framework:** SvelteKit 2.0
+- **Language:** TypeScript 5.0
+- **Styling:** Tailwind CSS 3.4
+- **ZK Libraries:** snarkjs 0.7.5, circomlibjs 0.1.7
+- **Build:** Vite 5.0
+
+### Backend
+- **Framework:** FastAPI 0.115.6
+- **Database:** PostgreSQL 15, SQLAlchemy 2.0.36
+- **Migration:** Alembic 1.14.0
+- **Blockchain:** web3.py 7.5.0
+
+### Blockchain
+- **Framework:** Hardhat 2.19.0
+- **Language:** Solidity 0.8.19
+- **ZK Circuits:** Circom 2.0.0
+- **Proof System:** Groth16 (snarkjs)
+
+---
+
+
+
+
+
+
+
+
+## Support & Links
+
+- **GitHub:** https://github.com/Hackfest-2025-TER/HackfestProject
+- **Scraper:** https://github.com/Hackfest-2025-TER/ScraperElectionCommision
+
+---
+
+## References
+
+**Academic Papers:**
+- Groth16: "On the Size of Pairing-Based Non-interactive Arguments" (EUROCRYPT 2016)
+- Merkle Trees: "A Digital Signature Based on a Conventional Encryption Function" (CRYPTO 1987)
+- zk-SNARKs: "From Extractable Collision Resistance to Succinct NIARKs" (ITCS 2012)
+
+**Technical Docs:**
+- Circom: https://docs.circom.io/
+- snarkjs: https://github.com/iden3/snarkjs
+- SvelteKit: https://kit.svelte.dev/docs
+- FastAPI: https://fastapi.tiangolo.com/
+- Hardhat: https://hardhat.org/docs
+
+
+---
+
+
+*Hackfest 2025 - Team Three Eyed Raven*
