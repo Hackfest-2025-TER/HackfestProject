@@ -11,6 +11,28 @@
 - **Blockchain:** ethers.js 5.7.2
 - **Build Tool:** Vite 5.0
 
+## 🔬 Deep Technical Theory: Client-Side Trust
+
+### 1. The Trustless Proving Model
+Crucially, ZK proof generation **MUST** happen on the client (browser).
+*   **Why?**: If the backend generated the proof, the user would have to send their `secret` to the backend. This requires trusting the backend not to store the secret or impersonate the voter.
+*   **Implementation**: We use **WebAssembly (WASM)**.
+    *   The `citizen_credential.wasm` file allows the browser to run compiled C++ circuit code at near-native speed.
+    *   This enables complex cryptographic operations (Elliptic Curve pairings on BN128) to run locally on the user's device.
+
+### 2. Security Assumptions
+*   **The "Toxic Waste" Assumption**: We assume the Trusted Setup for Groth16 was performed correctly (using Hermez Powers of Tau).
+*   **The "Discrete Log" Assumption**: The security of the BN128 curve relies on the difficulty of the Discrete Logarithm Problem.
+*   **XSS Threat Model**: Since the `secret` is entered in the browser, an XSS (Cross-Site Scripting) attack could steal it.
+    *   *Mitigation*: We do not store the secret in `localStorage`. detailed state management ensures it is cleared from memory after proof generation.
+
+## System Distinction: Blockchain vs ZK
+
+It is important to note that **Zero-Knowledge (ZK) proofs are NOT "on the blockchain" in this layer.**
+-   **Client-Side Generation:** All ZK proofs are generated strictly in the user's browser using WebAssembly (`.wasm`) circuits.
+-   **Privacy:** The user's secret keys never leave their device.
+-   **Verification:** The resulting proof is sent to the backend (or blockchain) for verification, but the generation process is entirely off-chain.
+
 ## Installation
 
 ```bash
@@ -18,8 +40,6 @@ cd frontend
 
 # Install dependencies
 npm install
-# or
-pnpm install
 
 # Configure environment
 cat > .env << EOF
@@ -33,9 +53,6 @@ npm run dev
 
 # Build for production
 npm run build
-
-# Preview production build
-npm run preview
 ```
 
 ## Project Structure
@@ -46,306 +63,51 @@ frontend/
 │   ├── routes/                      # SvelteKit pages
 │   │   ├── +layout.svelte           # Global layout
 │   │   ├── +page.svelte             # Landing page
-│   │   ├── auth/+page.svelte        # ZK authentication
-│   │   ├── manifestos/
-│   │   │   ├── +page.svelte         # List view
-│   │   │   └── [id]/+page.svelte    # Detail view
-│   │   ├── citizen/
-│   │   │   └── attestation/+page.svelte  # Voting
-│   │   ├── politician/
-│   │   │   ├── dashboard/+page.svelte
-│   │   │   └── wallet/+page.svelte
-│   │   └── verify/+page.svelte      # Vote verification
+│   │   ├── auth/                    # Authentication (ZK Login)
+│   │   ├── manifestos/              # Manifesto listings & details
+│   │   ├── citizen/                 # Voter specific actions
+│   │   ├── politician/              # Politician dashboard & tools
+│   │   └── verify/                  # Public verification tools
 │   │
 │   ├── lib/
 │   │   ├── api.ts                   # Backend API client
-│   │   ├── stores.ts                # Svelte stores
-│   │   ├── components/              # Reusable components
-│   │   │   ├── Header.svelte
-│   │   │   ├── VoteBox.svelte
-│   │   │   ├── CommentThread.svelte
-│   │   │   └── BlockchainVisualizer.svelte
+│   │   ├── stores.ts                # State management (auth, theme)
+│   │   ├── components/              # Reusable UI components
 │   │   └── utils/
-│   │       ├── zkProof.ts           # ZK proof generation
-│   │       └── crypto.ts            # Cryptographic utils
+│   │       ├── zkProof.ts           # Client-side ZK proof generation
+│   │       └── crypto.ts            # Wallet & hashing utilities
 │   │
-│   ├── app.html                     # HTML template
-│   └── app.css                      # Global styles
+│   ├── app.html                     # HTML entry point
+│   └── app.css                      # Global styles (Tailwind)
 │
 ├── static/
-│   └── zk/                          # ZK artifacts (WASM, keys)
-│       ├── citizen_credential.wasm
-│       ├── circuit_final.zkey
-│       └── verification_key.json
-│
-├── svelte.config.js
-├── vite.config.js
-├── tailwind.config.js
-└── package.json
+│   └── zk/                          # ZK artifacts (publicly accessible)
+│       ├── citizen_credential.wasm  # Circuit logic
+│       └── circuit_final.zkey       # Proving key
 ```
 
-## Key Routes
+## Key Components
 
-### Public Routes
+### ZK Proof Generation (`src/lib/utils/zkProof.ts`)
+Handles the complex logic of downloading ZK artifacts, computing Poseidon hashes, and generating Groth16 proofs using `snarkjs` in the browser.
 
-**`/` - Landing Page**
-- Platform overview
-- Feature highlights
-- Call-to-action for authentication
+### Authentication Flow
+1.  User inputs Voter ID and Secret.
+2.  App fetches the Anonymity Set (Merkle Tree leaves) from Backend.
+3.  App generates a ZK Proof locally, proving "I know a secret that corresponds to a leaf in this tree" without revealing which leaf.
+4.  App sends the Proof + Nullifier to Backend.
+5.  Backend verifies proof and issues a session token.
 
-**`/auth` - Authentication**
-- Voter ID lookup
-- ZK proof generation
-- Anonymous credential issuance
+### Blockchain Interaction
+Uses `ethers.js` to read data directly from smart contracts for verification purposes (e.g., verifying a specific promise status on-chain).
 
-**`/manifestos` - Browse Promises**
-- Filter by status (pending/kept/broken)
-- Filter by category
-- Filter by politician
-- Sort by votes, date, etc.
+## Development
 
-**`/manifestos/[id]` - Promise Detail**
-- Full manifesto text
-- Vote aggregates with visualization
-- Discussion thread (threaded comments)
-- Evidence links
-- Grace period countdown (if applicable)
+### Running with Local Blockchain
+Ensure your local Hardhat node is running and the contracts are deployed. Update `VITE_PROMISE_REGISTRY_ADDRESS` in `.env` with the deployment address.
 
-**`/politicians` - Politician Directory**
-- List all politicians with track records
-- Filter by party, position
-
-**`/politicians/[id]` - Politician Profile**
-- Bio and contact
-- All promises made
-- Fulfillment statistics
-
-### Authenticated Routes (Require ZK Credential)
-
-**`/citizen/attestation` - Voting**
-- Select manifesto to vote on
-- Cast vote (kept/broken)
-- Add evidence URL
-- View voting history
-
-**`/verify` - Vote Verification**
-- Enter vote hash
-- View Merkle proof
-- Verify inclusion in batch
-
-### Politician Routes
-
-**`/politician/dashboard` - Dashboard**
-- View all your promises
-- See vote statistics
-- Respond to comments
-
-**`/politician/new-manifesto` - Create Promise**
-- Title, description, category
-- Set grace period
-- Sign with digital wallet
-
-**`/politician/wallet` - Digital Signature Wallet**
-- Generate Ethereum wallet
-- Download encrypted keystore
-- Sign manifestos
-
-## Component Library
-
-### VoteBox
-Vote aggregation display with progress bars.
-
-```svelte
-<VoteBox
-  voteKept={45}
-  voteBroken={12}
-  status="pending"
-  gracePeriodEnd={new Date('2025-06-01')}
-/>
-```
-
-### CommentThread
-Threaded discussion with upvote/downvote.
-
-```svelte
-<CommentThread
-  manifestoId={1}
-  comments={commentsData}
-  userNullifier={$authStore.credential?.nullifier}
-/>
-```
-
-### BlockchainVisualizer
-Visual representation of blockchain with linked blocks.
-
-```svelte
-<BlockchainVisualizer blocks={blockData} />
-```
-
-### ManifestoCard
-Card component for manifesto list view.
-
-```svelte
-<ManifestoCard
-  manifesto={data}
-  onClick={() => goto(`/manifestos/${data.id}`)}
-/>
-```
-
-## State Management
-
-### Auth Store (`stores.ts`)
-
-```typescript
-interface AuthState {
-  isAuthenticated: boolean;
-  nullifier: string | null;
-  credential: Credential | null;
-  isLoading?: boolean;
-  error?: string | null;
-}
-
-// Usage
-import { authStore } from '$lib/stores';
-
-authStore.setCredential(credential);
-authStore.markVoted(manifestoId);
-authStore.logout();
-```
-
-**Storage:** Uses `localStorage` for persistence (consider `sessionStorage` for production).
-
-## API Integration
-
-### API Client (`api.ts`)
-
-All backend communication goes through `api.ts`:
-
-```typescript
-import { getManifestos, submitVote, verifyZKProof } from '$lib/api';
-
-// Fetch manifestos
-const manifestos = await getManifestos({ status: 'pending' });
-
-// Submit vote
-const result = await submitVote({
-  manifesto_id: 1,
-  vote_type: 'kept',
-  nullifier: credential.nullifier
-});
-
-// Verify ZK proof
-const verification = await verifyZKProof(proof);
-```
-
-**Base URL:** Set via `VITE_API_URL` environment variable.
-
-## ZK Proof Generation
-
-### Client-Side Proof Flow
-
-```typescript
-import { authenticate } from '$lib/zk/zkAuth';
-
-// 1. User enters voterId + secret
-// 2. System fetches Merkle proof and generates ZK proof
-const result = await authenticate(voterId, secret);
-
-// 3. Result contains:
-{
-  success: true,
-  credential: "...",
-  nullifier: "0x...",
-  message: "Authenticated successfully"
-}
-
-// 4. Store credential locally
-authStore.setCredential(result.credential);
-```
-
-### Nullifier Generation
-
-Nullifier is generated inside the ZK circuit:
-`Nullifier = Poseidon(voterId, secret)`
-
-**Properties:**
-- Deterministic (same inputs = same output)
-- Anonymous (reveals nothing about voterId)
-- Unique per voter (prevents double-voting)
-
-**Note:** Uses `snarkjs` with WASM circuits for real client-side proof generation.
-
-## Styling
-
-### Tailwind Configuration
-
-```javascript
-// tailwind.config.js
-export default {
-  theme: {
-    extend: {
-      colors: {
-        primary: '#3B82F6',
-        secondary: '#10B981',
-        accent: '#F59E0B',
-      }
-    }
-  }
-}
-```
-
-### CSS Variables
-
-```css
-/* app.css */
-:root {
-  --color-bg: #ffffff;
-  --color-text: #1f2937;
-  --color-border: #e5e7eb;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #1f2937;
-    --color-text: #f9fafb;
-    --color-border: #374151;
-  }
-}
-```
-
-## Performance Optimization
-
-### Code Splitting
-SvelteKit automatically code-splits routes. Heavy ZK libraries are loaded only on auth pages.
-
-### Image Optimization
-Use `<img>` with `loading="lazy"` for politician photos and evidence images.
-
-### Merkle Proof Caching
-Cache downloaded anonymity set in `sessionStorage`:
-
-```typescript
-const cached = sessionStorage.getItem('anonymity_set');
-if (cached) {
-  anonymitySet = JSON.parse(cached);
-} else {
-  anonymitySet = await fetch('/api/registry/anonymity-set');
-  sessionStorage.setItem('anonymity_set', JSON.stringify(anonymitySet));
-}
-```
-
-## Testing
-
-```bash
-# Run tests (when implemented)
-npm test
-
-# Type checking
-npm run check
-
-# Lint
-npm run lint
-```
+### ZK Artifacts
+The `.wasm` and `.zkey` files in `static/zk/` must match the circuits compiled in the `blockchain` directory. If you modify the circuits, re-compile and copy the new artifacts here.
 
 ## Build & Deployment
 
@@ -353,102 +115,6 @@ npm run lint
 # Production build
 npm run build
 
-# Output: build/ directory
-# - build/client - Static assets
-# - build/server - SSR server
-
-# Preview
+# Preview production build
 npm run preview
-
-# Deploy to Node.js server
-node build
 ```
-
-### Environment Variables (Production)
-
-```env
-VITE_API_URL=https://api.promisethread.com
-VITE_BLOCKCHAIN_RPC=https://polygon-rpc.com
-VITE_PROMISE_REGISTRY_ADDRESS=0x...deployed...address
-```
-
-## Security Considerations
-
-### Current Limitations
-
-1. **LocalStorage for credentials** - Vulnerable to XSS
-   - **Fix:** Use `sessionStorage` + encryption or HTTP-only cookies
-
-2. **No HTTPS enforcement** - MITM attacks possible
-   - **Fix:** Always use HTTPS in production
-
-### Production Checklist
-
-- [ ] Switch to `sessionStorage` for credentials
-- [ ] Add Content Security Policy headers
-- [ ] Enable HTTPS with HSTS
-- [ ] Implement rate limiting on voter lookup
-- [ ] Clear sensitive data after use
-
-## Browser Support
-
-- Chrome/Edge 90+
-- Firefox 88+
-- Safari 14+
-
-**Note:** ZK proof generation requires WebAssembly support.
-
-## Data Flow Example
-
-### Complete Authentication Flow
-
-```typescript
-// 1. User visits /auth
-// 2. Enters voter ID and secret
-const result = await authenticate(voterId, secret);
-// Internally:
-// - Fetches Merkle proof
-// - Generates ZK proof (snarkjs)
-// - Verifies with backend
-
-// 3. Store credential
-if (result.success) {
-  authStore.setCredential({
-    nullifier: result.nullifier,
-    credential: result.credential,
-    usedVotes: result.used_votes
-  });
-  
-  // 4. Redirect to manifestos
-  goto('/manifestos');
-}
-```
-
-### Complete Voting Flow
-
-```typescript
-// 1. User authenticated (has credential)
-const { nullifier } = $authStore.credential;
-
-// 2. Select manifesto and vote type
-const voteData = {
-  manifesto_id: manifestoId,
-  vote_type: 'kept',
-  nullifier: nullifier,
-  evidence_url: evidenceInput // optional
-};
-
-// 3. Submit vote
-const result = await submitVote(voteData);
-
-// 4. Mark as voted locally
-authStore.markVoted(manifestoId);
-
-// 5. Show success message with vote_hash
-alert(`Vote recorded! Hash: ${result.vote_hash}`);
-```
-
----
-
-For backend API details, see [../backend/README.md](../backend/README.md)
-For blockchain contracts, see [../blockchain/README.md](../blockchain/README.md)

@@ -60,3 +60,6 @@ backend/migrations/__pycache__/
 
 # Local overrides
 docker-compose.override.yml
+#Presentation file
+presentation.txt
+    

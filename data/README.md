@@ -88,7 +88,8 @@ WARDS <- 1:12
 
 **Filename:** `dhulikhel_voter_list_full.csv`
 **Encoding:** UTF-8 (supports Nepali characters)
-**Size:** ~3.5 MB (full dataset), ~150 KB (demo subset)
+**Status:** Demo Subset (1,048 voters) included for Hackathon
+**Size:** ~430 KB
 
 ### Columns
 
