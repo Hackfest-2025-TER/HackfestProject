@@ -180,7 +180,15 @@ CSV_PATH = os.environ.get(
 )
 
 if not os.path.exists(CSV_PATH):
-    local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "dhulikhel_voter_list_full.csv")
+    # Try relative to backend directory
+    backend_dir = os.path.dirname(os.path.dirname(__file__))
+    local_path = os.path.join(backend_dir, "data", "dhulikhel_voter_list_full.csv")
+    
+    # Try relative to project root (one level up from backend)
+    if not os.path.exists(local_path):
+        project_root = os.path.dirname(backend_dir)
+        local_path = os.path.join(project_root, "data", "dhulikhel_voter_list_full.csv")
+    
     if os.path.exists(local_path):
         CSV_PATH = local_path
 
