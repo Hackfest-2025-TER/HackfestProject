@@ -1,5 +1,6 @@
 // API client for PromiseThread backend
-const API_BASE_URL = 'http://localhost:8000/api';
+// Use Vite's import.meta.env for environment variables
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api';
 
 // Helper function to handle fetch errors
 async function fetchWithErrorHandling(url: string, options?: RequestInit) {

@@ -14,8 +14,12 @@ from sqlalchemy.orm import Session
 from database import get_db_context, init_db
 from models import Voter
 
-# CSV file path
-CSV_PATH = Path(__file__).parent.parent / "data" / "dhulikhel_voter_list_full.csv"
+# CSV file path - check both local and Docker paths
+CSV_PATH_LOCAL = Path(__file__).parent.parent / "data" / "dhulikhel_voter_list_full.csv"
+CSV_PATH_DOCKER = Path("/app/data/dhulikhel_voter_list_full.csv")
+
+# Use Docker path if local doesn't exist
+CSV_PATH = CSV_PATH_LOCAL if CSV_PATH_LOCAL.exists() else CSV_PATH_DOCKER
 
 # CSV column mapping (Nepali headers to English)
 COLUMN_MAP = {
