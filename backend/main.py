@@ -180,17 +180,18 @@ def generate_block_hash(data: str, prev_hash: str) -> str:
 @app.get("/api/registry/merkle-root")
 async def get_merkle_root(db: Session = Depends(get_db)):
     """Get the current Merkle root of the voter registry."""
-    # Use the registry from utils/merkle_tree.py
     merkle_root = registry.merkle_tree.root
-    total_voters = len(registry.leaves)
+    total_voters = registry.voter_count
     
     return {
         "merkle_root": merkle_root,
         "total_voters": total_voters,
         "registry_status": "active" if merkle_root else "not_loaded",
+        "shuffle_seed": registry.shuffle_seed[:16] + "..." if registry.shuffle_seed else None,
+        "commitment_scheme": "hash(secret + voterID)",
         "mode": "demo",
-        "demo_secret": DEMO_SECRET,
-        "demo_note": "In production, each voter receives a unique secret from Election Commission"
+        "demo_secret_format": "CITIZENSHIP_<voterID>",
+        "demo_note": "In production, secret = citizenship number. Use /api/zk/demo-secret/{voterID} to look up test secrets."
     }
 
 @app.get("/api/registry/stats")
@@ -292,13 +293,54 @@ async def search_voters(
 @app.get("/api/zk/leaves")
 async def get_anonymity_set():
     """
-    PURIST APPROACH:
-    Returns the entire list of hashed leaves (anonymity set).
-    The client will download this and build the tree locally.
+    PURIST APPROACH with Cryptographic Shuffling:
+    
+    Returns the SHUFFLED commitments (anonymity set).
+    Each leaf = hash(secret + voterID), then shuffled.
+    
+    The client:
+    1. Downloads all leaves
+    2. Computes their commitment: hash(their_secret + their_voterID)
+    3. Finds their commitment in the shuffled array
+    4. Builds Merkle proof from that position
+    
+    Privacy: Even EC doesn't know which position belongs to which voter
+    (mapping deleted after shuffle)
     """
     return {
         "root": registry.merkle_tree.root,
-        "leaves": registry.leaves
+        "leaves": registry.leaves,
+        "total_voters": registry.voter_count,
+        "shuffle_seed": registry.shuffle_seed,  # Published for auditability
+        "commitment_scheme": "hash(secret + voterID)",
+        "note": "Leaves are shuffled - position reveals nothing about voter identity"
+    }
+
+@app.get("/api/zk/demo-secret/{voter_id}")
+async def get_demo_secret(voter_id: str):
+    """
+    DEMO ONLY: Look up the test secret for a voter ID.
+    
+    In production:
+    - This endpoint would NOT exist
+    - Voters would know their citizenship number
+    - EC would have deleted all mappings after tree construction
+    """
+    secret = registry.get_demo_secret(voter_id)
+    if not secret:
+        raise HTTPException(status_code=404, detail="Voter ID not found")
+    
+    # Also compute what their commitment should be
+    commitment = registry.compute_commitment(secret, voter_id)
+    leaf_index = registry.find_leaf_index(commitment)
+    
+    return {
+        "voter_id": voter_id,
+        "demo_secret": secret,
+        "commitment": commitment,
+        "found_in_tree": leaf_index >= 0,
+        "leaf_index": leaf_index if leaf_index >= 0 else None,
+        "warning": "DEMO ONLY - In production, voters must know their citizenship number"
     }
 
 @app.post("/api/zk/login", response_model=ZKProofResponse)

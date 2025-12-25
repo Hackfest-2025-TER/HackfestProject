@@ -71,9 +71,14 @@
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
+
+  // Compute commitment: hash(secret + voterID) - must match EC's computation
+  async function computeCommitment(secret: string, voterId: string): Promise<string> {
+    return await sha256(secret + voterId);
+  }
   
-  // Step 1: Look up voter CLIENT-SIDE ONLY (Privacy-preserving!)
-  // We download all leaves and check locally - voter ID NEVER sent to server
+  // Step 1: Basic voter ID validation (no server call needed)
+  // With commitment scheme, we can't verify voter ID alone - need both ID + secret
   async function lookupAndProceed() {
     error = '';
     
@@ -81,77 +86,44 @@
       error = 'Please enter your Voter ID (मतदाता नं)';
       return;
     }
-    
-    isLoading = true;
-    statusMessage = "Downloading voter registry for local verification...";
-    
-    try {
-      // PRIVACY: Download entire anonymity set, check locally
-      // Voter ID is NEVER sent to server!
-      const response = await fetch('/api/zk/leaves');
-      if (!response.ok) throw new Error("Failed to fetch voter registry");
-      
-      const { leaves, root } = await response.json();
-      
-      statusMessage = "Verifying voter ID locally (your ID stays private)...";
-      
-      // Hash the voter ID locally
-      const voterIdHash = await sha256(voterIdInput.trim());
-      
-      // Check if this hash exists in the leaves
-      const found = leaves.includes(voterIdHash);
-      
-      if (!found) {
-        error = 'Voter ID not found in the registry. Please check your ID and try again.';
-        isLoading = false;
-        return;
-      }
-      
-      // Store for next step (avoid re-downloading)
-      voterLookupData = {
-        found: true,
-        voter_id_hash: voterIdHash,
-        leaves: leaves,
-        root: root,
-        name_masked: '***',  // We don't know the name - that's the point!
-        ward: '?'
-      };
-      
-      currentStep = 'verify';
-    } catch (e) {
-      error = 'Failed to connect to the registry. Please try again.';
-      console.error(e);
+
+    // Basic format validation (voter IDs are numeric)
+    if (!/^\d+$/.test(voterIdInput.trim())) {
+      error = 'Voter ID should contain only numbers';
+      return;
     }
     
-    isLoading = false;
-    statusMessage = "";
+    // With commitment scheme, we proceed to secret entry
+    // The actual verification happens when both ID + secret are provided
+    voterLookupData = {
+      voter_id: voterIdInput.trim()
+    };
+    
+    currentStep = 'verify';
   }
   
-  // Step 2: Generate ZK proof and verify (Purist Approach)
+  // Step 2: Verify commitment and generate credentials (Purist Approach)
+  // With commitment scheme: leaf = hash(secret + voterID)
+  // Only the correct combination works!
   async function generateAndVerify() {
     error = '';
     statusMessage = '';
     
     if (!isValidSecret(secretInput)) {
-      error = 'Please enter a valid secret (Citizenship Number or Password)';
+      error = 'Please enter a valid secret (Citizenship Number)';
       return;
     }
     
     isLoading = true;
     
     try {
-      // Use pre-fetched leaves from Step 1 to avoid downloading again
-      const preFetchedData = voterLookupData?.leaves ? {
-        leaves: voterLookupData.leaves,
-        root: voterLookupData.root
-      } : undefined;
-
-      // Use the Purist ZK Auth flow - voter ID NEVER sent to server
+      // Use the Purist ZK Auth flow with commitment scheme
+      // Voter ID and secret NEVER sent to server - only nullifier
       const result = await authenticateCitizen(
         voterIdInput.trim(), 
         secretInput.trim(),
-        (status) => { statusMessage = status; },
-        preFetchedData
+        (status) => { statusMessage = status; }
+        // No pre-fetched data - the new scheme needs to download fresh
       );
       
       verificationResult = result;
@@ -171,7 +143,7 @@
       
     } catch (e: any) {
       console.error('ZK Verification failed:', e);
-      error = e.message || 'Failed to generate proof. Please try again.';
+      error = e.message || 'Failed to verify credentials. Please check your Voter ID and Citizenship Number.';
     }
     
     isLoading = false;
@@ -345,27 +317,27 @@
           <CheckCircle size={24} />
           <div>
             <strong>Voter ID Verified Locally</strong>
-            <span class="privacy-note">🔒 Your ID was verified client-side - never sent to server</span>
+            <span class="privacy-note">🔒 Your ID stays on your device - never sent to server</span>
           </div>
         </div>
         
         <!-- Secret Input -->
         <div class="form-section">
-          <label class="form-label">Your Secret (तपाईंको गोप्य)</label>
+          <label class="form-label">Your Citizenship Number (नागरिकता नं)</label>
           <div class="input-wrapper">
             <Lock size={18} />
             {#if showSecret}
               <input 
                 type="text"
                 class="form-input" 
-                placeholder="Demo: Enter 1234567890"
+                placeholder="Enter your citizenship number"
                 bind:value={secretInput}
               />
             {:else}
               <input 
                 type="password"
                 class="form-input" 
-                placeholder="Demo: Enter 1234567890"
+                placeholder="Enter your citizenship number"
                 bind:value={secretInput}
               />
             {/if}
@@ -378,9 +350,9 @@
             </button>
           </div>
           <p class="form-hint">
-            <strong>Production:</strong> Your citizenship number (नागरिकता नं) securely delivered by Election Commission.
+            <strong>Production:</strong> Your citizenship number (नागरिकता नं) - only you know this.
             <br />
-            <strong>Demo:</strong> Use <code>1234567890</code> - pre-bound to all voters in demo registry.
+            <strong>Demo:</strong> Use <code>CITIZENSHIP_{voterIdInput}</code> (e.g., CITIZENSHIP_25327456)
           </p>
         </div>
         
@@ -394,8 +366,8 @@
         <div class="info-banner warning">
           <Shield size={18} />
           <div>
-            <strong>Remember Your Secret!</strong>
-            <p>Your secret + Voter ID creates your unique nullifier. Use the SAME secret every time to prevent double voting.</p>
+            <strong>Commitment Scheme: hash(secret + voterID)</strong>
+            <p>Your citizenship number + Voter ID together create your unique commitment. Only the correct combination will be found in the registry.</p>
           </div>
         </div>
         

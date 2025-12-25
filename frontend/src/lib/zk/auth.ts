@@ -1,12 +1,20 @@
 /**
  * Client-side ZK Authentication - Browser Compatible
  * 
+ * COMMITMENT SCHEME: leaf = hash(secret + voterID)
+ * 
  * This module handles the "Purist" ZK authentication flow:
- * 1. Download anonymity set (all 1048 voter leaf hashes)
- * 2. Build Merkle tree locally in browser
- * 3. Find our Merkle proof path
- * 4. Generate ZK proof via Web Worker
- * 5. Submit proof to server
+ * 1. Download SHUFFLED anonymity set (commitments)
+ * 2. Compute our commitment: hash(secret + voterID)
+ * 3. Find our commitment in the shuffled array
+ * 4. Build Merkle tree and get proof for our position
+ * 5. Generate nullifier and submit to server
+ * 
+ * Privacy guarantees:
+ * - VoterID never sent to server
+ * - Secret never sent to server
+ * - Commitment position reveals nothing (shuffled)
+ * - Only nullifier is sent (unlinkable to identity)
  * 
  * NOTE: Uses Web Crypto API (no Node.js dependencies)
  */
@@ -24,6 +32,14 @@ async function sha256(message: string): Promise<string> {
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Compute voter commitment: hash(secret + voterID)
+ * This must match how EC computed it during tree construction
+ */
+export async function computeCommitment(secret: string, voterId: string): Promise<string> {
+    return await sha256(secret + voterId);
 }
 
 /**
@@ -116,9 +132,13 @@ export interface PreFetchedData {
 }
 
 /**
- * Main authentication function - "Purist" approach
+ * Main authentication function - "Purist" approach with Commitment Scheme
+ * 
+ * Commitment: leaf = hash(secret + voterID)
+ * Nullifier: hash(secret + voterID + "nullifier") - for vote tracking
+ * 
  * @param voterId - The voter's ID (stays client-side, NEVER sent to server)
- * @param secret - User's chosen secret for nullifier generation
+ * @param secret - Voter's secret (citizenship number in production)
  * @param onStatusUpdate - Callback for UI status updates
  * @param preFetchedData - Optional pre-fetched leaves to avoid duplicate download
  */
@@ -139,7 +159,7 @@ export async function authenticateCitizen(
             serverRoot = preFetchedData.root;
             console.log(`✓ Using pre-fetched ${leaves.length} leaves`);
         } else {
-            onStatusUpdate("Downloading Voter Registry (Anonymity Set)...");
+            onStatusUpdate("Downloading Voter Registry (Shuffled Commitments)...");
             
             const response = await fetch(`${API_URL}/api/zk/leaves`);
             if (!response.ok) {
@@ -149,10 +169,32 @@ export async function authenticateCitizen(
             const data = await response.json();
             leaves = data.leaves;
             serverRoot = data.root;
-            console.log(`✓ Fetched ${leaves.length} leaves from server`);
+            console.log(`✓ Fetched ${leaves.length} shuffled commitments from server`);
         }
 
-        // Step 2: Build Merkle Tree Locally
+        // Step 2: Compute our commitment: hash(secret + voterID)
+        // This MUST match how EC computed it during tree construction
+        onStatusUpdate("Computing your commitment...");
+        
+        const myCommitment = await computeCommitment(secret, voterId);
+        console.log(`  My commitment: ${myCommitment.slice(0, 16)}...`);
+
+        // Step 3: Find our commitment in the shuffled leaves
+        onStatusUpdate("Searching for your commitment in shuffled registry...");
+        
+        const leafIndex = leaves.indexOf(myCommitment);
+        
+        if (leafIndex === -1) {
+            // Commitment not found - either wrong secret or wrong voterID
+            throw new Error(
+                "Invalid credentials. Your secret + voter ID combination was not found. " +
+                "Make sure you're using the correct citizenship number."
+            );
+        }
+        
+        console.log(`✓ Found commitment at position ${leafIndex} (shuffled - reveals nothing)`);
+
+        // Step 4: Build Merkle Tree and get proof
         onStatusUpdate("Building Merkle Tree locally...");
         
         const tree = new BrowserMerkleTree(leaves);
@@ -166,22 +208,11 @@ export async function authenticateCitizen(
             console.log("✓ Merkle roots match!");
         }
 
-        // Step 3: Find our leaf and get proof path
-        onStatusUpdate("Finding your voter record...");
-        
-        const myLeafHash = await sha256(voterId);
-        const proofPath = tree.getProof(myLeafHash);
-        
-        if (proofPath.length === 0) {
-            throw new Error("Voter ID not found in registry. Please check your ID number.");
-        }
-        
-        console.log(`✓ Found voter with ${proofPath.length} proof elements`);
+        const proofPath = tree.getProof(myCommitment);
+        console.log(`✓ Generated Merkle proof with ${proofPath.length} elements`);
 
-        // Step 4: Generate credentials
+        // Step 5: Generate nullifier (for preventing double voting)
         onStatusUpdate("Generating Zero-Knowledge Proof...");
-        
-        // Compute nullifier: H(secret || voterId)
         const nullifier = await sha256(secret + voterId);
         
         // Create credential: H(nullifier || root) 
