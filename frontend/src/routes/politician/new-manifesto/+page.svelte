@@ -1,19 +1,35 @@
 <script lang="ts">
   import Header from '$lib/components/Header.svelte';
   import Footer from '$lib/components/Footer.svelte';
-  import { Shield, Upload, Plus, Trash2, FileText, Info, Trees, Lightbulb } from 'lucide-svelte';
+  import { Shield, Upload, Plus, Trash2, FileText, Info, Trees, Lightbulb, Key, Lock, AlertTriangle, CheckCircle, Loader } from 'lucide-svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
+  import { onMount } from 'svelte';
+  import { getPoliticianWalletStatus, submitSignedManifesto } from '$lib/api';
+  import { computeSHA256, parseKeystore, signMessage, decryptKeystore, formatAddress } from '$lib/utils/crypto';
   
+  // Form state
   let manifestoTitle = '';
   let executiveSummary = '';
-  let promises: { id: number; title: string; category: string; description: string }[] = [
-    { id: 1, title: 'Reforestation Initiative', category: 'environment', description: 'Plant 1 million trees in urban areas by 2026 to combat heat islands.' },
-    { id: 2, title: 'Digital Literacy Program', category: 'education', description: 'Provide free coding workshops for 50,000 students across the state.' }
-  ];
+  let promises: { id: number; title: string; category: string; description: string }[] = [];
   
   let newPromiseTitle = '';
   let newPromiseCategory = 'economy';
   let newPromiseDescription = '';
+  
+  // Signing state
+  let walletStatus: { has_wallet: boolean; wallet_address?: string; key_version?: number } | null = null;
+  let keystoreFile: File | null = null;
+  let keystoreData: any = null;
+  let passphrase = '';
+  let signingStep: 'check-wallet' | 'upload-keystore' | 'enter-passphrase' | 'signing' | 'complete' = 'check-wallet';
+  let isSubmitting = false;
+  let submitError = '';
+  let submitSuccess = false;
+  let manifestoHash = '';
+  let signature = '';
+  
+  // Politician ID (in production, get from auth context)
+  const politicianId = 1;
   
   const categories = [
     { value: 'economy', label: 'Economy' },
@@ -23,6 +39,21 @@
     { value: 'infrastructure', label: 'Infrastructure' },
     { value: 'technology', label: 'Technology & Governance' }
   ];
+  
+  onMount(async () => {
+    await checkWalletStatus();
+  });
+  
+  async function checkWalletStatus() {
+    try {
+      walletStatus = await getPoliticianWalletStatus(politicianId);
+      if (walletStatus?.has_wallet) {
+        signingStep = 'upload-keystore';
+      }
+    } catch (e) {
+      console.error('Failed to check wallet status:', e);
+    }
+  }
   
   function addPromise() {
     if (newPromiseTitle && newPromiseDescription) {
@@ -41,7 +72,94 @@
     promises = promises.filter(p => p.id !== id);
   }
   
-  const previewHash = '0x7f839a2b...c9d1';
+  async function handleKeystoreUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      keystoreFile = input.files[0];
+      try {
+        const text = await keystoreFile.text();
+        keystoreData = parseKeystore(text);
+        if (keystoreData) {
+          signingStep = 'enter-passphrase';
+        } else {
+          submitError = 'Invalid keystore file format';
+        }
+      } catch (e) {
+        submitError = 'Failed to read keystore file';
+      }
+    }
+  }
+  
+  function buildManifestoContent(): string {
+    // The backend computes hash from description only
+    // So we just return the description for consistency
+    return executiveSummary;
+  }
+  
+  async function handleSubmit(event: Event) {
+    event.preventDefault();
+    
+    if (!manifestoTitle || !executiveSummary) {
+      submitError = 'Please fill in the title and summary';
+      return;
+    }
+    
+    if (!keystoreData || !passphrase) {
+      submitError = 'Please upload your keystore and enter passphrase';
+      return;
+    }
+    
+    submitError = '';
+    isSubmitting = true;
+    signingStep = 'signing';
+    
+    try {
+      // Build content and compute hash
+      const content = buildManifestoContent();
+      const hash = await computeSHA256(content);
+      // Keep full hash with 0x prefix for backend compatibility
+      manifestoHash = hash.startsWith('0x') ? hash : '0x' + hash;
+      
+      // Decrypt keystore and sign
+      const privateKey = await decryptKeystore(keystoreData, passphrase);
+      if (!privateKey) {
+        throw new Error('Failed to decrypt keystore. Check your passphrase.');
+      }
+      
+      // Sign the hash (pass wallet address for simplified verification)
+      const hashForSigning = manifestoHash.startsWith('0x') ? manifestoHash.slice(2) : manifestoHash;
+      signature = await signMessage(hashForSigning, privateKey, walletStatus?.wallet_address);
+      
+      // Submit to backend
+      const result = await submitSignedManifesto({
+        politician_id: politicianId,
+        title: manifestoTitle,
+        description: executiveSummary,  // Backend expects 'description'
+        category: promises[0]?.category || 'general',
+        grace_period_days: 7,
+        manifesto_hash: manifestoHash,  // Send full hash with 0x prefix
+        signature: signature
+      });
+      
+      if (result.id) {
+        submitSuccess = true;
+        signingStep = 'complete';
+      } else {
+        throw new Error(result.error || 'Submission failed');
+      }
+    } catch (e: any) {
+      submitError = e.message || 'Failed to sign and submit manifesto';
+      signingStep = 'enter-passphrase';
+    } finally {
+      isSubmitting = false;
+    }
+  }
+  
+  $: previewHash = manifestoHash 
+    ? (manifestoHash.startsWith('0x') 
+        ? `${manifestoHash.slice(0, 10)}...${manifestoHash.slice(-4)}`
+        : `0x${manifestoHash.slice(0, 8)}...${manifestoHash.slice(-4)}`)
+    : '0x7f839a2b...c9d1';
 </script>
 
 <svelte:head>
@@ -71,7 +189,7 @@
     </div>
     
     <!-- Main Form -->
-    <form class="manifesto-form">
+    <form class="manifesto-form" on:submit={handleSubmit}>
       <!-- Title -->
       <div class="form-section">
         <label class="form-label">Manifesto Title / Campaign Slogan</label>
@@ -182,6 +300,102 @@
         </div>
       </div>
       
+      <!-- Digital Signature Section -->
+      <div class="signing-section">
+        <h2><Key size={20} /> Digital Signature</h2>
+        <p class="section-desc">Your manifesto must be cryptographically signed to prove authorship.</p>
+        
+        {#if !walletStatus?.has_wallet}
+          <div class="signing-step warning">
+            <AlertTriangle size={24} />
+            <div>
+              <strong>No Wallet Found</strong>
+              <p>You need to generate a cryptographic wallet before you can sign manifestos.</p>
+              <a href="/politician/wallet" class="btn btn-primary btn-sm">
+                <Key size={16} />
+                Generate Wallet
+              </a>
+            </div>
+          </div>
+        {:else if signingStep === 'upload-keystore'}
+          <div class="signing-step">
+            <div class="step-header">
+              <span class="step-number">1</span>
+              <strong>Upload Your Keystore File</strong>
+            </div>
+            <p>Load the encrypted keystore file you downloaded when creating your wallet.</p>
+            <div class="wallet-info">
+              <span class="label">Expected Address:</span>
+              <code>{formatAddress(walletStatus.wallet_address || '')}</code>
+            </div>
+            <label class="keystore-upload">
+              <input type="file" accept=".json" on:change={handleKeystoreUpload} />
+              <Upload size={20} />
+              <span>{keystoreFile ? keystoreFile.name : 'Click to upload keystore.json'}</span>
+            </label>
+          </div>
+        {:else if signingStep === 'enter-passphrase'}
+          <div class="signing-step">
+            <div class="step-header">
+              <span class="step-number">2</span>
+              <strong>Enter Your Passphrase</strong>
+            </div>
+            <p>Enter the passphrase you used when creating your wallet to unlock signing.</p>
+            <div class="passphrase-input">
+              <Lock size={18} />
+              <input 
+                type="password" 
+                placeholder="Enter your passphrase"
+                bind:value={passphrase}
+              />
+            </div>
+            <div class="keystore-loaded">
+              <CheckCircle size={16} />
+              <span>Keystore loaded: {keystoreFile?.name}</span>
+              <button type="button" class="change-btn" on:click={() => { keystoreFile = null; keystoreData = null; signingStep = 'upload-keystore'; }}>
+                Change
+              </button>
+            </div>
+          </div>
+        {:else if signingStep === 'signing'}
+          <div class="signing-step signing">
+            <Loader size={24} class="spinner" />
+            <div>
+              <strong>Signing Manifesto...</strong>
+              <p>Please wait while your manifesto is being signed.</p>
+            </div>
+          </div>
+        {:else if signingStep === 'complete'}
+          <div class="signing-step success">
+            <CheckCircle size={24} />
+            <div>
+              <strong>Manifesto Signed & Submitted!</strong>
+              <p>Your manifesto has been cryptographically signed and recorded.</p>
+              <div class="signature-details">
+                <div class="detail">
+                  <span class="label">Content Hash:</span>
+                  <code>0x{manifestoHash.slice(0, 16)}...</code>
+                </div>
+                <div class="detail">
+                  <span class="label">Signature:</span>
+                  <code>{signature.slice(0, 20)}...</code>
+                </div>
+              </div>
+              <a href="/politician/dashboard" class="btn btn-primary btn-sm">
+                View in Dashboard
+              </a>
+            </div>
+          </div>
+        {/if}
+        
+        {#if submitError}
+          <div class="error-message">
+            <AlertTriangle size={16} />
+            {submitError}
+          </div>
+        {/if}
+      </div>
+      
       <!-- Footer Actions -->
       <div class="form-footer">
         <div class="hash-preview">
@@ -191,9 +405,18 @@
         
         <div class="action-buttons">
           <button type="button" class="btn btn-secondary btn-lg">Save Draft</button>
-          <button type="submit" class="btn btn-success btn-lg">
-            <Upload size={18} />
-            Publish Manifesto
+          <button 
+            type="submit" 
+            class="btn btn-success btn-lg"
+            disabled={isSubmitting || !walletStatus?.has_wallet || !passphrase || submitSuccess}
+          >
+            {#if isSubmitting}
+              <Loader size={18} class="spinner" />
+              Signing...
+            {:else}
+              <Upload size={18} />
+              Sign & Publish
+            {/if}
           </button>
         </div>
       </div>
@@ -584,5 +807,245 @@
   .action-buttons {
     display: flex;
     gap: var(--space-3);
+  }
+  
+  /* Signing Section */
+  .signing-section {
+    background: white;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+  }
+  
+  .signing-section h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 1.25rem;
+    margin-bottom: var(--space-2);
+  }
+  
+  .signing-section .section-desc {
+    margin-bottom: var(--space-4);
+  }
+  
+  .signing-step {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+    align-items: flex-start;
+  }
+  
+  .signing-step.warning {
+    background: var(--warning-50);
+    border: 1px solid var(--warning-200);
+  }
+  
+  .signing-step.warning :global(svg) {
+    color: var(--warning-600);
+    flex-shrink: 0;
+  }
+  
+  .signing-step.success {
+    background: var(--success-50);
+    border: 1px solid var(--success-200);
+  }
+  
+  .signing-step.success :global(svg) {
+    color: var(--success-600);
+    flex-shrink: 0;
+  }
+  
+  .signing-step.signing {
+    align-items: center;
+  }
+  
+  .signing-step strong {
+    display: block;
+    margin-bottom: var(--space-1);
+  }
+  
+  .signing-step p {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+    margin-bottom: var(--space-3);
+  }
+  
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+  
+  .step-number {
+    width: 24px;
+    height: 24px;
+    background: var(--primary-500);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  
+  .wallet-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    font-size: 0.85rem;
+  }
+  
+  .wallet-info .label {
+    color: var(--gray-500);
+  }
+  
+  .wallet-info code {
+    background: var(--gray-100);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+  }
+  
+  .keystore-upload {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    background: white;
+    border: 2px dashed var(--gray-300);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .keystore-upload:hover {
+    border-color: var(--primary-400);
+    background: var(--primary-50);
+  }
+  
+  .keystore-upload input {
+    display: none;
+  }
+  
+  .keystore-upload :global(svg) {
+    color: var(--gray-400);
+  }
+  
+  .keystore-upload span {
+    color: var(--gray-600);
+  }
+  
+  .passphrase-input {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: white;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-3);
+  }
+  
+  .passphrase-input :global(svg) {
+    color: var(--gray-400);
+  }
+  
+  .passphrase-input input {
+    flex: 1;
+    border: none;
+    font-size: 0.9rem;
+    outline: none;
+  }
+  
+  .keystore-loaded {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.85rem;
+    color: var(--success-600);
+  }
+  
+  .keystore-loaded :global(svg) {
+    color: var(--success-500);
+  }
+  
+  .change-btn {
+    margin-left: auto;
+    padding: var(--space-1) var(--space-2);
+    background: transparent;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: var(--gray-600);
+  }
+  
+  .change-btn:hover {
+    background: var(--gray-100);
+  }
+  
+  .signature-details {
+    background: white;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    margin: var(--space-3) 0;
+  }
+  
+  .signature-details .detail {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.8rem;
+    margin-bottom: var(--space-2);
+  }
+  
+  .signature-details .detail:last-child {
+    margin-bottom: 0;
+  }
+  
+  .signature-details .label {
+    color: var(--gray-500);
+  }
+  
+  .signature-details code {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+  
+  .error-message {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    background: var(--error-50);
+    border: 1px solid var(--error-200);
+    border-radius: var(--radius-md);
+    color: var(--error-700);
+    font-size: 0.875rem;
+  }
+  
+  .error-message :global(svg) {
+    flex-shrink: 0;
+  }
+  
+  .spinner {
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  .btn-sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.875rem;
   }
 </style>

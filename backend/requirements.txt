@@ -14,3 +14,7 @@ alembic==1.14.0
 
 # Utilities
 python-dotenv==1.0.1
+
+# Blockchain/Cryptography
+eth-account==0.13.0
+web3==7.5.0

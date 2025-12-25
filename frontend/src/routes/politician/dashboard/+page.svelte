@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Shield, FileText, Users, Settings, BarChart3, LogOut, CheckCircle, TrendingUp, Vote, Eye } from 'lucide-svelte';
+  import { Shield, FileText, Users, Settings, BarChart3, LogOut, CheckCircle, TrendingUp, Vote, Eye, Key } from 'lucide-svelte';
   import HashDisplay from '$lib/components/HashDisplay.svelte';
   import ManifestoCard from '$lib/components/ManifestoCard.svelte';
   
@@ -73,6 +73,10 @@
       <a href="/politician/manifestos" class="nav-item" class:active={activeNav === 'manifestos'}>
         <FileText size={18} />
         Manifestos
+      </a>
+      <a href="/politician/wallet" class="nav-item" class:active={activeNav === 'wallet'}>
+        <Key size={18} />
+        Wallet & Keys
       </a>
       <a href="/politician/voters" class="nav-item" class:active={activeNav === 'voters'}>
         <Users size={18} />

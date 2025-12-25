@@ -6,29 +6,35 @@ async function main() {
   // Get deployer account
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
-  console.log("Account balance:", (await deployer.provider.getBalance(deployer.address)).toString());
+  console.log("Account balance:", (await deployer.getBalance()).toString());
 
   // Deploy ZKVerifier
   console.log("\n1. Deploying ZKVerifier...");
   const ZKVerifier = await hre.ethers.getContractFactory("ZKVerifier");
   const zkVerifier = await ZKVerifier.deploy();
-  await zkVerifier.waitForDeployment();
-  const zkVerifierAddress = await zkVerifier.getAddress();
-  console.log("   ZKVerifier deployed to:", zkVerifierAddress);
+  await zkVerifier.deployed();
+  console.log("   ZKVerifier deployed to:", zkVerifier.address);
 
-  // Deploy PromiseRegistry
-  console.log("\n2. Deploying PromiseRegistry...");
+  // Deploy ManifestoRegistry (NEW - clean manifesto contract)
+  console.log("\n2. Deploying ManifestoRegistry...");
+  const ManifestoRegistry = await hre.ethers.getContractFactory("ManifestoRegistry");
+  const manifestoRegistry = await ManifestoRegistry.deploy();
+  await manifestoRegistry.deployed();
+  console.log("   ManifestoRegistry deployed to:", manifestoRegistry.address);
+
+  // Deploy PromiseRegistry (legacy - for voting)
+  console.log("\n3. Deploying PromiseRegistry (voting)...");
   const PromiseRegistry = await hre.ethers.getContractFactory("PromiseRegistry");
   const promiseRegistry = await PromiseRegistry.deploy();
-  await promiseRegistry.waitForDeployment();
-  const promiseRegistryAddress = await promiseRegistry.getAddress();
-  console.log("   PromiseRegistry deployed to:", promiseRegistryAddress);
+  await promiseRegistry.deployed();
+  console.log("   PromiseRegistry deployed to:", promiseRegistry.address);
 
   console.log("\n========================================");
   console.log("Deployment Complete!");
   console.log("========================================");
-  console.log("ZKVerifier:", zkVerifierAddress);
-  console.log("PromiseRegistry:", promiseRegistryAddress);
+  console.log("ZKVerifier:", zkVerifier.address);
+  console.log("ManifestoRegistry:", manifestoRegistry.address);
+  console.log("PromiseRegistry:", promiseRegistry.address);
   console.log("========================================\n");
 
   // Write deployment addresses to file
@@ -37,8 +43,9 @@ async function main() {
     network: hre.network.name,
     timestamp: new Date().toISOString(),
     contracts: {
-      ZKVerifier: zkVerifierAddress,
-      PromiseRegistry: promiseRegistryAddress
+      ZKVerifier: zkVerifier.address,
+      ManifestoRegistry: manifestoRegistry.address,
+      PromiseRegistry: promiseRegistry.address
     }
   };
   
@@ -57,7 +64,7 @@ async function main() {
     
     try {
       await hre.run("verify:verify", {
-        address: zkVerifierAddress,
+        address: zkVerifier.address,
         constructorArguments: []
       });
       console.log("ZKVerifier verified!");
@@ -67,7 +74,7 @@ async function main() {
     
     try {
       await hre.run("verify:verify", {
-        address: promiseRegistryAddress,
+        address: promiseRegistry.address,
         constructorArguments: []
       });
       console.log("PromiseRegistry verified!");

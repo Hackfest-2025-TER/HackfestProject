@@ -21,15 +21,13 @@ async function fetchWithErrorHandling(url: string, options?: RequestInit) {
 // Manifestos
 export async function getManifestos(filters?: {
   status?: string;
-  politician?: string;
+  politician_id?: number;
   category?: string;
-  search?: string;
 }) {
   const params = new URLSearchParams();
   if (filters?.status) params.append('status', filters.status);
-  if (filters?.politician) params.append('politician', filters.politician);
+  if (filters?.politician_id) params.append('politician_id', filters.politician_id.toString());
   if (filters?.category) params.append('category', filters.category);
-  if (filters?.search) params.append('search', filters.search);
 
   const url = `${API_BASE_URL}/manifestos?${params.toString()}`;
   return fetchWithErrorHandling(url);
@@ -83,20 +81,24 @@ export async function verifyZKProof(proof: {
 
 // Voter lookup
 export async function lookupVoter(voterId: string) {
-  const response = await fetch(`${API_BASE_URL}/voters/lookup/${voterId}`);
+  const response = await fetch(`${API_BASE_URL}/registry/lookup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voter_id: voterId }),
+  });
   if (!response.ok) throw new Error('Voter not found');
   return response.json();
 }
 
 export async function searchVoters(query: string) {
-  const response = await fetch(`${API_BASE_URL}/voters/search?q=${encodeURIComponent(query)}`);
+  const response = await fetch(`${API_BASE_URL}/registry/search?q=${encodeURIComponent(query)}`);
   if (!response.ok) throw new Error('Failed to search voters');
   return response.json();
 }
 
 // Comments
 export async function getComments(manifestoId: string) {
-  const response = await fetch(`${API_BASE_URL}/comments?manifesto_id=${manifestoId}`);
+  const response = await fetch(`${API_BASE_URL}/manifestos/${manifestoId}/comments`);
   if (!response.ok) throw new Error('Failed to fetch comments');
   return response.json();
 }
@@ -117,10 +119,10 @@ export async function addComment(data: {
 }
 
 export async function upvoteComment(commentId: string, nullifier: string) {
-  const response = await fetch(`${API_BASE_URL}/comments/${commentId}/upvote`, {
+  const response = await fetch(`${API_BASE_URL}/comments/${commentId}/vote`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nullifier }),
+    body: JSON.stringify({ nullifier, vote_type: 'up' }),
   });
   if (!response.ok) throw new Error('Failed to upvote comment');
   return response.json();
@@ -155,5 +157,84 @@ export async function getPoliticians() {
 export async function getPolitician(id: string) {
   const response = await fetch(`${API_BASE_URL}/politicians/${id}`);
   if (!response.ok) throw new Error('Failed to fetch politician');
+  return response.json();
+}
+
+// ============= Digital Signature APIs =============
+
+export async function generatePoliticianWallet(politicianId: number, passphrase: string) {
+  const response = await fetch(`${API_BASE_URL}/politicians/${politicianId}/generate-wallet`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passphrase }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to generate wallet');
+  }
+  return response.json();
+}
+
+export async function getPoliticianWalletStatus(politicianId: number) {
+  const response = await fetch(`${API_BASE_URL}/politicians/${politicianId}/wallet-status`);
+  if (!response.ok) throw new Error('Failed to fetch wallet status');
+  return response.json();
+}
+
+export async function rotateKey(politicianId: number, reason: string, newPassphrase: string, adminToken: string) {
+  const response = await fetch(`${API_BASE_URL}/politicians/${politicianId}/rotate-key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      politician_id: politicianId,
+      reason,
+      new_passphrase: newPassphrase,
+      admin_token: adminToken,
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to rotate key');
+  }
+  return response.json();
+}
+
+export async function submitSignedManifesto(data: {
+  title: string;
+  description: string;
+  category: string;
+  politician_id: number;
+  grace_period_days?: number;
+  manifesto_hash: string;
+  signature: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/manifestos/submit-signed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...data,
+      grace_period_days: data.grace_period_days || 7,
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to submit manifesto');
+  }
+  return response.json();
+}
+
+export async function verifyManifesto(manifestoId: number) {
+  const response = await fetch(`${API_BASE_URL}/manifestos/${manifestoId}/verify`);
+  if (!response.ok) throw new Error('Failed to verify manifesto');
+  return response.json();
+}
+
+export async function verifyManifestoText(manifestoId: number, manifestoText: string) {
+  const response = await fetch(`${API_BASE_URL}/manifestos/verify-text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ manifesto_id: manifestoId, manifesto_text: manifestoText }),
+  });
+  if (!response.ok) throw new Error('Failed to verify manifesto text');
   return response.json();
 }

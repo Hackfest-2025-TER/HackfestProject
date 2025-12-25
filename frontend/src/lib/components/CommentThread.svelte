@@ -21,7 +21,7 @@
   
   async function loadComments() {
     try {
-      const response = await fetch(`http://localhost:8000/api/comments/${manifestoId}`);
+      const response = await fetch(`http://localhost:8000/api/manifestos/${manifestoId}/comments`);
       if (response.ok) {
         comments = await response.json();
       }
