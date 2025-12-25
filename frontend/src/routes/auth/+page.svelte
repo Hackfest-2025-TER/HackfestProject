@@ -2,13 +2,15 @@
   import { Shield, User, Lock, Search, CheckCircle, AlertCircle, ChevronRight, Fingerprint, Eye, EyeOff, Info, Loader2 } from 'lucide-svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores';
-  import { lookupVoter, verifyZKProof, getMerkleRoot, searchVoters } from '$lib/api';
-  import { generateZKProof, generateNullifier, isValidVoterId, isValidSecret, formatNullifier } from '$lib/utils/zkProof';
+  import { lookupVoter, getMerkleRoot, searchVoters } from '$lib/api';
+  import { isValidSecret } from '$lib/utils/zkProof';
+  import { authenticateCitizen } from '$lib/zk/auth';
   
   // UI State
   let currentStep: 'search' | 'verify' | 'success' = 'search';
   let isLoading = false;
   let error = '';
+  let statusMessage = ''; // New status message for ZK steps
   
   // Form State
   let voterIdInput = '';
@@ -20,7 +22,6 @@
   
   // ZK State
   let voterLookupData: any = null;
-  let generatedProof: any = null;
   let verificationResult: any = null;
   let merkleRoot = '';
   
@@ -62,8 +63,17 @@
   function handleVoterIdInput() {
     selectedVoter = null;
   }
+
+  // Browser-compatible SHA256
+  async function sha256(message: string): Promise<string> {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
   
-  // Step 1: Look up voter and get Merkle proof
+  // Step 1: Look up voter CLIENT-SIDE ONLY (Privacy-preserving!)
+  // We download all leaves and check locally - voter ID NEVER sent to server
   async function lookupAndProceed() {
     error = '';
     
@@ -73,17 +83,40 @@
     }
     
     isLoading = true;
+    statusMessage = "Downloading voter registry for local verification...";
     
     try {
-      const result = await lookupVoter(voterIdInput.trim());
+      // PRIVACY: Download entire anonymity set, check locally
+      // Voter ID is NEVER sent to server!
+      const response = await fetch('/api/zk/leaves');
+      if (!response.ok) throw new Error("Failed to fetch voter registry");
       
-      if (!result.found) {
+      const { leaves, root } = await response.json();
+      
+      statusMessage = "Verifying voter ID locally (your ID stays private)...";
+      
+      // Hash the voter ID locally
+      const voterIdHash = await sha256(voterIdInput.trim());
+      
+      // Check if this hash exists in the leaves
+      const found = leaves.includes(voterIdHash);
+      
+      if (!found) {
         error = 'Voter ID not found in the registry. Please check your ID and try again.';
         isLoading = false;
         return;
       }
       
-      voterLookupData = result;
+      // Store for next step (avoid re-downloading)
+      voterLookupData = {
+        found: true,
+        voter_id_hash: voterIdHash,
+        leaves: leaves,
+        root: root,
+        name_masked: '***',  // We don't know the name - that's the point!
+        ward: '?'
+      };
+      
       currentStep = 'verify';
     } catch (e) {
       error = 'Failed to connect to the registry. Please try again.';
@@ -91,62 +124,54 @@
     }
     
     isLoading = false;
+    statusMessage = "";
   }
   
-  // Step 2: Generate ZK proof and verify
+  // Step 2: Generate ZK proof and verify (Purist Approach)
   async function generateAndVerify() {
     error = '';
+    statusMessage = '';
     
     if (!isValidSecret(secretInput)) {
-      error = 'Your secret must be at least 6 characters. This could be your citizenship number or any secret only you know.';
+      error = 'Please enter a valid secret (Citizenship Number or Password)';
       return;
     }
     
     isLoading = true;
-    authStore.setLoading(true);
     
     try {
-      // Generate ZK proof client-side
-      const proof = await generateZKProof(
-        voterIdInput.trim(),
-        secretInput,
-        voterLookupData.merkle_proof
+      // Use pre-fetched leaves from Step 1 to avoid downloading again
+      const preFetchedData = voterLookupData?.leaves ? {
+        leaves: voterLookupData.leaves,
+        root: voterLookupData.root
+      } : undefined;
+
+      // Use the Purist ZK Auth flow - voter ID NEVER sent to server
+      const result = await authenticateCitizen(
+        voterIdInput.trim(), 
+        secretInput.trim(),
+        (status) => { statusMessage = status; },
+        preFetchedData
       );
-      
-      generatedProof = proof;
-      
-      // Send proof to backend for verification (voter ID is NOT sent)
-      const result = await verifyZKProof({
-        voter_id_hash: proof.voter_id_hash,
-        nullifier: proof.nullifier,
-        merkle_proof: proof.merkle_proof,
-        commitment: proof.commitment
-      });
-      
-      if (!result.valid) {
-        error = result.message || 'Proof verification failed. Please try again.';
-        authStore.setError(error);
-        isLoading = false;
-        return;
-      }
       
       verificationResult = result;
       
-      // Store credential in auth store
-      authStore.setCredential({
-        nullifier: result.nullifier!,
-        nullifierShort: result.nullifier_short || formatNullifier(result.nullifier!),
-        credential: result.credential!,
-        createdAt: new Date().toISOString(),
-        usedVotes: [],
-        verified: true
-      });
+      if (result.success) {
+        // Update auth store
+        authStore.login(result.credential!, result.nullifier!);
+        currentStep = 'success';
+        
+        // Redirect after delay
+        setTimeout(() => {
+          goto('/manifestos');
+        }, 2000);
+      } else {
+        error = result.message || 'Verification failed';
+      }
       
-      currentStep = 'success';
-    } catch (e) {
-      error = 'Verification failed. Please check your connection and try again.';
-      console.error(e);
-      authStore.setError(error);
+    } catch (e: any) {
+      console.error('ZK Verification failed:', e);
+      error = e.message || 'Failed to generate proof. Please try again.';
     }
     
     isLoading = false;
@@ -300,7 +325,7 @@
         <button class="submit-btn" on:click={lookupAndProceed} disabled={isLoading || !voterIdInput.trim()}>
           {#if isLoading}
             <Loader2 size={18} class="spinner" />
-            Looking up...
+            {statusMessage || 'Looking up...'}
           {:else}
             Continue
             <ChevronRight size={18} />
@@ -319,8 +344,8 @@
         <div class="voter-found-card">
           <CheckCircle size={24} />
           <div>
-            <strong>Voter Found in Registry</strong>
-            <span>Name: {voterLookupData.name_masked} • Ward: {voterLookupData.ward}</span>
+            <strong>Voter ID Verified Locally</strong>
+            <span class="privacy-note">🔒 Your ID was verified client-side - never sent to server</span>
           </div>
         </div>
         
@@ -381,7 +406,7 @@
           <button class="submit-btn" on:click={generateAndVerify} disabled={isLoading || !secretInput}>
             {#if isLoading}
               <Loader2 size={18} class="spinner" />
-              Verifying...
+              {statusMessage || 'Verifying...'}
             {:else}
               <Fingerprint size={18} />
               Verify Identity
