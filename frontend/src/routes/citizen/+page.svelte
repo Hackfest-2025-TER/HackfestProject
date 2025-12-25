@@ -216,6 +216,10 @@
           <MessageCircle size={24} />
           <span>Share Opinion</span>
         </a>
+        <a href={isAuth ? "/citizen/votes" : "/auth"} class="action-card">
+          <CheckCircle size={24} />
+          <span>My Votes</span>
+        </a>
         <a href="/audit-trail" class="action-card">
           <Activity size={24} />
           <span>View Audit Trail</span>

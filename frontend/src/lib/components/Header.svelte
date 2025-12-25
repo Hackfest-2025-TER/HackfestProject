@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Shield, Vote, Users, FileText, Activity, Settings, Menu, X } from 'lucide-svelte';
+  import { Shield, Vote, Users, FileText, Activity, Settings, Menu, X, HelpCircle } from 'lucide-svelte';
   
   export let variant: string = 'default';
   
@@ -11,6 +11,7 @@
     { href: '/politicians', label: 'Politicians', icon: Users },
     { href: '/citizen', label: 'Citizen Portal', icon: Vote },
     { href: '/audit-trail', label: 'Audit Trail', icon: Activity },
+    { href: '/guide', label: 'Guide', icon: HelpCircle },
   ];
 </script>
 

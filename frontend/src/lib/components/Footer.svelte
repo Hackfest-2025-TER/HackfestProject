@@ -32,6 +32,7 @@
           <li><a href="/manifestos" class="text-slate-300 hover:text-emerald-400 transition-colors">View Promises</a></li>
           <li><a href="/politicians" class="text-slate-300 hover:text-emerald-400 transition-colors">Politicians</a></li>
           <li><a href="/auth" class="text-slate-300 hover:text-emerald-400 transition-colors">Verify as Citizen</a></li>
+          <li><a href="/verify" class="text-slate-300 hover:text-emerald-400 transition-colors">Verify Promises</a></li>
         </ul>
       </div>
       
@@ -39,9 +40,10 @@
       <div>
         <h3 class="text-white font-semibold mb-4">Help</h3>
         <ul class="space-y-2">
+          <li><a href="/guide" class="text-slate-300 hover:text-emerald-400 transition-colors">How It Works</a></li>
+          <li><a href="/faq" class="text-slate-300 hover:text-emerald-400 transition-colors">FAQ</a></li>
+          <li><a href="/about" class="text-slate-300 hover:text-emerald-400 transition-colors">About Us</a></li>
           <li><a href="/feedback" class="text-slate-300 hover:text-emerald-400 transition-colors">Give Feedback</a></li>
-          <li><a href="/privacy" class="text-slate-300 hover:text-emerald-400 transition-colors">How We Protect Your Privacy</a></li>
-          <li><a href="/guide" class="text-slate-300 hover:text-emerald-400 transition-colors">Citizen Guide</a></li>
         </ul>
       </div>
     </div>
