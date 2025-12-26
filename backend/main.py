@@ -2065,7 +2065,13 @@ async def submit_signed_manifesto(
     
     # 2. Verify hash is correct
     expected_hash = compute_manifesto_hash(request.description)
-    if request.manifesto_hash != expected_hash:
+    
+    # Normalize hashes for comparison (handle 0x prefix and case differences)
+    # The frontend (ethers.js) sends 0x prefix, backend might differ slightly depending on lib version
+    norm_expected = expected_hash.lower().replace("0x", "")
+    norm_received = request.manifesto_hash.lower().replace("0x", "")
+    
+    if norm_expected != norm_received:
         raise HTTPException(
             status_code=400,
             detail=f"Hash mismatch. Expected {expected_hash[:20]}..., got {request.manifesto_hash[:20]}..."

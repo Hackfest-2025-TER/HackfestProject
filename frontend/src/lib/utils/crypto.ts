@@ -120,25 +120,28 @@ export function downloadKeystore(keystore: Keystore, filename: string): void {
  * @param signerAddress - Optional: The actual wallet address (for simplified verification)
  */
 export async function signMessage(message: string, privateKey: string, signerAddress?: string): Promise<string> {
-  // In production with ethers.js:
-  // import { ethers } from 'ethers';
-  // const wallet = new ethers.Wallet(privateKey);
-  // return await wallet.signMessage(ethers.getBytes(await computeKeccak256(message)));
+  // Try to use ethers.js for proper Ethereum signing
+  try {
+    const { ethers } = await import('ethers');
+    const wallet = new ethers.Wallet(privateKey);
+    // message is expected to be the hash string (hex)
+    // We must convert it to bytes so ethers signs the data, not the string characters
+    const messageBytes = ethers.utils.arrayify(message.startsWith('0x') ? message : '0x' + message);
+    return await wallet.signMessage(messageBytes);
+  } catch (e) {
+    console.warn("Ethers signing failed, using simulated fallback (may fail backend verification):", e);
+    // Fallback: Simplified signing for MVP (creates a signature-like format)
+    const messageHash = await computeSHA256(message);
+    const keyHash = await computeSHA256(privateKey);
+    const combinedHash = await computeSHA256(messageHash + keyHash);
 
-  // Simplified signing for MVP (creates a signature-like format)
-  // The backend will verify using the same simplified method
-  const messageHash = await computeSHA256(message);
-  const keyHash = await computeSHA256(privateKey);
-  const combinedHash = await computeSHA256(messageHash + keyHash);
+    // Use provided signer address if available, otherwise derive from key hash
+    const addressPart = signerAddress
+      ? signerAddress.toLowerCase()
+      : '0x' + keyHash.slice(2, 42);
 
-  // Use provided signer address if available, otherwise derive from key hash
-  const addressPart = signerAddress
-    ? signerAddress.toLowerCase()
-    : '0x' + keyHash.slice(2, 42);
-
-  // Create signature in format: address|signature_data
-  // This allows the backend to verify by matching the address
-  return `${addressPart}|${combinedHash.slice(2)}`;
+    return `${addressPart}|${combinedHash.slice(2)}`;
+  }
 }
 
 /**
@@ -167,7 +170,8 @@ export async function decryptKeystore(keystore: Keystore, passphrase: string): P
     try {
       const decoded = atob(ciphertext);
       const parts = decoded.split(':');
-      if (parts.length >= 2 && parts[1] === passphrase) {
+      // Check for match (trimming whitespace just in case)
+      if (parts.length >= 2 && parts[1].trim() === passphrase.trim()) {
         return parts[0]; // Return private key
       }
     } catch {

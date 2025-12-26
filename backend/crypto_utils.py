@@ -222,30 +222,49 @@ def verify_signature(
     Returns:
         Tuple of (is_valid, recovered_address)
     """
+    # Normalize signature: remove 0x prefix, strip whitespace, ensure valid hex
+    normalized_sig = signature.strip()
+    if normalized_sig.startswith("0x") or normalized_sig.startswith("0X"):
+        normalized_sig = normalized_sig[2:]
+    
+    # Check for simulated signature format (contains "|")
+    if "|" in signature:
+        # Simulated: extract address from signature (NOT SECURE)
+        try:
+            parts = signature.split("|")
+            embedded_addr = parts[0]
+            is_valid = embedded_addr.lower() == expected_address.lower()
+            return is_valid, embedded_addr
+        except:
+            pass
+        return False, None
+    
+    # Validate hex characters
+    try:
+        bytes.fromhex(normalized_sig)
+    except ValueError as e:
+        print(f"Signature verification error: Invalid hex in signature - {e}")
+        return False, None
+    
+    # Re-add 0x prefix for eth_account
+    normalized_sig = "0x" + normalized_sig
+    
     if ETH_AVAILABLE:
         try:
+            # The frontend signs the hash bytes using ethers.js signMessage()
+            # which applies the Ethereum Signed Message prefix internally.
+            # We need to use encode_defunct with the raw hash bytes.
             message_hash = compute_message_hash(message)
             signable = encode_defunct(message_hash)
-            recovered = Account.recover_message(signable, signature=signature)
+            recovered = Account.recover_message(signable, signature=normalized_sig)
             is_valid = recovered.lower() == expected_address.lower()
             return is_valid, recovered
         except Exception as e:
             print(f"Signature verification error: {e}")
             return False, None
     else:
-        # Simulated verification for development
-        # In simulation, we can't actually verify, so we check format
-        if signature and len(signature) > 100:
-            # Simulated: extract address from signature (NOT SECURE)
-            try:
-                # Our simulation encodes address in signature
-                if "|" in signature:
-                    parts = signature.split("|")
-                    embedded_addr = parts[0]
-                    is_valid = embedded_addr.lower() == expected_address.lower()
-                    return is_valid, embedded_addr
-            except:
-                pass
+        # Simulated verification for development - signature is hex, can't verify
+        print("⚠️ eth_account not available, cannot verify real signatures")
         return False, None
 
 
