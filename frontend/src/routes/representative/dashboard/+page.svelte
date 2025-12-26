@@ -277,7 +277,7 @@
         signature: signature,
       });
 
-      if (result.id) {
+      if (result.manifesto_id || result.success) {
         promiseSubmitSuccess = true;
         // Reset form and reload data
         newPromiseTitle = "";
@@ -717,58 +717,6 @@
         </div>
       {/if}
 
-      <!-- Comments Section -->
-      {#if manifesto}
-        <div class="comments-section">
-          <div class="comments-header">
-            <div class="comments-title">
-              <h3>Citizen Comments</h3>
-              <span class="comment-count">{comments.length}</span>
-            </div>
-            <div class="comments-controls">
-              <div class="search-box">
-                <input type="text" placeholder="Search comments..." />
-              </div>
-              <button class="sort-btn"> ≡ Newest First </button>
-            </div>
-          </div>
-
-          <div class="comments-list">
-            {#if comments.length > 0}
-              {#each comments as comment}
-                <div class="comment-item">
-                  <div class="comment-avatar">
-                    <Users size={20} />
-                  </div>
-                  <div class="comment-content">
-                    <div class="comment-header">
-                      <span class="author">Verified Citizen</span>
-                      <span class="citizen-id"
-                        >{comment.nullifier || "Anonymous"}</span
-                      >
-                      <span class="date"
-                        >{comment.created_at
-                          ? new Date(comment.created_at).toLocaleString()
-                          : "N/A"}</span
-                      >
-                    </div>
-                    <p class="comment-text">{comment.content}</p>
-                    <div class="comment-stats">
-                      <span class="upvotes">👍 {comment.upvotes || 0}</span>
-                      <span class="downvotes">👎 {comment.downvotes || 0}</span>
-                    </div>
-                  </div>
-                  <button class="copy-btn" title="Copy">
-                    <Copy size={14} />
-                  </button>
-                </div>
-              {/each}
-            {:else}
-              <div class="empty-comments">No comments yet</div>
-            {/if}
-          </div>
-        </div>
-      {/if}
     </main>
   </div>
 

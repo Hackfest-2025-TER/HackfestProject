@@ -152,7 +152,7 @@
         signature: signature
       });
       
-      if (result.id) {
+      if (result.manifesto_id || result.success) {
         submitSuccess = true;
         signingStep = 'complete';
       } else {
