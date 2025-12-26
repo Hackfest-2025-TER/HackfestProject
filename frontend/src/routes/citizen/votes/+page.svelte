@@ -108,7 +108,7 @@
 </script>
 
 <svelte:head>
-  <title>My Votes - PromiseThread</title>
+  <title>My Votes - WaachaPatra</title>
 </svelte:head>
 
 <main class="page-wrapper">

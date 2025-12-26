@@ -16,10 +16,10 @@
 </script>
 
 <svelte:head>
-  <title>About - PromiseThread</title>
+  <title>About - WaachaPatra</title>
   <meta
     name="description"
-    content="Learn about PromiseThread's mission to create transparent political accountability while protecting citizen privacy."
+    content="Learn about WaachaPatra's mission to create transparent political accountability while protecting citizen privacy."
   />
 </svelte:head>
 
@@ -33,7 +33,7 @@
         <Shield class="w-10 h-10 text-white" />
       </div>
       <h1 class="text-4xl md:text-5xl font-bold font-serif text-white mb-6">
-        About PromiseThread
+        About WaachaPatra
       </h1>
       <p class="text-xl text-white/90 max-w-2xl mx-auto">
         A platform bringing transparency to political promises while protecting
@@ -63,7 +63,7 @@
           </p>
           <p>
             <strong class="text-gray-900"
-              >PromiseThread exists to solve this problem.</strong
+              >WaachaPatra exists to solve this problem.</strong
             >
             We create a permanent record of political promises that no one can alter
             after the fact. We enable citizens to evaluate these promises anonymously,
@@ -236,7 +236,7 @@
           </h2>
         </div>
         <p class="text-gray-600">
-          PromiseThread is a hackathon project demonstrating how technology can
+          WaachaPatra is a hackathon project demonstrating how technology can
           enhance democratic accountability.
         </p>
       </div>

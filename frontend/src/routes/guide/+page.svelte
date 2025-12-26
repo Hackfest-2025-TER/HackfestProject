@@ -65,10 +65,10 @@
 </script>
 
 <svelte:head>
-  <title>How It Works - PromiseThread</title>
+  <title>How It Works - WaachaPatra</title>
   <meta
     name="description"
-    content="Learn how PromiseThread uses blockchain and zero-knowledge proofs to create transparent political accountability while protecting citizen privacy."
+    content="Learn how WaachaPatra uses blockchain and zero-knowledge proofs to create transparent political accountability while protecting citizen privacy."
   />
 </svelte:head>
 
@@ -91,7 +91,7 @@
           <span class="text-white text-sm font-medium">Educational Guide</span>
         </div>
         <h1 class="text-4xl md:text-5xl font-bold font-serif text-white mb-6">
-          How PromiseThread Works
+          How WaachaPatra Works
         </h1>
         <p class="text-xl text-white/90 max-w-3xl mx-auto">
           A transparent platform where promises are permanent, votes are
@@ -159,8 +159,8 @@
           </h3>
           <div class="space-y-4 text-gray-700">
             <p>
-              Representatives make promises during elections. After winning, these
-              promises often get
+              Representatives make promises during elections. After winning,
+              these promises often get
               <span class="text-amber-600 font-medium">changed</span>,
               <span class="text-amber-600 font-medium">forgotten</span>, or
               <span class="text-amber-600 font-medium">denied</span>. Citizens
@@ -617,8 +617,8 @@
             Grace Periods: Fair Evaluation
           </h3>
           <p class="text-slate-300 mb-4">
-            We don't let voting open immediately. Representatives need time to work
-            on their promises.
+            We don't let voting open immediately. Representatives need time to
+            work on their promises.
           </p>
 
           <div class="bg-slate-900/50 rounded-xl p-4 border border-slate-600">
@@ -800,8 +800,8 @@
                 <h4 class="text-amber-600 font-medium">Security Note</h4>
                 <p class="text-slate-300 text-sm">
                   The private key NEVER touches our servers. Signing happens
-                  entirely in the representative's browser. Even if our database is
-                  compromised, no one can forge signatures.
+                  entirely in the representative's browser. Even if our database
+                  is compromised, no one can forge signatures.
                 </p>
               </div>
             </div>
@@ -875,11 +875,11 @@
 
           <div class="mt-6">
             <a
-              href="/verify"
+              href="/audit-trail"
               class="inline-flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-3 rounded-lg transition-colors"
             >
               <Shield class="w-5 h-5" />
-              Go to Verification Tool
+              Go to Audit Trail
             </a>
           </div>
         </div>

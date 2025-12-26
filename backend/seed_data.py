@@ -10,72 +10,67 @@ import re
 from sqlalchemy.orm import Session
 
 from database import get_db_context, init_db
-from models import Representative, Manifesto, AuditLog
-
-
-def generate_promise_hash(title: str, description: str, representative_id: int) -> str:
-    """Generate a hash for a promise (simulating blockchain hash)."""
-    data = f"{title}:{description}:{representative_id}".encode('utf-8')
-    return '0x' + hashlib.sha256(data).hexdigest()
-
+from models import Representative, Manifesto, AuditLog, ManifestoVote, Comment, CommentVote
+# Import crypto utils
+from crypto_utils import generate_key_pair, create_signature, compute_manifesto_hash
 
 def generate_slug(name: str) -> str:
     """Generate URL-friendly slug from representative name."""
-    # Remove special characters, lowercase, replace spaces with hyphens
     slug = name.lower()
     slug = re.sub(r'[^\w\s-]', '', slug)
     slug = re.sub(r'[-\s]+', '-', slug)
     return slug.strip('-')
-
 
 def generate_block_hash(data: str, prev_hash: str) -> str:
     """Generate a block hash for audit trail."""
     combined = f"{data}:{prev_hash}".encode('utf-8')
     return '0x' + hashlib.sha256(combined).hexdigest()
 
+def generate_fake_tx_hash() -> str:
+    """Generate a fake blockchain transaction hash."""
+    return '0x' + hashlib.sha256(datetime.utcnow().isoformat().encode()).hexdigest()
 
 # =============================================================================
-# SAMPLE REPRESENTATIVES DATA
+# SAMPLE REPRESENTATIVES DATA (Generic Names)
 # =============================================================================
 
 REPRESENTATIVES = [
     {
-        "name": "कृष्ण प्रसाद सिटौला",
-        "party": "नेपाली कांग्रेस",
-        "position": "पूर्व प्रधानमन्त्री",
-        "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Krishna_Prasad_Sitaula.jpg/220px-Krishna_Prasad_Sitaula.jpg",
-        "bio": "नेपाली कांग्रेसका वरिष्ठ नेता र पूर्व गृहमन्त्री"
+        "name": "Ram Bahadur Thapa",
+        "party": "Democratic Party",
+        "position": "Senior Leader",
+        "image_url": "https://randomuser.me/api/portraits/men/1.jpg",
+        "bio": "A dedicated public servant with 20 years of experience in local governance."
     },
     {
-        "name": "पुष्प कमल दाहाल",
-        "party": "नेकपा माओवादी केन्द्र",
-        "position": "प्रधानमन्त्री",
-        "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Pushpa_Kamal_Dahal.jpg/220px-Pushpa_Kamal_Dahal.jpg",
-        "bio": "नेपाल कम्युनिस्ट पार्टी (माओवादी केन्द्र) का अध्यक्ष"
+        "name": "Priya Patel",
+        "party": "Progressive Alliance",
+        "position": "Representative",
+        "image_url": "https://randomuser.me/api/portraits/women/2.jpg",
+        "bio": "Advocate for education reform and digital literacy in rural communities."
     },
     {
-        "name": "केपी शर्मा ओली",
-        "party": "नेकपा एमाले",
-        "position": "पूर्व प्रधानमन्त्री",
-        "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/Khadga_Prasad_Sharma_Oli.jpg/220px-Khadga_Prasad_Sharma_Oli.jpg",
-        "bio": "नेपाल कम्युनिस्ट पार्टी (एकीकृत मार्क्सवादी–लेनिनवादी) का अध्यक्ष"
+        "name": "Amit Verma",
+        "party": "National Development Party",
+        "position": "General Secretary",
+        "image_url": "https://randomuser.me/api/portraits/men/3.jpg",
+        "bio": "Economist turned politician, focused on sustainable infrastructure development."
     },
     {
-        "name": "शेर बहादुर देउवा",
-        "party": "नेपाली कांग्रेस",
-        "position": "पूर्व प्रधानमन्त्री",
-        "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Sher_Bahadur_Deuba.jpg/220px-Sher_Bahadur_Deuba.jpg",
-        "bio": "नेपाली कांग्रेसका सभापति"
+        "name": "Sita Devi Sharma",
+        "party": "Social Justice Party",
+        "position": "Chairperson",
+        "image_url": "https://randomuser.me/api/portraits/women/4.jpg",
+        "bio": "Champion of women's rights and healthcare access for all citizens."
     },
     {
-        "name": "राजेन्द्र लिङ्देन",
-        "party": "राष्ट्रिय प्रजातन्त्र पार्टी",
-        "position": "सांसद",
-        "image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Rajendra_Lingden.jpg/220px-Rajendra_Lingden.jpg",
-        "bio": "राष्ट्रिय प्रजातन्त्र पार्टीका अध्यक्ष"
+        "name": "Hari Krishna Shrestha",
+        "party": "Unified People's Party",
+        "position": "Spokesperson",
+        "image_url": "https://randomuser.me/api/portraits/men/5.jpg",
+        "bio": "Former journalist committed to transparency and anti-corruption measures."
     }
 ]
-
 
 # =============================================================================
 # SAMPLE MANIFESTOS DATA
@@ -86,177 +81,164 @@ def get_manifestos_data() -> list:
     now = datetime.utcnow()
     
     return [
-        # =====================================================================
-        # PENDING - Grace period NOT ended (cannot vote yet)
-        # =====================================================================
+        # PENDING - Future
         {
-            "representative_id": 1,
-            "title": "धुलिखेल-काभ्रे सडक विस्तार",
-            "description": "धुलिखेलदेखि काभ्रेसम्मको सडकलाई चार लेन बनाउने। यो परियोजनाले यातायात सुधार गर्नेछ र आर्थिक विकासमा योगदान पुर्याउनेछ।",
+            "representative_index": 0, # Ram Bahadur Thapa
+            "title": "Road Expansion Project",
+            "description": "Expand the main highway connecting rural districts to the capital to 4 lanes. This project aims to reduce travel time by 50% and boost local trade.",
             "category": "infrastructure",
             "status": "pending",
-            "grace_period_end": now + timedelta(days=180),  # 6 months from now
+            "grace_period_end": now + timedelta(days=180),
             "vote_kept": 0,
             "vote_broken": 0
         },
         {
-            "representative_id": 2,
-            "title": "प्रत्येक गाउँमा स्वास्थ्य चौकी",
-            "description": "हरेक गाउँमा कम्तीमा एक स्वास्थ्य चौकी स्थापना गर्ने र आधारभूत स्वास्थ्य सेवा सुनिश्चित गर्ने।",
-            "category": "healthcare",
+            "representative_index": 1, # Priya Patel
+            "title": "Digital Classrooms Initiative",
+            "description": "Equip 500 government schools with smart classrooms and high-speed internet effectively bridging the digital divide.",
+            "category": "education",
             "status": "pending",
-            "grace_period_end": now + timedelta(days=365),  # 1 year from now
+            "grace_period_end": now + timedelta(days=365),
             "vote_kept": 0,
             "vote_broken": 0
         },
         {
-            "representative_id": 3,
-            "title": "युवा रोजगारी कार्यक्रम",
-            "description": "५ वर्षभित्र ५ लाख युवालाई रोजगारी दिने कार्यक्रम। सीप विकास र उद्यमशीलता प्रवर्द्धनमा जोड दिइनेछ।",
-            "category": "economy",
+            "representative_index": 2, # Amit Verma
+            "title": "Green Energy Subsidy",
+            "description": "Provide 50% subsidy on solar panel installation for 10,000 households to promote renewable energy usage.",
+            "category": "environment",
             "status": "pending",
-            "grace_period_end": now + timedelta(days=90),  # 3 months from now
+            "grace_period_end": now + timedelta(days=90),
             "vote_kept": 0,
             "vote_broken": 0
         },
         
-        # =====================================================================
-        # PENDING - Grace period ENDED (can vote now)
-        # =====================================================================
+        # PENDING - Voting Open
         {
-            "representative_id": 4,
-            "title": "सबै विद्यालयमा इन्टरनेट",
-            "description": "देशका सबै सरकारी विद्यालयहरूमा निःशुल्क इन्टरनेट सेवा उपलब्ध गराउने।",
-            "category": "education",
+            "representative_index": 3, # Sita Devi Sharma
+            "title": "Community Health Centers",
+            "description": "Establish fully staffed 24/7 health centers in every ward of the constituency.",
+            "category": "healthcare",
             "status": "pending",
-            "grace_period_end": now - timedelta(days=30),  # 1 month ago (voting open)
+            "grace_period_end": now - timedelta(days=30),
             "vote_kept": 245,
             "vote_broken": 89
         },
         {
-            "representative_id": 5,
-            "title": "किसान ऋण माफी",
-            "description": "साना किसानहरूको १ लाखसम्मको ऋण माफी गर्ने।",
-            "category": "agriculture",
+            "representative_index": 4, # Hari Krishna Shrestha
+            "title": "Zero Tolerance on Bribery",
+            "description": "Implement a fully digital tracking system for all government services to eliminate bribery.",
+            "category": "governance",
             "status": "pending",
-            "grace_period_end": now - timedelta(days=60),  # 2 months ago (voting open)
+            "grace_period_end": now - timedelta(days=60),
             "vote_kept": 567,
             "vote_broken": 234
         },
+        
+        # KEPT
         {
-            "representative_id": 1,
-            "title": "भ्रष्टाचार नियन्त्रण",
-            "description": "भ्रष्टाचार विरुद्ध कडा कानून बनाउने र दोषीलाई कठोर सजाय दिने।",
-            "category": "governance",
-            "status": "pending",
-            "grace_period_end": now - timedelta(days=120),  # 4 months ago (voting open)
-            "vote_kept": 1234,
-            "vote_broken": 890
+            "representative_index": 1, # Priya Patel
+            "title": "Girls Scholarship Program",
+            "description": "Provided full scholarships to 1,000 underprivileged girls for higher secondary education.",
+            "category": "education",
+            "status": "kept",
+            "grace_period_end": now - timedelta(days=400),
+            "vote_kept": 2500,
+            "vote_broken": 150
         },
         
-        # =====================================================================
-        # KEPT - Promise fulfilled
-        # =====================================================================
+        # BROKEN
         {
-            "representative_id": 2,
-            "title": "नयाँ संविधान जारी",
-            "description": "नेपालको नयाँ संविधान जारी गर्ने - २०७२ सालमा पूरा भयो।",
-            "category": "governance",
-            "status": "kept",
-            "grace_period_end": now - timedelta(days=365 * 3),  # 3 years ago
-            "vote_kept": 5678,
-            "vote_broken": 1234
-        },
-        {
-            "representative_id": 3,
-            "title": "लोकतान्त्रिक गणतन्त्र घोषणा",
-            "description": "नेपाललाई संघीय लोकतान्त्रिक गणतन्त्र घोषणा गर्ने।",
-            "category": "governance",
-            "status": "kept",
-            "grace_period_end": now - timedelta(days=365 * 5),  # 5 years ago
-            "vote_kept": 8901,
-            "vote_broken": 2345
-        },
-        
-        # =====================================================================
-        # BROKEN - Promise not fulfilled
-        # =====================================================================
-        {
-            "representative_id": 4,
-            "title": "५ वर्षमा समृद्ध नेपाल",
-            "description": "५ वर्षभित्र नेपाललाई समृद्ध देश बनाउने - पूरा भएन।",
-            "category": "economy",
+            "representative_index": 2, # Amit Verma
+            "title": "Free Public Wi-Fi",
+            "description": "Promise to provide free Wi-Fi in all public parks was not fulfilled due to budget constraints.",
+            "category": "infrastructure",
             "status": "broken",
-            "grace_period_end": now - timedelta(days=365 * 2),  # 2 years ago
-            "vote_kept": 890,
-            "vote_broken": 4567
-        },
-        {
-            "representative_id": 5,
-            "title": "बेरोजगारी शून्य",
-            "description": "३ वर्षभित्र बेरोजगारी शून्य गर्ने - असफल।",
-            "category": "economy",
-            "status": "broken",
-            "grace_period_end": now - timedelta(days=365 * 4),  # 4 years ago
-            "vote_kept": 456,
-            "vote_broken": 7890
+            "grace_period_end": now - timedelta(days=500),
+            "vote_kept": 400,
+            "vote_broken": 3200
         }
     ]
-
 
 # =============================================================================
 # SEED FUNCTIONS
 # =============================================================================
 
-def seed_representatives(db: Session) -> list[Representative]:
-    """Seed representatives into database."""
+def seed_representatives(db: Session) -> list[dict]:
+    """
+    Seed representatives and generate key pairs.
+    Returns list of dicts with model and private_key.
+    """
     print("\n📥 Seeding representatives...")
     
-    representatives = []
-    for data in REPRESENTATIVES:
-        # Generate slug from name
-        data_with_slug = data.copy()
-        data_with_slug['slug'] = generate_slug(data['name'])
-        
-        representative = Representative(**data_with_slug)
-        db.add(representative)
-        representatives.append(representative)
+    reps_with_keys = []
     
-    db.flush()  # Get IDs
-    print(f"  ✓ Created {len(representatives)} representatives")
-    return representatives
+    for data in REPRESENTATIVES:
+        # Generate crypto keys
+        private_key, public_key, address = generate_key_pair()
+        
+        data_model = data.copy()
+        data_model['slug'] = generate_slug(data['name'])
+        data_model['wallet_address'] = address
+        data_model['public_key'] = public_key
+        data_model['is_verified'] = True
+        
+        representative = Representative(**data_model)
+        db.add(representative)
+        db.flush() # get ID
+        
+        reps_with_keys.append({
+            "model": representative,
+            "private_key": private_key
+        })
+    
+    print(f"  ✓ Created {len(reps_with_keys)} representatives with wallets")
+    return reps_with_keys
 
-
-def seed_manifestos(db: Session, representatives: list[Representative]) -> list[Manifesto]:
-    """Seed manifestos into database."""
+def seed_manifestos(db: Session, reps_with_keys: list[dict]) -> list[Manifesto]:
+    """Seed manifestos and sign them."""
     print("\n📥 Seeding manifestos...")
     
-    # Create mapping of old IDs (1-5) to actual representative IDs
-    representative_id_map = {i + 1: representative.id for i, representative in enumerate(representatives)}
-    
     manifestos = []
+    
     for data in get_manifestos_data():
-        # Map the hardcoded representative_id to the actual one
-        original_id = data["representative_id"]
-        data["representative_id"] = representative_id_map[original_id]
+        # Get representative and keys
+        rep_idx = data.pop("representative_index")
+        rep_info = reps_with_keys[rep_idx]
+        rep_model = rep_info["model"]
+        private_key = rep_info["private_key"]
         
+        # Create base manifesto
         manifesto = Manifesto(**data)
-        # Generate promise hash
-        manifesto.promise_hash = generate_promise_hash(
-            manifesto.title,
-            manifesto.description,
-            manifesto.representative_id
-        )
+        manifesto.representative_id = rep_model.id
+        
+        # Generate promise hash (hash of details)
+        # Using simple concatenation for checking, but robust applications might use structured data
+        manifesto_text = f"{manifesto.title}:{manifesto.description}:{manifesto.representative_id}"
+        manifesto.promise_hash = compute_manifesto_hash(manifesto_text)
+        
+        # Sign the promise hash
+        # We sign the hash effectively saying "I authorize this content hash"
+        signature = create_signature(manifesto.promise_hash, private_key)
+        
+        manifesto.signature = signature
+        manifesto.signer_address = rep_model.wallet_address
+        manifesto.signed_at = datetime.utcnow()
+        
+        # Fake Blockchain confirmation
+        manifesto.blockchain_tx = generate_fake_tx_hash()
+        manifesto.blockchain_block = 12345 + len(manifestos)
+        manifesto.blockchain_confirmed = True
+        
         db.add(manifesto)
         manifestos.append(manifesto)
     
     db.flush()
-    print(f"  ✓ Created {len(manifestos)} manifestos")
+    print(f"  ✓ Created {len(manifestos)} signed manifestos")
     return manifestos
 
-
 def seed_audit_logs(db: Session, manifestos: list[Manifesto]):
-    """Create initial audit logs (genesis block + promise blocks)."""
+    """Create audit logs with full verification data."""
     print("\n📥 Seeding audit trail...")
     
     # Genesis block
@@ -272,66 +254,73 @@ def seed_audit_logs(db: Session, manifestos: list[Manifesto]):
     
     prev_hash = genesis.block_hash
     
-    # Create blocks for each manifesto
     for manifesto in manifestos:
+        # Full data dump matching API enhanced structure
         block_data = {
             "manifesto_id": manifesto.id,
             "title": manifesto.title,
+            "description": manifesto.description,
             "representative_id": manifesto.representative_id,
             "promise_hash": manifesto.promise_hash,
-            "action": "PROMISE_CREATED",
+            "status": manifesto.status,
+            
+            # Verification Data
+            "signature": manifesto.signature,
+            "signer_address": manifesto.signer_address,
+            "signature_verified": True,
+            
+            "blockchain_tx": manifesto.blockchain_tx,
+            "blockchain_block": manifesto.blockchain_block,
+            "blockchain_confirmed": True,
+            
             "timestamp": manifesto.created_at.isoformat() if manifesto.created_at else datetime.utcnow().isoformat()
         }
         
+        # Action type
+        action_type = "PROMISE_CREATED"
+        if manifesto.signature:
+            action_type = "SIGNED_MANIFESTO_CREATED"
+            
         audit = AuditLog(
             manifesto_id=manifesto.id,
-            action="PROMISE_CREATED",
-            block_hash=generate_block_hash(str(block_data), prev_hash),
+            action=action_type,
+            block_hash=generate_block_hash(str(manifesto.id), prev_hash),
             prev_hash=prev_hash,
             data=block_data
         )
         db.add(audit)
         db.flush()
         prev_hash = audit.block_hash
-    
-    print(f"  ✓ Created {len(manifestos) + 1} audit log entries (including genesis)")
-
+        
+    print(f"  ✓ Created {len(manifestos) + 1} audit logs")
 
 def clear_seed_data(db: Session):
     """Clear all seeded data."""
+    # Delete in correct order to handle Foreign Keys
     db.query(AuditLog).delete()
+    db.query(CommentVote).delete()
+    db.query(Comment).delete()
+    db.query(ManifestoVote).delete()
     db.query(Manifesto).delete()
     db.query(Representative).delete()
     db.commit()
     print("  ✓ Cleared existing seed data")
 
-
 def main():
     """Main entry point for seeding."""
     print("=" * 60)
-    print("  SEED DATA")
+    print("  SEED DATA (REAL CRYPTO)")
     print("=" * 60)
     
     init_db()
     
     with get_db_context() as db:
-        # Check existing data
-        existing_representatives = db.query(Representative).count()
-        existing_manifestos = db.query(Manifesto).count()
+        # Always clear old data to ensure consistent crypto linkage
+        clear_seed_data(db)
         
-        if existing_representatives > 0 or existing_manifestos > 0:
-            print(f"\n⚠️  Found existing data:")
-            print(f"   Representatives: {existing_representatives}")
-            print(f"   Manifestos:      {existing_manifestos}")
-            response = input("  Clear and reseed? (y/N): ").strip().lower()
-            if response != 'y':
-                print("  Aborted.")
-                return
-            clear_seed_data(db)
-        
-        # Seed data
-        representatives = seed_representatives(db)
-        manifestos = seed_manifestos(db, representatives)
+        # Seed new data
+        reps_info = seed_representatives(db)
+        manifestos = seed_manifestos(db, reps_info)
         seed_audit_logs(db, manifestos)
         
         db.commit()
@@ -339,11 +328,9 @@ def main():
         print("\n" + "=" * 60)
         print("  SEEDING COMPLETE")
         print("=" * 60)
-        print(f"  Representatives: {len(representatives)}")
+        print(f"  Representatives: {len(reps_info)}")
         print(f"  Manifestos:      {len(manifestos)}")
-        print(f"  Audit logs:      {len(manifestos) + 1}")
         print("=" * 60)
-
 
 if __name__ == "__main__":
     main()

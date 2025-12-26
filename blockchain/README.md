@@ -1,10 +1,10 @@
-# PromiseThread Blockchain
+# WaachaPatra Blockchain
 
 **Smart contracts and ZK circuits for on-chain vote aggregation, politician accountability, and anonymous verification.**
 
 ## System Architecture
 
-The PromiseThread architecture separates concerns between the Blockchain (public ledger), the Off-chain Database (storage), and the ZK Proof System (privacy).
+The WaachaPatra architecture separates concerns between the Blockchain (public ledger), the Off-chain Database (storage), and the ZK Proof System (privacy).
 
 **Note on ZK & Blockchain Distinction:**
 Zero-Knowledge (ZK) proofs are generated **client-side** (in the user's browser) and verified off-chain or on-chain. The ZK circuits themselves are **not** stored on the blockchain. The blockchain only acts as a verifier (or settler) that accepts a valid proof to prevent double-voting.

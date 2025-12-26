@@ -352,7 +352,9 @@ def get_verification_bundle(
     computed_hash = compute_manifesto_hash(manifesto_text)
     hash_matches = computed_hash == stored_hash
     
-    sig_valid, recovered_addr = verify_signature(manifesto_text, signature, signer_address)
+    # IMPORTANT: Verify signature against the stored_hash (what was actually signed)
+    # The representative signs the HASH, not the raw text
+    sig_valid, recovered_addr = verify_signature(stored_hash, signature, signer_address)
     
     return {
         "verification_results": {

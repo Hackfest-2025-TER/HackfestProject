@@ -1,17 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import ProgressRing from "$lib/components/ProgressRing.svelte";
   import {
     Shield,
-    Award,
-    FileText,
-    Calendar,
-    ExternalLink,
     CheckCircle,
     XCircle,
     Clock,
     ChevronRight,
-    Share2,
+    MapPin,
+    Calendar,
+    Award,
+    Hash,
   } from "lucide-svelte";
   import { page } from "$app/stores";
 
@@ -31,629 +29,329 @@
         pending: representative.manifestos.filter(
           (m: any) => m.status === "pending",
         ).length,
+        total: representative.manifestos.length,
       }
-    : { kept: 0, broken: 0, pending: 0 };
+    : { kept: 0, broken: 0, pending: 0, total: 0 };
 
   onMount(async () => {
     try {
-      const response = await fetch(`/api/representatives/${id}`);
+      const response = await fetch(
+        `http://localhost:8000/api/representatives/${id}`,
+      );
       if (!response.ok) throw new Error("Representative not found");
-      const data = await response.json();
-      representative = data;
-      loading = false;
+      representative = await response.json();
     } catch (err: any) {
       error = err.message || "Failed to load representative data";
+    } finally {
       loading = false;
     }
   });
 
-  function getStatusBadge(status: string) {
-    switch (status) {
-      case "kept":
-        return { icon: CheckCircle, class: "success", label: "Kept" };
-      case "broken":
-        return { icon: XCircle, class: "error", label: "Broken" };
-      default:
-        return { icon: Clock, class: "warning", label: "Pending" };
-    }
-  }
-
   function formatDate(dateStr: string) {
     if (!dateStr) return "N/A";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
+    return new Date(dateStr).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
+      day: "numeric",
     });
   }
 
-  function handleImageError(event: Event) {
-    const img = event.target as HTMLImageElement;
-    img.style.display = "none";
+  function getStatusColor(status: string) {
+    switch (status) {
+      case "kept":
+        return "text-green-600 bg-green-50 border-green-200";
+      case "broken":
+        return "text-red-600 bg-red-50 border-red-200";
+      default:
+        return "text-yellow-600 bg-yellow-50 border-yellow-200";
+    }
   }
 </script>
 
 <svelte:head>
-  <title>{representative?.name || "Loading..."} - PromiseThread</title>
+  <title>{representative?.name || "Profile"} - WaachaPatra</title>
 </svelte:head>
 
-{#if loading}
-  <main class="representative-profile">
-    <div class="container">
-      <div class="loading-state">Loading representative profile...</div>
-    </div>
-  </main>
-{:else if error}
-  <main class="representative-profile">
-    <div class="container">
-      <div class="error-state">
-        <h2>Representative Not Found</h2>
+<main class="profile-page">
+  <div class="container mx-auto px-4 py-8 max-w-5xl">
+    <!-- Breadcrumb -->
+    <nav class="mb-6 text-sm text-gray-500">
+      <a href="/representatives" class="hover:text-primary-600"
+        >Representatives</a
+      >
+      <span class="mx-2">/</span>
+      <span class="text-gray-900 font-medium"
+        >{representative?.name || "Loading..."}</span
+      >
+    </nav>
+
+    {#if loading}
+      <div class="py-20 text-center text-gray-500">Loading profile...</div>
+    {:else if error}
+      <div
+        class="bg-red-50 text-red-700 p-6 rounded-lg text-center border border-red-200"
+      >
+        <h2 class="text-xl font-bold mb-2">Error Loading Profile</h2>
         <p>{error}</p>
-        <a href="/representatives" class="btn-secondary"
-          >← Back to Representatives</a
+        <a
+          href="/representatives"
+          class="inline-block mt-4 text-sm font-semibold hover:underline"
+          >Return to list</a
         >
       </div>
-    </div>
-  </main>
-{:else if representative}
-  <main class="representative-profile">
-    <div class="container">
-      <!-- Back Navigation -->
-      <a href="/representatives" class="back-link">
-        ← Back to Representatives
-      </a>
+    {:else}
+      <!-- Header Section -->
+      <header
+        class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-8"
+      >
+        <!-- Cover / Top Banner (Optional Gradient) -->
+        <div
+          class="h-32 bg-gradient-to-r from-blue-700 to-indigo-800 relative"
+        ></div>
 
-      <!-- Profile Header -->
-      <div class="profile-header card">
-        <div class="profile-top">
-          <div class="profile-avatar-section">
-            {#if representative.image_url}
-              <img
-                src={representative.image_url}
-                alt={representative.name}
-                class="avatar-img"
-                on:error={handleImageError}
-              />
-            {/if}
-            <div
-              class="avatar"
-              style={representative.image_url ? "display: none;" : ""}
-            >
-              {representative.name
-                .split(" ")
-                .map((n) => n[0])
-                .join("")}
-            </div>
-          </div>
-
-          <div class="profile-info">
-            <div class="name-row">
-              <h1>{representative.name}</h1>
+        <div class="px-8 pb-8 relative">
+          <div class="flex flex-col md:flex-row gap-6 items-end -mt-10">
+            <!-- Avatar -->
+            <div class="relative">
+              {#if representative.image_url}
+                <img
+                  src={representative.image_url}
+                  alt={representative.name}
+                  class="w-32 h-32 rounded-full border-4 border-white shadow-md object-cover bg-gray-100"
+                />
+              {:else}
+                <div
+                  class="w-32 h-32 rounded-full border-4 border-white shadow-md bg-gray-200 flex items-center justify-center text-4xl font-bold text-gray-400"
+                >
+                  {representative.name[0]}
+                </div>
+              {/if}
               {#if representative.verified}
-                <span class="verified-badge">
-                  <Shield size={16} />
-                  Verified
-                </span>
+                <div
+                  class="absolute bottom-2 right-2 bg-blue-600 text-white p-1.5 rounded-full border-2 border-white shadow-sm"
+                  title="Verified Representative"
+                >
+                  <Shield size={16} fill="currentColor" />
+                </div>
               {/if}
             </div>
-            <p class="title">{representative.title}</p>
-            <p class="party">{representative.party}</p>
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0 pb-1">
+              <div class="flex items-center gap-3 mb-1">
+                <h1 class="text-3xl font-bold text-gray-900 truncate">
+                  {representative.name}
+                </h1>
+                {#if representative.party}
+                  <span
+                    class="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 text-xs font-semibold border border-gray-200 mt-1"
+                  >
+                    {representative.party}
+                  </span>
+                {/if}
+              </div>
+              <div class="flex flex-wrap gap-4 text-sm text-gray-700 mt-2">
+                <div class="flex items-center gap-1.5">
+                  <Award size={16} class="text-gray-500" />
+                  <span>{representative.title || "Representative"}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <MapPin size={16} class="text-gray-500" />
+                  <span
+                    >{representative.constituency || "Unknown District"}</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <!-- Integrity Score (Prominent) -->
+            <div
+              class="flex flex-col items-end md:border-l md:border-gray-100 md:pl-8"
+            >
+              <div
+                class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1"
+              >
+                Integrity Score
+              </div>
+              <div class="flex items-baseline gap-1.5">
+                <span
+                  class="text-5xl font-black {representative.integrity_score >=
+                  80
+                    ? 'text-green-600'
+                    : representative.integrity_score >= 50
+                      ? 'text-yellow-600'
+                      : 'text-red-600'}"
+                >
+                  {representative.integrity_score}
+                </span>
+                <span class="text-gray-400 font-medium">/100</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Stats Summary - Integrated into header -->
-        <div class="stats-row">
-          <div class="stat-item">
-            <div class="stat-icon success">
-              <CheckCircle size={18} />
-            </div>
-            <div class="stat-info">
-              <span class="stat-value">{stats.kept}</span>
-              <span class="stat-label">Kept</span>
-            </div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-icon error">
-              <XCircle size={18} />
-            </div>
-            <div class="stat-info">
-              <span class="stat-value">{stats.broken}</span>
-              <span class="stat-label">Broken</span>
-            </div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-icon warning">
-              <Clock size={18} />
-            </div>
-            <div class="stat-info">
-              <span class="stat-value">{stats.pending}</span>
-              <span class="stat-label">Pending</span>
-            </div>
-          </div>
-          <div class="stat-item score-item">
-            <div class="integrity-display">
-              <div class="integrity-number">
-                {representative.integrity_score}%
+        <!-- Stats Bar -->
+        <div
+          class="border-t border-gray-100 bg-gray-50/50 px-8 py-4 grid grid-cols-1 md:grid-cols-3 gap-4"
+        >
+          <div
+            class="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 shadow-sm"
+          >
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-green-50 text-green-600 rounded-md">
+                <CheckCircle size={20} />
               </div>
-              <div class="integrity-label">Integrity</div>
+              <div>
+                <p class="text-xs text-gray-500 font-medium uppercase">
+                  Kept Promises
+                </p>
+                <p class="text-lg font-bold text-gray-900">{stats.kept}</p>
+              </div>
             </div>
+            <div class="h-10 w-px bg-gray-100 mx-2"></div>
+            <span
+              class="text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded"
+            >
+              {stats.total ? Math.round((stats.kept / stats.total) * 100) : 0}%
+            </span>
+          </div>
+
+          <div
+            class="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 shadow-sm"
+          >
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-red-50 text-red-600 rounded-md">
+                <XCircle size={20} />
+              </div>
+              <div>
+                <p class="text-xs text-gray-500 font-medium uppercase">
+                  Broken Promises
+                </p>
+                <p class="text-lg font-bold text-gray-900">{stats.broken}</p>
+              </div>
+            </div>
+            <div class="h-10 w-px bg-gray-100 mx-2"></div>
+            <span
+              class="text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded"
+            >
+              {stats.total
+                ? Math.round((stats.broken / stats.total) * 100)
+                : 0}%
+            </span>
+          </div>
+
+          <div
+            class="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 shadow-sm"
+          >
+            <div class="flex items-center gap-3">
+              <div class="p-2 bg-yellow-50 text-yellow-600 rounded-md">
+                <Clock size={20} />
+              </div>
+              <div>
+                <p class="text-xs text-gray-500 font-medium uppercase">
+                  In Progress
+                </p>
+                <p class="text-lg font-bold text-gray-900">{stats.pending}</p>
+              </div>
+            </div>
+            <div class="h-10 w-px bg-gray-100 mx-2"></div>
+            <span
+              class="text-xs font-semibold text-yellow-600 bg-yellow-50 px-2 py-1 rounded"
+            >
+              {stats.total
+                ? Math.round((stats.pending / stats.total) * 100)
+                : 0}%
+            </span>
           </div>
         </div>
-      </div>
+      </header>
 
       <!-- Manifestos List -->
-      <div class="manifestos-section">
-        <div class="section-header">
-          <h2>Promise Records</h2>
-          <span class="count-badge"
-            >{representative.manifestos.length} total</span
-          >
+      <section>
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+            Promise Record
+            <span
+              class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium"
+              >{stats.total}</span
+            >
+          </h2>
+
+          <!-- Filter (Visual only for now) -->
+          <div class="flex bg-gray-100 p-1 rounded-lg">
+            <button
+              class="px-3 py-1 text-xs font-semibold bg-white text-gray-800 shadow-sm rounded-md"
+              >All</button
+            >
+            <button
+              class="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700"
+              >Kept</button
+            >
+            <button
+              class="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700"
+              >Broken</button
+            >
+          </div>
         </div>
 
-        {#if representative.manifestos.length > 0}
-          <div class="manifestos-list">
+        <div class="space-y-3">
+          {#if representative.manifestos.length === 0}
+            <div
+              class="p-12 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300"
+            >
+              <p class="text-gray-500">
+                No promises recorded for this representative yet.
+              </p>
+            </div>
+          {:else}
             {#each representative.manifestos as manifesto}
-              {@const badge = getStatusBadge(manifesto.status)}
-              <a href="/manifestos/{manifesto.id}" class="manifesto-item card">
-                <div class="manifesto-main">
-                  <div class="status-icon {badge.class}">
-                    <svelte:component this={badge.icon} size={20} />
-                  </div>
-                  <div class="manifesto-info">
-                    <h3>{manifesto.title}</h3>
-                    <div class="manifesto-meta">
-                      <span class="deadline">
+              <a
+                href="/manifestos/{manifesto.id}"
+                class="group block bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md hover:border-gray-300 transition-all"
+              >
+                <div class="flex items-start justify-between gap-4">
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-2">
+                      <span
+                        class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide {getStatusColor(
+                          manifesto.status,
+                        )}"
+                      >
+                        {manifesto.status}
+                      </span>
+                      <span
+                        class="text-xs text-gray-400 flex items-center gap-1"
+                      >
                         <Calendar size={12} />
                         {formatDate(manifesto.deadline)}
                       </span>
-                      {#if manifesto.category}
-                        <span class="category">{manifesto.category}</span>
-                      {/if}
                     </div>
+                    <h3
+                      class="text-lg font-semibold text-gray-900 group-hover:text-primary-600 transition-colors mb-1"
+                    >
+                      {manifesto.title}
+                    </h3>
+                    <p class="text-sm text-gray-600 line-clamp-2">
+                      {manifesto.description || "No details provided."}
+                    </p>
                   </div>
-                </div>
-                <div class="manifesto-status">
-                  <span class="status-badge {badge.class}">{badge.label}</span>
-                  <ChevronRight size={18} />
+                  <div
+                    class="text-gray-300 group-hover:text-primary-500 transition-colors self-center"
+                  >
+                    <ChevronRight size={20} />
+                  </div>
                 </div>
               </a>
             {/each}
-          </div>
-        {:else}
-          <div class="empty-state card">
-            <FileText size={40} />
-            <p>No promises recorded yet</p>
-          </div>
-        {/if}
-      </div>
-    </div>
-  </main>
-{/if}
+          {/if}
+        </div>
+      </section>
+    {/if}
+  </div>
+</main>
 
 <style>
-  .representative-profile {
-    min-height: 100vh;
-    background: var(--gray-50);
-    padding-bottom: var(--space-16);
-  }
-
-  .container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: var(--space-6) var(--space-4);
-  }
-
-  .back-link {
-    display: inline-flex;
-    align-items: center;
-    color: var(--gray-600);
-    font-size: 0.875rem;
-    margin-bottom: var(--space-6);
-    text-decoration: none;
-    transition: color 0.2s;
-  }
-
-  .back-link:hover {
-    color: var(--primary-600);
-    text-decoration: none;
-  }
-
-  /* Profile Header */
-  .profile-header {
-    padding: var(--space-8);
-    margin-bottom: var(--space-8);
-  }
-
-  .profile-top {
-    display: flex;
-    gap: var(--space-6);
-    align-items: center;
-    margin-bottom: var(--space-6);
-  }
-
-  .profile-avatar-section {
-    flex-shrink: 0;
-  }
-
-  .avatar {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary-100), var(--primary-200));
-    color: var(--primary-700);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.25rem;
-    font-weight: 600;
-  }
-
-  .avatar-img {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 3px solid white;
-    box-shadow: var(--shadow-md);
-  }
-
-  .loading-state,
-  .error-state {
-    text-align: center;
-    padding: var(--space-16) var(--space-4);
-    color: var(--gray-600);
-  }
-
-  .error-state h2 {
-    color: var(--error-600);
-    margin-bottom: var(--space-4);
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: var(--space-12);
-    color: var(--gray-500);
-  }
-
-  .empty-state :global(svg) {
-    margin-bottom: var(--space-4);
-    opacity: 0.4;
-  }
-
-  .profile-info {
-    flex: 1;
-  }
-
-  .name-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-    margin-bottom: var(--space-2);
-  }
-
-  .name-row h1 {
-    font-size: 1.75rem;
-    margin: 0;
-    color: var(--gray-900);
-    font-weight: 700;
-  }
-
-  .verified-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-1) var(--space-3);
-    background: var(--success-100);
-    color: var(--success-700);
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-
-  .title {
-    color: var(--gray-700);
-    font-size: 1rem;
-    margin-bottom: var(--space-1);
-    font-weight: 500;
-  }
-
-  .party {
-    color: var(--gray-500);
-    font-size: 0.9rem;
-    margin: 0;
-  }
-
-  /* Stats Row */
-  .stats-row {
-    display: flex;
-    gap: var(--space-4);
-    padding-top: var(--space-6);
-    border-top: 1px solid var(--gray-100);
-    flex-wrap: wrap;
-  }
-
-  .stat-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    background: var(--gray-50);
-    border-radius: var(--radius-lg);
-    flex: 1;
-    min-width: 120px;
-  }
-
-  .stat-item.score-item {
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-  }
-
-  .integrity-display {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-1);
-  }
-
-  .integrity-number {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--success-600);
-    line-height: 1;
-  }
-
-  .integrity-label {
-    font-size: 0.75rem;
-    color: var(--gray-500);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    font-weight: 600;
-  }
-
-  .stat-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .stat-icon.success {
-    background: var(--success-100);
-    color: var(--success-600);
-  }
-
-  .stat-icon.error {
-    background: var(--error-100);
-    color: var(--error-600);
-  }
-
-  .stat-icon.warning {
-    background: var(--warning-100);
-    color: var(--warning-600);
-  }
-
-  .stat-info {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .stat-info .stat-value {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--gray-900);
-    line-height: 1.2;
-  }
-
-  .stat-info .stat-label,
-  .stat-item .stat-label {
-    font-size: 0.75rem;
-    color: var(--gray-500);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-  }
-
-  .btn-secondary {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--gray-300);
-    background: white;
-    color: var(--gray-700);
-    border-radius: var(--radius-lg);
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: none;
-    transition: all 0.2s;
-  }
-
-  .btn-secondary:hover {
-    border-color: var(--primary-500);
-    color: var(--primary-600);
-    text-decoration: none;
-  }
-
-  /* Manifestos Section */
-  .manifestos-section {
-    margin-top: var(--space-2);
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-5);
-  }
-
-  .section-header h2 {
-    font-size: 1.25rem;
-    color: var(--gray-900);
-    margin: 0;
-  }
-
-  .count-badge {
-    font-size: 0.8rem;
-    color: var(--gray-500);
-    background: var(--gray-100);
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-full);
-  }
-
-  .manifestos-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-4);
-  }
-
-  .manifesto-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-5);
-    text-decoration: none;
-    color: inherit;
-    transition: all 0.2s;
-  }
-
-  .manifesto-item:hover {
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
-    text-decoration: none;
-  }
-
-  .manifesto-main {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    flex: 1;
-    min-width: 0;
-  }
-
-  .status-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-lg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .status-icon.success {
-    background: var(--success-100);
-    color: var(--success-600);
-  }
-
-  .status-icon.error {
-    background: var(--error-100);
-    color: var(--error-600);
-  }
-
-  .status-icon.warning {
-    background: var(--warning-100);
-    color: var(--warning-600);
-  }
-
-  .manifesto-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .manifesto-info h3 {
-    font-size: 1rem;
-    margin-bottom: var(--space-2);
-    color: var(--gray-900);
-    font-weight: 600;
-  }
-
-  .manifesto-meta {
-    display: flex;
-    gap: var(--space-4);
-    font-size: 0.8rem;
-    color: var(--gray-500);
-  }
-
-  .manifesto-meta .deadline {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-  }
-
-  .manifesto-meta .category {
-    background: var(--gray-100);
-    padding: 2px var(--space-2);
-    border-radius: var(--radius-sm);
-  }
-
-  .manifesto-status {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    color: var(--gray-400);
-    flex-shrink: 0;
-  }
-
-  .status-badge {
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-full);
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-  }
-
-  .status-badge.success {
-    background: var(--success-100);
-    color: var(--success-700);
-  }
-
-  .status-badge.error {
-    background: var(--error-100);
-    color: var(--error-700);
-  }
-
-  .status-badge.warning {
-    background: var(--warning-100);
-    color: var(--warning-700);
-  }
-
-  /* Responsive */
-  @media (max-width: 640px) {
-    .profile-top {
-      flex-direction: column;
-      align-items: flex-start;
-      text-align: left;
-    }
-
-    .stats-row {
-      flex-direction: column;
-    }
-
-    .stat-item {
-      min-width: 100%;
-    }
-
-    .stat-item.score {
-      flex-direction: row;
-      justify-content: center;
-    }
-
-    .manifesto-item {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--space-4);
-    }
-
-    .manifesto-status {
-      align-self: flex-end;
-    }
+  :global(body) {
+    background-color: var(--gray-50);
   }
 </style>

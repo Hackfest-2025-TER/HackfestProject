@@ -12,7 +12,7 @@
             <Shield class="w-5 h-5 fill-current" />
           </div>
           <span class="text-xl font-bold font-serif text-gray-900"
-            >PromiseThread</span
+            >WaachaPatra</span
           >
         </div>
         <p class="text-gray-500 text-sm leading-relaxed max-w-sm">
@@ -104,7 +104,7 @@
       class="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center gap-4"
     >
       <p class="text-gray-400 text-xs">
-        &copy; 2025 PromiseThread. All rights reserved.
+        &copy; 2025 WaachaPatra. All rights reserved.
       </p>
       <a href="/privacy" class="text-gray-400 hover:text-gray-600 text-xs"
         >Privacy Policy</a

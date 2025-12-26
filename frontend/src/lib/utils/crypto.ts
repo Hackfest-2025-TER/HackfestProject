@@ -12,22 +12,32 @@
 // ============= Hash Functions =============
 
 /**
- * Compute SHA256 hash of text (for manifesto commitment)
+ * Compute keccak256 hash of text (matches backend's Web3.keccak)
+ * Uses ethers.js for proper Ethereum-compatible hashing.
  */
 export async function computeSHA256(text: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  try {
+    // Use ethers.js keccak256 (matches Web3.keccak in backend)
+    const { ethers } = await import('ethers');
+    // Web3.keccak(text=x) is equivalent to keccak256(toUtf8Bytes(x))
+    // ethers v5 uses ethers.utils.keccak256 and ethers.utils.toUtf8Bytes
+    const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(text));
+    return hash; // Already has 0x prefix
+  } catch (e) {
+    console.error('Ethers keccak256 failed, falling back to SHA256:', e);
+    // Fallback to SHA256 (won't match backend with eth_account!)
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
 }
 
 /**
- * Compute keccak256 hash (Ethereum style) - simplified version
- * In production, use ethers.js or web3.js for proper keccak256
+ * Compute keccak256 hash (Ethereum style) - alias for computeSHA256
  */
 export async function computeKeccak256(text: string): Promise<string> {
-  // For now, use SHA256 as fallback (proper keccak256 requires library)
   return computeSHA256(text);
 }
 
@@ -114,18 +124,18 @@ export async function signMessage(message: string, privateKey: string, signerAdd
   // import { ethers } from 'ethers';
   // const wallet = new ethers.Wallet(privateKey);
   // return await wallet.signMessage(ethers.getBytes(await computeKeccak256(message)));
-  
+
   // Simplified signing for MVP (creates a signature-like format)
   // The backend will verify using the same simplified method
   const messageHash = await computeSHA256(message);
   const keyHash = await computeSHA256(privateKey);
   const combinedHash = await computeSHA256(messageHash + keyHash);
-  
+
   // Use provided signer address if available, otherwise derive from key hash
-  const addressPart = signerAddress 
+  const addressPart = signerAddress
     ? signerAddress.toLowerCase()
     : '0x' + keyHash.slice(2, 42);
-  
+
   // Create signature in format: address|signature_data
   // This allows the backend to verify by matching the address
   return `${addressPart}|${combinedHash.slice(2)}`;
@@ -134,23 +144,25 @@ export async function signMessage(message: string, privateKey: string, signerAdd
 /**
  * Decrypt a keystore with passphrase and get private key
  * 
- * NOTE: For production, use ethers.js:
- * const wallet = await ethers.Wallet.fromEncryptedJson(keystoreJson, passphrase);
- * return wallet.privateKey;
- * 
- * This simplified version is for demonstration.
+ * Uses ethers.js for proper Ethereum keystore decryption,
+ * with fallback to simplified format for development.
  */
 export async function decryptKeystore(keystore: Keystore, passphrase: string): Promise<string | null> {
   try {
-    // In production with ethers.js:
-    // import { ethers } from 'ethers';
-    // const wallet = await ethers.Wallet.fromEncryptedJson(JSON.stringify(keystore), passphrase);
-    // return wallet.privateKey;
-    
-    // Simplified decryption for MVP
-    // The backend uses a matching simplified encryption
+    // Try ethers.js first (proper Ethereum keystore format)
+    try {
+      const { ethers } = await import('ethers');
+      const keystoreJson = JSON.stringify(keystore);
+      const wallet = await ethers.Wallet.fromEncryptedJson(keystoreJson, passphrase);
+      return wallet.privateKey;
+    } catch (ethersError) {
+      console.log('Ethers decryption failed, trying simplified format...', ethersError);
+    }
+
+    // Fallback: Simplified decryption for MVP
+    // The backend uses a matching simplified encryption when eth_account is not available
     const ciphertext = keystore.crypto.ciphertext;
-    
+
     // Try to decode (our simplified format stores base64 of "privateKey:passphrase:salt")
     try {
       const decoded = atob(ciphertext);
@@ -159,9 +171,9 @@ export async function decryptKeystore(keystore: Keystore, passphrase: string): P
         return parts[0]; // Return private key
       }
     } catch {
-      // Not our simplified format, might be real encrypted keystore
+      // Not our simplified format either
     }
-    
+
     return null;
   } catch {
     return null;
@@ -175,7 +187,7 @@ export async function verifyKeyMatchesAddress(privateKey: string, address: strin
   // In production with ethers.js:
   // const wallet = new ethers.Wallet(privateKey);
   // return wallet.address.toLowerCase() === address.toLowerCase();
-  
+
   // Simplified verification
   const keyHash = await computeSHA256(privateKey);
   const derivedAddress = '0x' + keyHash.slice(2, 42);

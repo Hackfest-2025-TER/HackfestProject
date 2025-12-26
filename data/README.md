@@ -1,4 +1,4 @@
-# PromiseThread Voter Data
+# WaachaPatra Voter Data
 
 **Real government voter registry data from Nepal Election Commission.**
 

@@ -1,4 +1,4 @@
-# PromiseThread Frontend
+# WaachaPatra Frontend
 
 **SvelteKit-based web application with client-side ZK proof generation.**
 

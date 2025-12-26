@@ -1,7 +1,7 @@
 {
   "name": "promisethread-blockchain",
   "version": "1.0.0",
-  "description": "Smart contracts for PromiseThread - Decentralized Political Accountability",
+  "description": "Smart contracts for WaachaPatra - Decentralized Political Accountability",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",

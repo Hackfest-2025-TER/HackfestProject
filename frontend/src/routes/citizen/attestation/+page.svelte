@@ -108,7 +108,7 @@
 </script>
 
 <svelte:head>
-  <title>Vote on Promise - PromiseThread</title>
+  <title>Vote on Promise - WaachaPatra</title>
 </svelte:head>
 
 <main class="attestation-page">

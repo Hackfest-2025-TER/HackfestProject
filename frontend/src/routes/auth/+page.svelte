@@ -115,7 +115,7 @@
 </script>
 
 <svelte:head>
-  <title>Verify Your Identity - PromiseThread</title>
+  <title>Verify Your Identity - WaachaPatra</title>
 </svelte:head>
 
 <main class="min-h-screen bg-gray-50 flex items-center justify-center p-4">

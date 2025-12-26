@@ -107,7 +107,7 @@
 </script>
 
 <svelte:head>
-  <title>My Promises - PromiseThread</title>
+  <title>My Promises - WaachaPatra</title>
 </svelte:head>
 
 <Header />

@@ -69,7 +69,7 @@
         </div>
         <span
           class="text-xl font-serif font-bold text-gray-900 group-hover:text-primary-700 transition-colors"
-          >PromiseThread</span
+          >WaachaPatra</span
         >
       </a>
 

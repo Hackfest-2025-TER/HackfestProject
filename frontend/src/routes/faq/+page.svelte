@@ -20,9 +20,9 @@
     // General
     {
       category: "General",
-      question: "What is PromiseThread?",
+      question: "What is WaachaPatra?",
       answer:
-        "PromiseThread is a platform for tracking political promises. It uses advanced technology to make promises permanent and enables anonymous citizen feedback. The goal is transparent political accountability while protecting voter privacy.",
+        "WaachaPatra is a platform for tracking political promises. It uses advanced technology to make promises permanent and enables anonymous citizen feedback. The goal is transparent political accountability while protecting voter privacy.",
     },
     {
       category: "General",
@@ -35,7 +35,7 @@
       question:
         "Is this platform affiliated with any government or political party?",
       answer:
-        "No. PromiseThread is an independent, non-partisan platform. We do not endorse any political party or candidate. Our goal is simply to provide transparent tracking of political promises.",
+        "No. WaachaPatra is an independent, non-partisan platform. We do not endorse any political party or candidate. Our goal is simply to provide transparent tracking of political promises.",
     },
 
     // Privacy
@@ -148,10 +148,10 @@
 </script>
 
 <svelte:head>
-  <title>FAQ - PromiseThread</title>
+  <title>FAQ - WaachaPatra</title>
   <meta
     name="description"
-    content="Frequently asked questions about PromiseThread - the political promise tracking platform."
+    content="Frequently asked questions about WaachaPatra - the political promise tracking platform."
   />
 </svelte:head>
 
@@ -169,7 +169,7 @@
         Frequently Asked Questions
       </h1>
       <p class="text-xl text-white/90">
-        Everything you need to know about PromiseThread
+        Everything you need to know about WaachaPatra
       </p>
     </div>
   </section>

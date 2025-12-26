@@ -1,4 +1,4 @@
-# PromiseThread - Makefile
+# WaachaPatra - Makefile
 # =========================
 
 .PHONY: help install server frontend backend blockchain stop deploy clean test compile
@@ -6,7 +6,7 @@
 # Default target
 help:
 	@echo ""
-	@echo "  PromiseThread - Commands"
+	@echo "  WaachaPatra - Commands"
 	@echo "  ════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "  Development:"
@@ -49,7 +49,7 @@ install:
 # Start backend + blockchain together (run frontend separately in another terminal)
 server:
 	@echo "════════════════════════════════════════════════════════════"
-	@echo "  Starting PromiseThread Development Server"
+	@echo "  Starting WaachaPatra Development Server"
 	@echo "════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "→ Stopping any existing services..."
@@ -120,7 +120,7 @@ stop:
 
 deploy:
 	@echo "════════════════════════════════════════════════════════════"
-	@echo "  Building and Starting PromiseThread (Docker)"
+	@echo "  Building and Starting WaachaPatra (Docker)"
 	@echo "════════════════════════════════════════════════════════════"
 	docker-compose up --build -d
 	@echo ""

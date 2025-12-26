@@ -16,10 +16,10 @@
 </script>
 
 <svelte:head>
-  <title>Privacy Policy - PromiseThread</title>
+  <title>Privacy Policy - WaachaPatra</title>
   <meta
     name="description"
-    content="Learn how PromiseThread protects your privacy using advanced cryptographic techniques."
+    content="Learn how WaachaPatra protects your privacy using advanced cryptographic techniques."
   />
 </svelte:head>
 

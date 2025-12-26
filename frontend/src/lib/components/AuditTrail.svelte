@@ -55,12 +55,35 @@
 
     function mapEventDescription(log) {
         if (log.event_type === "genesis") return "Audit log created";
-        if (log.event_type === "promise") return "New promise added";
-        if (log.event_type === "vote_batch") return "Votes securely recorded";
-        if (log.event_type === "status_change") return "Promise status updated";
+        if (
+            log.event_type === "promise" ||
+            log.action === "PROMISE_CREATED" ||
+            log.action === "SIGNED_MANIFESTO_CREATED"
+        ) {
+            const title = log.data?.title || log.title;
+            return title ? `Promise: "${title}"` : "New promise added";
+        }
+        if (
+            log.event_type === "vote_batch" ||
+            log.action === "VOTE_AGGREGATED"
+        ) {
+            const title = log.data?.title;
+            return title
+                ? `Votes recorded for "${title}"`
+                : "Votes securely recorded";
+        }
+        if (
+            log.event_type === "status_change" ||
+            log.action === "STATUS_CHANGED"
+        ) {
+            const title = log.data?.title;
+            const newStatus = log.data?.new_status || log.data?.status;
+            if (title && newStatus) return `"${title}" marked as ${newStatus}`;
+            return "Promise status updated";
+        }
         if (log.event_type === "merkle_root")
             return "System integrity verified";
-        return log.data || "System activity recorded";
+        return log.data?.title || log.data || "System activity recorded";
     }
 
     function generateSampleEvents() {

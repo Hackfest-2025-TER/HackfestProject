@@ -120,7 +120,7 @@
 </script>
 
 <svelte:head>
-  <title>Edit Profile - PromiseThread</title>
+  <title>Edit Profile - WaachaPatra</title>
 </svelte:head>
 
 <Header />

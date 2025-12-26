@@ -118,7 +118,7 @@
 </script>
 
 <svelte:head>
-  <title>Election Promises - PromiseThread</title>
+  <title>Election Promises - WaachaPatra</title>
 </svelte:head>
 
 <main class="manifestos-page">

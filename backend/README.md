@@ -1,4 +1,4 @@
-# PromiseThread Backend
+# WaachaPatra Backend
 
 **FastAPI-based REST API server with PostgreSQL database and blockchain integration.**
 

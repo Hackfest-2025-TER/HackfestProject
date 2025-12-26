@@ -1369,23 +1369,63 @@ def _delete_comment_cascade(db: Session, comment: CommentModel):
 
 @app.get("/api/audit/logs")
 async def get_audit_logs(limit: int = 50, db: Session = Depends(get_db)):
-    """Get recent audit logs."""
+    """Get recent audit logs with full manifesto data."""
     logs = db.query(AuditLog).order_by(AuditLog.id.desc()).limit(limit).all()
     
+    result = []
+    for log in logs:
+        log_data = {
+            "id": f"LOG-{log.id:08d}",
+            "block_number": log.id,
+            "action": log.action,
+            "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+            "block_height": log.id + 18249000,
+            "block_hash": log.block_hash,
+            "prev_hash": log.prev_hash,
+            "status": "confirmed",
+            "manifesto_id": log.manifesto_id,
+            "data": log.data or {}
+        }
+        
+        # If this log is linked to a manifesto, include full details
+        if log.manifesto_id:
+            manifesto = db.query(ManifestoModel).filter(ManifestoModel.id == log.manifesto_id).first()
+            if manifesto:
+                log_data["manifesto"] = {
+                    "id": manifesto.id,
+                    "title": manifesto.title,
+                    "description": manifesto.description[:200] + "..." if len(manifesto.description) > 200 else manifesto.description,
+                    "category": manifesto.category,
+                    "status": manifesto.status,
+                    "promise_hash": manifesto.promise_hash,
+                    "signature": manifesto.signature[:20] + "..." if manifesto.signature else None,
+                    "signed_at": manifesto.signed_at.isoformat() if manifesto.signed_at else None,
+                    "signer_address": manifesto.signer_address,
+                    "signature_verified": bool(manifesto.signature and manifesto.signer_address),
+                    "blockchain_tx": manifesto.blockchain_tx,
+                    "blockchain_confirmed": manifesto.blockchain_confirmed,
+                    "blockchain_block": manifesto.blockchain_block,
+                    "created_at": manifesto.created_at.isoformat() if manifesto.created_at else None,
+                    "grace_period_end": manifesto.grace_period_end.isoformat() if manifesto.grace_period_end else None,
+                    "vote_kept": manifesto.vote_kept,
+                    "vote_broken": manifesto.vote_broken
+                }
+                # Include representative info
+                if manifesto.representative:
+                    log_data["representative"] = {
+                        "id": manifesto.representative.id,
+                        "name": manifesto.representative.name,
+                        "party": manifesto.representative.party,
+                        "position": manifesto.representative.position,
+                        "wallet_address": manifesto.representative.wallet_address,
+                        "is_verified": manifesto.representative.is_verified
+                    }
+        
+        result.append(log_data)
+    
     return {
-        "logs": [
-            {
-                "id": f"LOG-{log.id:08d}",
-                "action": log.action,
-                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
-                "block_height": log.id + 18249000,
-                "tx_hash": log.block_hash,
-                "status": "confirmed",
-                "manifesto_id": log.manifesto_id
-            }
-            for log in logs
-        ],
-        "total": len(logs)
+        "logs": result,
+        "total": len(result)
     }
 
 @app.get("/api/network/stats")
@@ -2205,8 +2245,12 @@ async def verify_manifesto(manifesto_id: int, db: Session = Depends(get_db)):
         }
     
     # Perform verification
+    # NOTE: The hash was computed from "title:description:representative_id" format in seed_data
+    # We must use the same format for verification
+    manifesto_text_for_hash = f"{manifesto.title}:{manifesto.description}:{manifesto.representative_id}"
+    
     bundle = get_verification_bundle(
-        manifesto_text=manifesto.description,
+        manifesto_text=manifesto_text_for_hash,
         stored_hash=manifesto.promise_hash,
         signature=manifesto.signature,
         signer_address=manifesto.signer_address or representative.wallet_address,

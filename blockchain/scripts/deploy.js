@@ -1,7 +1,7 @@
 const hre = require("hardhat");
 
 async function main() {
-  console.log("Deploying PromiseThread contracts...\n");
+  console.log("Deploying WaachaPatra contracts...\n");
 
   // Get deployer account
   const [deployer] = await hre.ethers.getSigners();

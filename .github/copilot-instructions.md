@@ -1,4 +1,4 @@
-# PromiseThread - AI Agent Instructions
+# WaachaPatra - AI Agent Instructions
 
 ## Architecture Overview
 

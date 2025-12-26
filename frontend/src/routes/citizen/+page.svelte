@@ -55,7 +55,7 @@
 </script>
 
 <svelte:head>
-  <title>Citizen Overview - PromiseThread</title>
+  <title>Citizen Overview - WaachaPatra</title>
 </svelte:head>
 
 <main class="citizen-page">
@@ -69,8 +69,9 @@
           >
         </h1>
         <p class="text-lg opacity-90 max-w-2xl">
-          Hold representatives accountable without compromising your privacy. Every
-          vote is verified on the blockchain, yet your identity remains hidden.
+          Hold representatives accountable without compromising your privacy.
+          Every vote is verified on the blockchain, yet your identity remains
+          hidden.
         </p>
       </div>
 
@@ -192,11 +193,11 @@
               <span>Find Representatives</span>
               <ChevronRight class="w-4 h-4 ml-auto text-gray-400" />
             </a>
-            <a href="/verify" class="quick-link">
+            <a href="/audit-trail" class="quick-link">
               <div class="link-icon">
                 <Shield class="w-4 h-4" />
               </div>
-              <span>Verify Record</span>
+              <span>Audit Trail</span>
               <ChevronRight class="w-4 h-4 ml-auto text-gray-400" />
             </a>
           </div>

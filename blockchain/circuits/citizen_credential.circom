@@ -1,4 +1,4 @@
-// Voter Membership Circuit for PromiseThread "Blind Auditor" System
+// Voter Membership Circuit for WaachaPatra "Blind Auditor" System
 // This circuit proves voter eligibility WITHOUT revealing identity
 //
 // The Proof: "I know a voter_id and secret such that:

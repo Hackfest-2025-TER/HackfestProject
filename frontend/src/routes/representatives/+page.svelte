@@ -50,7 +50,7 @@
 </script>
 
 <svelte:head>
-  <title>Elected Representatives - PromiseThread</title>
+  <title>Elected Representatives - WaachaPatra</title>
 </svelte:head>
 
 <main class="representatives-page">

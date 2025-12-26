@@ -60,7 +60,7 @@
 </script>
 
 <svelte:head>
-  <title>{manifesto?.title || "Loading..."} - PromiseThread</title>
+  <title>{manifesto?.title || "Loading..."} - WaachaPatra</title>
 </svelte:head>
 
 {#if isLoading}

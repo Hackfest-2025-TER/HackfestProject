@@ -126,7 +126,7 @@
 </script>
 
 <svelte:head>
-	<title>Register as Representative - PromiseThread</title>
+	<title>Register as Representative - WaachaPatra</title>
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50 py-12 px-4">
@@ -144,7 +144,7 @@
 				Register as Representative
 			</h1>
 			<p class="text-lg text-gray-600 mb-4 max-w-2xl mx-auto">
-				Join PromiseThread and make your political commitments
+				Join WaachaPatra and make your political commitments
 				transparent and accountable.
 			</p>
 			<div
@@ -195,7 +195,7 @@
 						🎉 Registration Complete!
 					</h2>
 					<p class="text-gray-600 mb-8 text-lg">
-						You are now a verified representative in the PromiseThread
+						You are now a verified representative in the WaachaPatra
 						network.
 					</p>
 

@@ -1,7 +1,7 @@
 ---
 applyTo: '**'
 ---
-# PromiseThread - Decentralized Political Accountability Platform
+# WaachaPatra - Decentralized Political Accountability Platform
 
 ## Vision
 
@@ -118,7 +118,7 @@ hash: abc  prevHash: abc  prevHash: def  prevHash: ghi
 
 ## Key Differentiators
 
-What makes PromiseThread special:
+What makes WaachaPatra special:
 
 - **True anonymity through ZKP** - First political platform with cryptographic privacy
 - **Scalable architecture** - Hybrid storage handles millions of votes efficiently

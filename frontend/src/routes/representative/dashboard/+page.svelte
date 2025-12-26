@@ -5,18 +5,14 @@
     BarChart3,
     LogOut,
     CheckCircle,
-    TrendingUp,
-    Vote,
-    Copy,
-    Settings,
-    Eye,
     Key,
     AlertCircle,
     Users,
+    Copy,
     Plus,
-    Download,
-    AlertTriangle,
-    User,
+    Upload,
+    Lock,
+    Loader,
   } from "lucide-svelte";
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
@@ -27,8 +23,16 @@
   import {
     generateRepresentativeWallet,
     getRepresentativeWalletStatus,
+    submitSignedManifesto,
+    rotateKey,
   } from "$lib/api";
-  import { downloadKeystore } from "$lib/utils/crypto";
+  import {
+    downloadKeystore,
+    computeSHA256,
+    parseKeystore,
+    decryptKeystore,
+    signMessage,
+  } from "$lib/utils/crypto";
 
   // Representative data - will be loaded from auth and API
   let representative: any = null;
@@ -42,13 +46,29 @@
 
   let activeNav = "dashboard";
 
-  // Wallet generation state
+  // Wallet generation/rotation state
   let passphrase = "";
   let passphraseConfirm = "";
   let isGeneratingWallet = false;
   let generatedKeystore: any = null;
   let keystoreDownloaded = false;
   let walletError = "";
+
+  // Rotation specific
+  let showRotationForm = false;
+  let rotationReason = "lost_key"; // lost_key, compromised, scheduled
+  let rotationReasonText = ""; // For custom reason if needed, or mapping logic
+
+  // New Promise form state
+  let showNewPromiseForm = false;
+  let newPromiseTitle = "";
+  let newPromiseDescription = "";
+  let keystoreFile: File | null = null;
+  let keystoreData: any = null;
+  let signingPassphrase = "";
+  let isSubmittingPromise = false;
+  let promiseSubmitError = "";
+  let promiseSubmitSuccess = false;
 
   onMount(async () => {
     // Check if user is authenticated and is a representative
@@ -134,7 +154,10 @@
     try {
       isGeneratingWallet = true;
       walletError = "";
-      const result = await generateRepresentativeWallet(representative.id, passphrase);
+      const result = await generateRepresentativeWallet(
+        representative.id,
+        passphrase,
+      );
       generatedKeystore = result;
       if (generatedKeystore?.keystore) {
         downloadKeystore(
@@ -152,10 +175,134 @@
       isGeneratingWallet = false;
     }
   }
+
+  async function handleRotateKey() {
+    if (!passphrasesMatch || !passphrase || !representative) return;
+
+    try {
+      isGeneratingWallet = true; // Reusing loading state
+      walletError = "";
+
+      // Default admin token for hackfest
+      const ADMIN_TOKEN = "hackfest2025_admin";
+
+      const result = await rotateKey(
+        representative.id,
+        "User initiated reset: " + rotationReason,
+        passphrase,
+        ADMIN_TOKEN,
+      );
+
+      generatedKeystore = result;
+      if (generatedKeystore?.keystore) {
+        downloadKeystore(
+          generatedKeystore.keystore,
+          generatedKeystore.keystore_filename ||
+            `representative-${representative.id}-key-v${generatedKeystore.key_version}.json`,
+        );
+        keystoreDownloaded = true;
+      }
+
+      // Reload representative data
+      await loadRepresentativeData(representative.id);
+
+      // Reset form state but keep success message
+      showRotationForm = false;
+    } catch (e: any) {
+      walletError = e.message;
+    } finally {
+      isGeneratingWallet = false;
+    }
+  }
+
+  // New Promise form handlers
+  async function handleKeystoreUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      keystoreFile = input.files[0];
+      try {
+        const text = await keystoreFile.text();
+        keystoreData = parseKeystore(text);
+        if (!keystoreData) {
+          promiseSubmitError = "Invalid keystore file format";
+        }
+      } catch (e) {
+        promiseSubmitError = "Failed to read keystore file";
+      }
+    }
+  }
+
+  async function handleSubmitPromise() {
+    if (!newPromiseTitle || !newPromiseDescription) {
+      promiseSubmitError = "Please fill in title and description";
+      return;
+    }
+    if (!keystoreData || !signingPassphrase) {
+      promiseSubmitError = "Please upload keystore and enter passphrase";
+      return;
+    }
+
+    promiseSubmitError = "";
+    isSubmittingPromise = true;
+
+    try {
+      // Compute hash from description
+      const hash = await computeSHA256(newPromiseDescription);
+      const manifestoHash = hash.startsWith("0x") ? hash : "0x" + hash;
+
+      // Decrypt keystore and sign
+      const privateKey = await decryptKeystore(keystoreData, signingPassphrase);
+      if (!privateKey) {
+        throw new Error("Failed to decrypt keystore. Check your passphrase.");
+      }
+
+      // Sign the hash
+      const hashForSigning = manifestoHash.startsWith("0x")
+        ? manifestoHash.slice(2)
+        : manifestoHash;
+      const signature = await signMessage(
+        hashForSigning,
+        privateKey,
+        representative?.walletAddress,
+      );
+
+      // Submit to backend
+      const result = await submitSignedManifesto({
+        representative_id: representative.id,
+        title: newPromiseTitle,
+        description: newPromiseDescription,
+        category: "general",
+        grace_period_days: 7,
+        manifesto_hash: manifestoHash,
+        signature: signature,
+      });
+
+      if (result.id) {
+        promiseSubmitSuccess = true;
+        // Reset form and reload data
+        newPromiseTitle = "";
+        newPromiseDescription = "";
+        keystoreFile = null;
+        keystoreData = null;
+        signingPassphrase = "";
+        showNewPromiseForm = false;
+        await loadRepresentativeData(representative.id);
+        setTimeout(() => {
+          promiseSubmitSuccess = false;
+        }, 3000);
+      } else {
+        throw new Error(result.error || "Submission failed");
+      }
+    } catch (e: any) {
+      promiseSubmitError = e.message || "Failed to sign and submit promise";
+    } finally {
+      isSubmittingPromise = false;
+    }
+  }
 </script>
 
 <svelte:head>
-  <title>Representative Dashboard - PromiseThread</title>
+  <title>Representative Dashboard - WaachaPatra</title>
 </svelte:head>
 
 {#if error}
@@ -194,29 +341,9 @@
       </div>
 
       <nav class="sidebar-nav">
-        <a
-          href="/representative/dashboard"
-          class="nav-item"
-          class:active={activeNav === "dashboard"}
-        >
+        <a href="/representative/dashboard" class="nav-item active">
           <BarChart3 size={18} />
           Dashboard
-        </a>
-        <a
-          href="/representative/manifestos"
-          class="nav-item"
-          class:active={activeNav === "manifestos"}
-        >
-          <FileText size={18} />
-          Manifestos
-        </a>
-        <a
-          href="/representative/profile"
-          class="nav-item"
-          class:active={activeNav === "profile"}
-        >
-          <User size={18} />
-          Profile
         </a>
       </nav>
 
@@ -260,10 +387,11 @@
           <div class="dashboard-card profile-card">
             <div class="card-header">
               <h3>Profile</h3>
-              <a href="/representative/profile" class="edit-link">Edit</a>
             </div>
             <div class="profile-info">
-              <div class="profile-avatar">{representative?.name?.[0] || "P"}</div>
+              <div class="profile-avatar">
+                {representative?.name?.[0] || "P"}
+              </div>
               <div class="profile-details">
                 <h4>{representative?.name || "Representative"}</h4>
                 <p class="profile-meta">
@@ -278,7 +406,9 @@
                 <span class="stat-desc">Promises</span>
               </div>
               <div class="profile-stat">
-                <span class="stat-num">{representative?.integrityScore || 0}%</span>
+                <span class="stat-num"
+                  >{representative?.integrityScore || 0}%</span
+                >
                 <span class="stat-desc">Integrity</span>
               </div>
             </div>
@@ -301,6 +431,78 @@
                     >{representative?.walletAddress?.slice(0, 20)}...</code
                   >
                 </div>
+
+                {#if !showRotationForm}
+                  <button
+                    class="reset-link"
+                    on:click={() => (showRotationForm = true)}
+                  >
+                    Reset Wallet / Rotate Key
+                  </button>
+                {:else}
+                  <div class="rotation-form">
+                    <h4>Reset Wallet</h4>
+                    <p class="text-xs text-gray-500 mb-3">
+                      This will revoke your current key and generate a new one.
+                      Old manifestos remain valid.
+                    </p>
+
+                    <div class="space-y-3">
+                      <select
+                        bind:value={rotationReason}
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white"
+                      >
+                        <option value="lost_key"
+                          >I lost my key/passphrase</option
+                        >
+                        <option value="compromised"
+                          >My key was compromised</option
+                        >
+                        <option value="scheduled"
+                          >Scheduled security rotation</option
+                        >
+                      </select>
+
+                      <input
+                        type="password"
+                        bind:value={passphrase}
+                        placeholder="New Passphrase (8+ chars)"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+                      <input
+                        type="password"
+                        bind:value={passphraseConfirm}
+                        placeholder="Confirm new passphrase"
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+                      />
+
+                      {#if walletError}
+                        <p class="text-error-600 text-xs">{walletError}</p>
+                      {/if}
+
+                      <div class="flex gap-2">
+                        <button
+                          class="flex-1 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                          on:click={() => {
+                            showRotationForm = false;
+                            walletError = "";
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          class="flex-1 py-2 text-sm text-white bg-error-600 rounded-lg hover:bg-error-700 disabled:bg-gray-300"
+                          disabled={!passphrasesMatch ||
+                            passphrase.length < 8 ||
+                            isGeneratingWallet}
+                          on:click={handleRotateKey}
+                        >
+                          {isGeneratingWallet ? "Rotating..." : "Confirm Reset"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
               </div>
             {:else}
               <!-- Inline Wallet Generation -->
@@ -350,39 +552,139 @@
             {/if}
           </div>
 
-          <!-- Quick Actions Card -->
-          <div class="dashboard-card actions-card">
-            <div class="card-header">
-              <h3>Quick Actions</h3>
+          <!-- Create New Promise Card (spans full width) -->
+          {#if representative?.hasWallet}
+            <div class="dashboard-card new-promise-card">
+              <div class="card-header">
+                <h3>Create New Promise</h3>
+                {#if !showNewPromiseForm}
+                  <button
+                    class="show-form-btn"
+                    on:click={() => (showNewPromiseForm = true)}
+                  >
+                    <Plus class="w-4 h-4" />
+                    New
+                  </button>
+                {:else}
+                  <button
+                    class="show-form-btn secondary"
+                    on:click={() => {
+                      showNewPromiseForm = false;
+                      promiseSubmitError = "";
+                    }}
+                  >
+                    Cancel
+                  </button>
+                {/if}
+              </div>
+
+              {#if promiseSubmitSuccess}
+                <div
+                  class="bg-success-50 border border-success-200 rounded-lg p-4 text-center"
+                >
+                  <CheckCircle class="w-6 h-6 text-success-600 mx-auto mb-2" />
+                  <p class="text-success-800 font-medium text-sm">
+                    Promise created successfully!
+                  </p>
+                </div>
+              {:else if showNewPromiseForm}
+                <div class="new-promise-form">
+                  <div class="form-group">
+                    <label class="form-label">Promise Title</label>
+                    <input
+                      type="text"
+                      bind:value={newPromiseTitle}
+                      placeholder="e.g., Improve Rural Healthcare"
+                      class="form-input"
+                    />
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea
+                      bind:value={newPromiseDescription}
+                      placeholder="Describe your commitment and how it will be measured..."
+                      rows="4"
+                      class="form-textarea"
+                    ></textarea>
+                  </div>
+
+                  <div class="signing-section">
+                    <h4><Key class="w-4 h-4" /> Digital Signature</h4>
+
+                    <div class="form-group">
+                      <label class="form-label">Upload Keystore</label>
+                      <label class="keystore-upload">
+                        <input
+                          type="file"
+                          accept=".json"
+                          on:change={handleKeystoreUpload}
+                        />
+                        <Upload class="w-4 h-4" />
+                        <span
+                          >{keystoreFile
+                            ? keystoreFile.name
+                            : "Select keystore.json"}</span
+                        >
+                      </label>
+                    </div>
+
+                    {#if keystoreData}
+                      <div class="form-group">
+                        <label class="form-label">Passphrase</label>
+                        <div class="passphrase-input">
+                          <Lock class="w-4 h-4" />
+                          <input
+                            type="password"
+                            bind:value={signingPassphrase}
+                            placeholder="Enter your wallet passphrase"
+                          />
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+
+                  {#if promiseSubmitError}
+                    <div class="error-message">
+                      <AlertCircle class="w-4 h-4" />
+                      {promiseSubmitError}
+                    </div>
+                  {/if}
+
+                  <button
+                    class="submit-btn"
+                    on:click={handleSubmitPromise}
+                    disabled={isSubmittingPromise ||
+                      !keystoreData ||
+                      !signingPassphrase}
+                  >
+                    {#if isSubmittingPromise}
+                      <Loader class="w-4 h-4 animate-spin" />
+                      Signing & Submitting...
+                    {:else}
+                      <Shield class="w-4 h-4" />
+                      Sign & Create Promise
+                    {/if}
+                  </button>
+                </div>
+              {:else}
+                <p class="text-gray-500 text-sm">
+                  Click "New" to create a new promise.
+                </p>
+              {/if}
             </div>
-            <div class="quick-actions">
-              <a
-                href="/representative/new-manifesto"
-                class="action-btn primary"
-                class:disabled={!representative?.hasWallet}
-              >
-                <Plus class="w-5 h-5" />
-                <span>New Promise</span>
-              </a>
-              <a href="/representative/manifestos" class="action-btn secondary">
-                <FileText class="w-5 h-5" />
-                <span>All Promises</span>
-              </a>
-            </div>
-          </div>
+          {/if}
 
           <!-- Manifestos List Card (spans full width) -->
           <div class="dashboard-card manifestos-card">
             <div class="card-header">
-              <h3>Recent Promises</h3>
-              <a href="/representative/manifestos" class="view-all-link"
-                >View All →</a
-              >
+              <h3>My Promises</h3>
+              <span class="promise-count">{manifestos.length} total</span>
             </div>
             {#if manifestos.length > 0}
               <div class="manifestos-list">
-                {#each manifestos.slice(0, 5) as m}
-                  <a href="/manifestos/{m.id}" class="manifesto-row">
+                {#each manifestos as m}
+                  <div class="manifesto-row">
                     <div class="manifesto-info">
                       <span class="manifesto-title">{m.title}</span>
                       <span class="manifesto-date"
@@ -392,26 +694,23 @@
                       >
                     </div>
                     <div class="manifesto-stats">
-                      <span class="manifesto-status {m.status}">{m.status}</span
+                      <span class="manifesto-status {m.status || 'pending'}"
+                        >{m.status || "pending"}</span
                       >
                       <span class="manifesto-votes"
                         >{(m.vote_kept || 0) + (m.vote_broken || 0)} votes</span
                       >
                     </div>
-                  </a>
+                  </div>
                 {/each}
               </div>
             {:else}
               <div class="empty-manifestos">
                 <FileText class="w-10 h-10 text-gray-300 mx-auto mb-2" />
                 <p class="text-gray-500 text-sm">No promises yet.</p>
-                {#if representative?.hasWallet}
-                  <a
-                    href="/representative/new-manifesto"
-                    class="text-primary-600 text-sm font-medium mt-2 inline-block"
-                    >Create your first promise →</a
-                  >
-                {/if}
+                <p class="text-gray-400 text-xs mt-1">
+                  Generate a wallet first to create promises.
+                </p>
               </div>
             {/if}
           </div>
@@ -905,7 +1204,7 @@
     /* Dashboard Grid Layout */
     .dashboard-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: var(--space-6);
     }
 
@@ -942,6 +1241,12 @@
     .edit-link:hover,
     .view-all-link:hover {
       text-decoration: underline;
+    }
+
+    .promise-count {
+      font-size: 0.75rem;
+      color: var(--gray-500);
+      font-weight: 500;
     }
 
     /* Profile Card */
@@ -1020,6 +1325,35 @@
       gap: 2px;
     }
 
+    .reset-link {
+      font-size: 0.75rem;
+      color: var(--error-600);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-top: var(--space-1);
+      text-align: left;
+    }
+
+    .reset-link:hover {
+      color: var(--error-700);
+    }
+
+    .rotation-form {
+      margin-top: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--gray-200);
+    }
+
+    .rotation-form h4 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--error-700);
+      margin: 0 0 var(--space-1) 0;
+    }
+
     /* Quick Actions */
     .quick-actions {
       display: flex;
@@ -1065,7 +1399,7 @@
 
     /* Manifestos Card */
     .manifestos-card {
-      grid-column: span 3;
+      grid-column: span 2;
     }
 
     .manifestos-list {
@@ -1151,11 +1485,182 @@
       padding: var(--space-6);
     }
 
+    /* New Promise Card */
+    .new-promise-card {
+      grid-column: span 2;
+    }
+
+    .show-form-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: var(--space-2) var(--space-3);
+      border: none;
+      background: var(--primary-600);
+      color: white;
+      border-radius: var(--radius-lg);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .show-form-btn:hover {
+      background: var(--primary-700);
+    }
+
+    .show-form-btn.secondary {
+      background: var(--gray-200);
+      color: var(--gray-700);
+    }
+
+    .show-form-btn.secondary:hover {
+      background: var(--gray-300);
+    }
+
+    .new-promise-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .new-promise-form .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .new-promise-form .form-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+
+    .new-promise-form .form-input {
+      padding: var(--space-3);
+      border: 1px solid var(--gray-300);
+      border-radius: var(--radius-lg);
+      font-size: 0.9rem;
+    }
+
+    .new-promise-form .form-input:focus {
+      outline: none;
+      border-color: var(--primary-500);
+      box-shadow: 0 0 0 2px var(--primary-100);
+    }
+
+    .new-promise-form .form-textarea {
+      padding: var(--space-3);
+      border: 1px solid var(--gray-300);
+      border-radius: var(--radius-lg);
+      font-size: 0.9rem;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .new-promise-form .form-textarea:focus {
+      outline: none;
+      border-color: var(--primary-500);
+      box-shadow: 0 0 0 2px var(--primary-100);
+    }
+
+    .new-promise-form .signing-section {
+      padding: var(--space-4);
+      background: var(--gray-50);
+      border-radius: var(--radius-lg);
+    }
+
+    .new-promise-form .signing-section h4 {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: var(--space-3);
+      color: var(--gray-800);
+    }
+
+    .keystore-upload {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 2px dashed var(--gray-300);
+      border-radius: var(--radius-lg);
+      cursor: pointer;
+      color: var(--gray-600);
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .keystore-upload:hover {
+      border-color: var(--primary-400);
+      background: var(--primary-50);
+    }
+
+    .keystore-upload input[type="file"] {
+      display: none;
+    }
+
+    .passphrase-input {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: 1px solid var(--gray-300);
+      border-radius: var(--radius-lg);
+      background: white;
+    }
+
+    .passphrase-input input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 0.9rem;
+    }
+
+    .error-message {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      background: var(--error-50);
+      color: var(--error-700);
+      border-radius: var(--radius-lg);
+      font-size: 0.85rem;
+    }
+
+    .submit-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border: none;
+      background: var(--success-600);
+      color: white;
+      border-radius: var(--radius-lg);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+      background: var(--success-700);
+    }
+
+    .submit-btn:disabled {
+      background: var(--gray-300);
+      cursor: not-allowed;
+    }
+
     @media (max-width: 1024px) {
       .dashboard-grid {
         grid-template-columns: 1fr;
       }
-      .manifestos-card {
+      .manifestos-card,
+      .new-promise-card {
         grid-column: span 1;
       }
     }

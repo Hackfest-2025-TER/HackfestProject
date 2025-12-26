@@ -1,4 +1,4 @@
-# PromiseThread
+# WaachaPatra
 
 **Decentralized political accountability platform using zero-knowledge proofs and blockchain.**
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-PromiseThread enables citizens to anonymously evaluate political promises through community voting and discussion. Built with real voter data from Nepal's Election Commission, the platform combines zero-knowledge cryptography with blockchain immutability to create transparent yet privacy-preserving political accountability.
+WaachaPatra enables citizens to anonymously evaluate political promises through community voting and discussion. Built with real voter data from Nepal's Election Commission, the platform combines zero-knowledge cryptography with blockchain immutability to create transparent yet privacy-preserving political accountability.
 
 **Core Innovation:** Anonymous voting with verifiable eligibility using zk-SNARKs and Merkle trees.
 

@@ -35,7 +35,7 @@
 </script>
 
 <svelte:head>
-  <title>PromiseThread - The Future of Political Accountability</title>
+  <title>WaachaPatra - The Future of Political Accountability</title>
 </svelte:head>
 
 <main class="min-h-screen bg-white overflow-hidden">
@@ -50,7 +50,7 @@
             <Shield class="w-6 h-6 fill-current" />
           </div>
           <span class="text-xl font-serif font-bold text-gray-900"
-            >PromiseThread</span
+            >WaachaPatra</span
           >
         </a>
 

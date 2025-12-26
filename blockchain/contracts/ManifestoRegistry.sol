@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 /**
  * @title ManifestoRegistry
- * @author PromiseThread Team
+ * @author WaachaPatra Team
  * @notice Immutable registry for political manifesto commitments
  * @dev Separates manifesto storage from voting logic for security and simplicity
  * 
