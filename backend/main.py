@@ -23,7 +23,7 @@ from sqlalchemy import func, or_, desc
 
 from database import get_db, init_db, check_connection
 from models import (
-    Voter, ZKCredential, Politician, Manifesto as ManifestoModel,
+    Voter, ZKCredential, Representative, Manifesto as ManifestoModel,
     ManifestoVote, Comment as CommentModel, CommentVote, AuditLog, MerkleRoot
 )
 from crypto_utils import (
@@ -37,7 +37,7 @@ from similarity_service import get_similarity_service
 app = FastAPI(
     title="PromiseThread API",
     description="Decentralized Political Accountability Platform - Blind Auditor System",
-    version="2.2.0 (PostgreSQL + Blockchain)"
+    version="2.3.0 (PostgreSQL + Blockchain - Representative Refactor)"
 )
 
 # ============= Merkle Tree Implementation =============
@@ -111,9 +111,9 @@ class ManifestoResponse(BaseModel):
     title: str
     description: str
     category: str
-    politician_id: int
-    politician_name: str
-    politician_party: Optional[str] = None
+    representative_id: int
+    representative_name: str
+    representative_party: Optional[str] = None
     deadline: str
     status: str
     created_at: str
@@ -127,7 +127,7 @@ class ManifestoCreate(BaseModel):
     title: str
     description: str
     category: str
-    politician_id: int
+    representative_id: int
     deadline: str
     promises: List[str] = []
 
@@ -159,8 +159,8 @@ class CommentFlagRequest(BaseModel):
     nullifier: str  # Required for flagging
     reason: Optional[str] = None  # Optional reason for flag
 
-class PoliticianRegisterRequest(BaseModel):
-    """Request from citizen to register as politician."""
+class RepresentativeRegisterRequest(BaseModel):
+    """Request from citizen to register as representative."""
     nullifier: str  # ZK credential proving citizenship
     name: str  # Full name (matches voter registry)
     party: Optional[str] = None
@@ -169,15 +169,15 @@ class PoliticianRegisterRequest(BaseModel):
     image_url: Optional[str] = None
     election_commission_id: Optional[str] = None  # If they have official EC ID
 
-class PoliticianVerifyRequest(BaseModel):
-    """Request to verify/approve a politician application."""
+class RepresentativeVerifyRequest(BaseModel):
+    """Request to verify/approve a representative application."""
     admin_key: str  # Simple admin authentication (for MVP)
     approved: bool  # True = approve, False = reject
     rejection_reason: Optional[str] = None  # Required if approved=False
     verified_by: str  # Name/ID of admin/officer
 
 class WalletGenerateRequest(BaseModel):
-    """Request to generate wallet for politician."""
+    """Request to generate wallet for representative."""
     passphrase: str  # Used to encrypt the private key
 
 class Feedback(BaseModel):
@@ -565,9 +565,9 @@ async def check_credential(nullifier: str, db: Session = Depends(get_db)):
         ).all()
         used_votes = [v.manifesto_id for v in votes]
         
-        # Check if registered as politician
-        politician = db.query(Politician).filter(
-            Politician.citizen_nullifier == nullifier
+        # Check if registered as representative
+        representative = db.query(Representative).filter(
+            Representative.citizen_nullifier == nullifier
         ).first()
         
         return {
@@ -575,9 +575,9 @@ async def check_credential(nullifier: str, db: Session = Depends(get_db)):
             "used_votes": used_votes,
             "created_at": cred.created_at.isoformat() if cred.created_at else None,
             "can_vote": True,
-            "is_politician": bool(politician),
-            "politician_id": politician.id if politician else None,
-            "politician_slug": politician.slug if politician else None
+            "is_representative": bool(representative),
+            "representative_id": representative.id if representative else None,
+            "representative_slug": representative.slug if representative else None
         }
     
     return {"valid": False, "used_votes": [], "can_vote": False}
@@ -722,20 +722,20 @@ async def get_merkle_proof(request: MerkleProofRequest):
 async def get_manifestos(
     status: Optional[str] = None,
     category: Optional[str] = None,
-    politician_id: Optional[int] = None,
+    representative_id: Optional[int] = None,
     limit: int = 20,
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
     """Get all manifestos with optional filtering."""
-    q = db.query(ManifestoModel).join(Politician)
+    q = db.query(ManifestoModel).join(Representative)
     
     if status:
         q = q.filter(ManifestoModel.status == status)
     if category:
         q = q.filter(ManifestoModel.category == category)
-    if politician_id:
-        q = q.filter(ManifestoModel.politician_id == politician_id)
+    if representative_id:
+        q = q.filter(ManifestoModel.representative_id == representative_id)
     
     total = q.count()
     manifestos = q.order_by(ManifestoModel.created_at.desc()).offset(offset).limit(limit).all()
@@ -751,9 +751,9 @@ async def get_manifestos(
             "title": m.title,
             "description": m.description,
             "category": m.category,
-            "politician_id": m.politician_id,
-            "politician_name": m.politician.name if m.politician else "Unknown",
-            "politician_party": m.politician.party if m.politician else None,
+            "representative_id": m.representative_id,
+            "representative_name": m.representative.name if m.representative else "Unknown",
+            "representative_party": m.representative.party if m.representative else None,
             "deadline": m.grace_period_end.isoformat(),
             "status": m.status,
             "created_at": m.created_at.isoformat() if m.created_at else None,
@@ -788,9 +788,9 @@ async def get_manifesto(manifesto_id: int, db: Session = Depends(get_db)):
         "title": m.title,
         "description": m.description,
         "category": m.category,
-        "politician_id": m.politician_id,
-        "politician_name": m.politician.name if m.politician else "Unknown",
-        "politician_party": m.politician.party if m.politician else None,
+        "representative_id": m.representative_id,
+        "representative_name": m.representative.name if m.representative else "Unknown",
+        "representative_party": m.representative.party if m.representative else None,
         "deadline": m.grace_period_end.isoformat(),
         "status": m.status,
         "created_at": m.created_at.isoformat() if m.created_at else None,
@@ -803,30 +803,30 @@ async def get_manifesto(manifesto_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/manifestos")
 async def create_manifesto(manifesto: ManifestoCreate, db: Session = Depends(get_db)):
-    """Create a new manifesto. Requires verified politician."""
-    # Verify politician exists
-    politician = db.query(Politician).filter(Politician.id == manifesto.politician_id).first()
-    if not politician:
-        raise HTTPException(status_code=404, detail="Politician not found")
+    """Create a new manifesto. Requires verified representative."""
+    # Verify representative exists
+    representative = db.query(Representative).filter(Representative.id == manifesto.representative_id).first()
+    if not representative:
+        raise HTTPException(status_code=404, detail="Representative not found")
     
-    # Check if politician is verified (NEW CHECK)
-    if hasattr(politician, 'is_verified') and not politician.is_verified:
-        status = politician.application_status if hasattr(politician, 'application_status') else 'unknown'
+    # Check if representative is verified (NEW CHECK)
+    if hasattr(representative, 'is_verified') and not representative.is_verified:
+        status = representative.application_status if hasattr(representative, 'application_status') else 'unknown'
         if status == 'pending':
             raise HTTPException(
                 status_code=403, 
-                detail="Your politician application is pending verification. Please wait for election commission approval."
+                detail="Your representative application is pending verification. Please wait for election commission approval."
             )
         elif status == 'rejected':
-            reason = politician.rejection_reason if hasattr(politician, 'rejection_reason') else 'Application rejected'
+            reason = representative.rejection_reason if hasattr(representative, 'rejection_reason') else 'Application rejected'
             raise HTTPException(
                 status_code=403,
-                detail=f"Your politician application was rejected. Reason: {reason}"
+                detail=f"Your representative application was rejected. Reason: {reason}"
             )
         else:
             raise HTTPException(
                 status_code=403,
-                detail="You must be a verified politician to post manifestos."
+                detail="You must be a verified representative to post manifestos."
             )
     
     # Parse deadline
@@ -836,8 +836,9 @@ async def create_manifesto(manifesto: ManifestoCreate, db: Session = Depends(get
         deadline = datetime.now(timezone.utc) + timedelta(days=365)
     
     # Create manifesto
+    # Create manifesto
     new_manifesto = ManifestoModel(
-        politician_id=manifesto.politician_id,
+        representative_id=manifesto.representative_id,
         title=manifesto.title,
         description=manifesto.description,
         category=manifesto.category,
@@ -845,7 +846,7 @@ async def create_manifesto(manifesto: ManifestoCreate, db: Session = Depends(get
         grace_period_end=deadline,
         vote_kept=0,
         vote_broken=0,
-        promise_hash=generate_hash(f"{manifesto.title}:{manifesto.description}:{manifesto.politician_id}")
+        promise_hash=generate_hash(f"{manifesto.title}:{manifesto.description}:{manifesto.representative_id}")
     )
     
     db.add(new_manifesto)
@@ -864,7 +865,7 @@ async def create_manifesto(manifesto: ManifestoCreate, db: Session = Depends(get
         data={
             "manifesto_id": new_manifesto.id,
             "title": new_manifesto.title,
-            "politician_id": new_manifesto.politician_id
+            "representative_id": new_manifesto.representative_id
         }
     )
     db.add(audit)
@@ -1495,27 +1496,27 @@ async def submit_feedback(feedback: Feedback):
     }
 
 
-# ============= Politicians Endpoints =============
+# ============= Representatives Endpoints =============
 
-@app.get("/api/politicians")
-async def get_politicians(db: Session = Depends(get_db)):
-    """Get list of all registered politicians."""
-    politicians = db.query(Politician).all()
+@app.get("/api/representatives")
+async def get_representatives(db: Session = Depends(get_db)):
+    """Get list of all registered representatives."""
+    representatives = db.query(Representative).all()
     
     result = []
-    for p in politicians:
+    for r in representatives:
         # Count manifestos
         manifesto_count = db.query(func.count(ManifestoModel.id)).filter(
-            ManifestoModel.politician_id == p.id
+            ManifestoModel.representative_id == r.id
         ).scalar()
         
         # Calculate integrity score based on kept vs broken
         kept = db.query(func.count(ManifestoModel.id)).filter(
-            ManifestoModel.politician_id == p.id,
+            ManifestoModel.representative_id == r.id,
             ManifestoModel.status == "kept"
         ).scalar()
         broken = db.query(func.count(ManifestoModel.id)).filter(
-            ManifestoModel.politician_id == p.id,
+            ManifestoModel.representative_id == r.id,
             ManifestoModel.status == "broken"
         ).scalar()
         
@@ -1523,70 +1524,70 @@ async def get_politicians(db: Session = Depends(get_db)):
         integrity_score = round(kept / total * 100) if total > 0 else 50
         
         result.append({
-            "id": p.id,
-            "name": p.name,
-            "slug": p.slug,
-            "title": p.position or "Politician",
-            "party": p.party,
+            "id": r.id,
+            "name": r.name,
+            "slug": r.slug,
+            "title": r.position or "Representative",
+            "party": r.party,
             "integrity_score": integrity_score,
             "manifestos": manifesto_count,
             "verified": True,
-            "public_key": generate_hash(f"pk_{p.id}")[:42],
-            "image_url": p.image_url,
-            "bio": p.bio
+            "public_key": generate_hash(f"pk_{r.id}")[:42],
+            "image_url": r.image_url,
+            "bio": r.bio
         })
     
-    return {"politicians": result}
+    return {"representatives": result}
 
-@app.get("/api/politicians/pending")
-async def get_pending_politicians(db: Session = Depends(get_db)):
-    """Get all pending politician applications (for admin review).
+@app.get("/api/representatives/pending")
+async def get_pending_representatives(db: Session = Depends(get_db)):
+    """Get all pending representative applications (for admin review).
     
     NOTE: In a fully decentralized system, this endpoint returns empty list
-    since politicians are auto-verified. Kept for backwards compatibility.
+    since representatives are auto-verified. Kept for backwards compatibility.
     """
-    pending = db.query(Politician).filter(
-        Politician.application_status == "pending"
-    ).order_by(Politician.created_at.desc()).all()
+    pending = db.query(Representative).filter(
+        Representative.application_status == "pending"
+    ).order_by(Representative.created_at.desc()).all()
     
     return {
         "pending_count": len(pending),
         "applications": [
             {
-                "id": p.id,
-                "name": p.name,
-                "party": p.party,
-                "position": p.position,
-                "election_commission_id": p.election_commission_id,
-                "submitted_at": p.created_at.isoformat(),
-                "citizenship_verified_at": p.citizenship_verified_at.isoformat() if p.citizenship_verified_at else None
+                "id": r.id,
+                "name": r.name,
+                "party": r.party,
+                "position": r.position,
+                "election_commission_id": r.election_commission_id,
+                "submitted_at": r.created_at.isoformat(),
+                "citizenship_verified_at": r.citizenship_verified_at.isoformat() if r.citizenship_verified_at else None
             }
-            for p in pending
+            for r in pending
         ]
     }
 
-@app.get("/api/politicians/{politician_identifier}")
-async def get_politician(politician_identifier: str, db: Session = Depends(get_db)):
-    """Get politician details by ID or slug."""
+@app.get("/api/representatives/{representative_identifier}")
+async def get_representative(representative_identifier: str, db: Session = Depends(get_db)):
+    """Get representative details by ID or slug."""
     # Try to parse as integer ID first
     try:
-        politician_id = int(politician_identifier)
-        p = db.query(Politician).filter(Politician.id == politician_id).first()
+        representative_id = int(representative_identifier)
+        r = db.query(Representative).filter(Representative.id == representative_id).first()
     except ValueError:
         # Treat as slug
-        p = db.query(Politician).filter(Politician.slug == politician_identifier).first()
+        r = db.query(Representative).filter(Representative.slug == representative_identifier).first()
     
-    if not p:
-        raise HTTPException(status_code=404, detail="Politician not found")
+    if not r:
+        raise HTTPException(status_code=404, detail="Representative not found")
     
     # Count manifestos
     manifesto_count = db.query(func.count(ManifestoModel.id)).filter(
-        ManifestoModel.politician_id == p.id
+        ManifestoModel.representative_id == r.id
     ).scalar()
     
-    # Get all manifestos for this politician
+    # Get all manifestos for this representative
     manifestos = db.query(ManifestoModel).filter(
-        ManifestoModel.politician_id == p.id
+        ManifestoModel.representative_id == r.id
     ).all()
     
     kept = sum(1 for m in manifestos if m.status == "kept")
@@ -1608,73 +1609,73 @@ async def get_politician(politician_identifier: str, db: Session = Depends(get_d
         })
     
     return {
-        "id": p.id,
-        "name": p.name,
-        "slug": p.slug,
-        "title": p.position or "Politician",
-        "party": p.party,
+        "id": r.id,
+        "name": r.name,
+        "slug": r.slug,
+        "title": r.position or "Representative",
+        "party": r.party,
         "integrity_score": integrity_score,
         "manifestos": manifesto_list,
         "manifesto_count": manifesto_count,
-        "verified": p.is_verified if hasattr(p, 'is_verified') else True,
-        "application_status": p.application_status if hasattr(p, 'application_status') else "approved",
-        "verified_at": p.verified_at.isoformat() if hasattr(p, 'verified_at') and p.verified_at else None,
-        "public_key": p.wallet_address or generate_hash(f"pk_{p.id}")[:42],
-        "wallet_address": p.wallet_address,
-        "has_wallet": bool(p.wallet_address),
-        "key_version": p.key_version if hasattr(p, 'key_version') else 1,
-        "image_url": p.image_url,
-        "bio": p.bio,
-        "joined_date": p.created_at.isoformat() if p.created_at else None
+        "verified": r.is_verified if hasattr(r, 'is_verified') else True,
+        "application_status": r.application_status if hasattr(r, 'application_status') else "approved",
+        "verified_at": r.verified_at.isoformat() if hasattr(r, 'verified_at') and r.verified_at else None,
+        "public_key": r.wallet_address or generate_hash(f"pk_{r.id}")[:42],
+        "wallet_address": r.wallet_address,
+        "has_wallet": bool(r.wallet_address),
+        "key_version": r.key_version if hasattr(r, 'key_version') else 1,
+        "image_url": r.image_url,
+        "bio": r.bio,
+        "joined_date": r.created_at.isoformat() if r.created_at else None
     }
 
 
-# ============= Politician Registration & Verification =============
+# ============= Representative Registration & Verification =============
 
-@app.get("/api/politicians/check-status")
-async def check_politician_status(
+@app.get("/api/representatives/check-status")
+async def check_representative_status(
     nullifier: str,
     db: Session = Depends(get_db)
 ):
     """
-    Check if a nullifier belongs to a registered politician.
-    Used during authentication to restore politician session.
+    Check if a nullifier belongs to a registered representative.
+    Used during authentication to restore representative session.
     """
-    politician = db.query(Politician).filter(
-        Politician.citizen_nullifier == nullifier
+    representative = db.query(Representative).filter(
+        Representative.citizen_nullifier == nullifier
     ).first()
     
-    if not politician:
+    if not representative:
         return {
-            "is_politician": False,
-            "politician": None
+            "is_representative": False,
+            "representative": None
         }
     
     return {
-        "is_politician": True,
-        "politician": {
-            "id": politician.id,
-            "name": politician.name,
-            "slug": politician.slug,
-            "party": politician.party,
-            "position": politician.position,
-            "image_url": politician.image_url,
-            "application_status": politician.application_status,
-            "is_verified": politician.is_verified
+        "is_representative": True,
+        "representative": {
+            "id": representative.id,
+            "name": representative.name,
+            "slug": representative.slug,
+            "party": representative.party,
+            "position": representative.position,
+            "image_url": representative.image_url,
+            "application_status": representative.application_status,
+            "is_verified": representative.is_verified
         }
     }
 
-@app.post("/api/politicians/register")
-async def register_as_politician(
-    request: PoliticianRegisterRequest,
+@app.post("/api/representatives/register")
+async def register_as_representative(
+    request: RepresentativeRegisterRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Register a verified citizen as a politician applicant.
+    Register a verified citizen as a representative applicant.
     
     Flow:
     1. Citizen proves citizenship via ZK (already has nullifier)
-    2. Citizen applies to become politician (this endpoint)
+    2. Citizen applies to become representative (this endpoint)
     3. Election commission verifies application
     4. Once verified, can post manifestos
     """
@@ -1690,119 +1691,119 @@ async def register_as_politician(
             detail="Invalid credential. Please complete citizen verification first."
         )
     
-    # 2. Check if nullifier already registered as politician
-    existing = db.query(Politician).filter(
-        Politician.citizen_nullifier == request.nullifier
+    # 2. Check if nullifier already registered as representative
+    existing = db.query(Representative).filter(
+        Representative.citizen_nullifier == request.nullifier
     ).first()
     
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"This credential is already registered as politician. Status: {existing.application_status}"
+            detail=f"This credential is already registered as representative. Status: {existing.application_status}"
         )
     
     # 3. Generate slug from name
     slug = generate_slug(request.name)
     base_slug = slug
     counter = 1
-    while db.query(Politician).filter(Politician.slug == slug).first():
+    while db.query(Representative).filter(Representative.slug == slug).first():
         slug = f"{base_slug}-{counter}"
         counter += 1
     
-    # 4. Create politician application (auto-verified in decentralized system)
-    politician = Politician(
+    # 4. Create representative application (auto-verified in decentralized system)
+    representative = Representative(
         name=request.name,
         slug=slug,
         party=request.party,
-        position=request.position or "Aspiring Politician",
+        position=request.position or "Aspiring Representative",
         bio=request.bio,
         image_url=request.image_url,
         citizen_nullifier=request.nullifier,
         election_commission_id=request.election_commission_id,
         citizenship_verified_at=datetime.now(timezone.utc),
         application_status="approved",  # Auto-approved in decentralized system
-        is_verified=True,  # Auto-verified - any citizen with ZK proof can be politician
+        is_verified=True,  # Auto-verified - any citizen with ZK proof can be representative
         verified_at=datetime.now(timezone.utc),
         verified_by="Decentralized System (ZK Proof)"
     )
     
-    db.add(politician)
+    db.add(representative)
     db.commit()
-    db.refresh(politician)
+    db.refresh(representative)
     
     return {
         "success": True,
-        "message": "Politician registered successfully. You can now create manifestos.",
-        "politician": {
-            "id": politician.id,
-            "name": politician.name,
-            "slug": politician.slug,
-            "application_status": politician.application_status,
-            "is_verified": politician.is_verified,
-            "submitted_at": politician.created_at.isoformat()
+        "message": "Representative registered successfully. You can now create manifestos.",
+        "representative": {
+            "id": representative.id,
+            "name": representative.name,
+            "slug": representative.slug,
+            "application_status": representative.application_status,
+            "is_verified": representative.is_verified,
+            "submitted_at": representative.created_at.isoformat()
         }
     }
 
 
-@app.post("/api/politicians/{politician_id}/verify")
-async def verify_politician(
-    politician_id: int,
-    request: PoliticianVerifyRequest,
+@app.post("/api/representatives/{representative_id}/verify")
+async def verify_representative(
+    representative_id: int,
+    request: RepresentativeVerifyRequest,
     db: Session = Depends(get_db)
 ):
     """
-    DEPRECATED: Verify/approve a politician application.
+    DEPRECATED: Verify/approve a representative application.
     
-    In the decentralized system, politicians are auto-verified on registration.
+    In the decentralized system, representatives are auto-verified on registration.
     This endpoint is kept for backwards compatibility and testing purposes only.
     It can be used to update verification status if needed.
     """
     # Optional admin check (for backwards compatibility)
-    ADMIN_KEY = "ec_admin_2025"  # Simple key for hackathon demo
+    ADMIN_KEY = "ec_admin_2025"  # Simple key for hackfest demo
     
     if request.admin_key != ADMIN_KEY:
         raise HTTPException(status_code=403, detail="Unauthorized. Invalid admin key.")
     
-    # Get politician
-    politician = db.query(Politician).filter(Politician.id == politician_id).first()
+    # Get representative
+    representative = db.query(Representative).filter(Representative.id == representative_id).first()
     
-    if not politician:
-        raise HTTPException(status_code=404, detail="Politician not found")
+    if not representative:
+        raise HTTPException(status_code=404, detail="Representative not found")
     
-    if politician.application_status != "pending":
+    if representative.application_status != "pending":
         raise HTTPException(
             status_code=400, 
-            detail=f"Application already processed. Status: {politician.application_status}"
+            detail=f"Application already processed. Status: {representative.application_status}"
         )
     
     # Update verification status
     if request.approved:
-        politician.application_status = "approved"
-        politician.is_verified = True
-        politician.verified_at = datetime.now(timezone.utc)
-        politician.verified_by = request.verified_by
-        politician.rejection_reason = None
-        message = f"{politician.name} has been verified as a legitimate politician candidate."
+        representative.application_status = "approved"
+        representative.is_verified = True
+        representative.verified_at = datetime.now(timezone.utc)
+        representative.verified_by = request.verified_by
+        representative.rejection_reason = None
+        message = f"{representative.name} has been verified as a legitimate representative candidate."
     else:
-        politician.application_status = "rejected"
-        politician.is_verified = False
-        politician.rejection_reason = request.rejection_reason or "Application did not meet verification criteria"
-        message = f"Application rejected: {politician.rejection_reason}"
+        representative.application_status = "rejected"
+        representative.is_verified = False
+        representative.rejection_reason = request.rejection_reason or "Application did not meet verification criteria"
+        message = f"Application rejected: {representative.rejection_reason}"
     
     db.commit()
-    db.refresh(politician)
+    db.refresh(representative)
     
     return {
         "success": True,
         "message": message,
-        "politician": {
-            "id": politician.id,
-            "name": politician.name,
-            "application_status": politician.application_status,
-            "is_verified": politician.is_verified,
-            "verified_at": politician.verified_at.isoformat() if politician.verified_at else None,
-            "verified_by": politician.verified_by,
-            "rejection_reason": politician.rejection_reason
+        "representative": {
+            "id": representative.id,
+            "name": representative.name,
+            "application_status": representative.application_status,
+            "is_verified": representative.is_verified,
+            "verified_at": representative.verified_at.isoformat() if representative.verified_at else None,
+            "verified_by": representative.verified_by,
+            "rejection_reason": representative.rejection_reason
         }
     }
 
@@ -1810,42 +1811,42 @@ async def verify_politician(
 # ============= Digital Signature Endpoints =============
 
 class WalletGenerationRequest(BaseModel):
-    """Request to generate a new wallet for a politician."""
+    """Request to generate a new wallet for a representative."""
     passphrase: str  # For encrypting the keystore
 
-class PoliticianKeyResponse(BaseModel):
+class RepresentativeKeyResponse(BaseModel):
     """Response containing the encrypted keystore."""
-    politician_id: int
+    representative_id: int
     wallet_address: str
     keystore: Dict[str, Any]  # Encrypted keystore file
     warning: str
     instructions: List[str]
 
-@app.post("/api/politicians/{politician_id}/generate-wallet")
-async def generate_politician_wallet(
-    politician_id: int,
+@app.post("/api/representatives/{representative_id}/generate-wallet")
+async def generate_representative_wallet(
+    representative_id: int,
     request: WalletGenerateRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Generate a new wallet/key pair for a politician.
+    Generate a new wallet/key pair for a representative.
     
     This is a ONE-TIME operation. The private key is encrypted
     with the user's passphrase and returned. We NEVER store
     the private key.
     
-    The politician must save the encrypted keystore file securely.
+    The representative must save the encrypted keystore file securely.
     """
-    # 1. Get politician
-    politician = db.query(Politician).filter(Politician.id == politician_id).first()
-    if not politician:
-        raise HTTPException(status_code=404, detail="Politician not found")
+    # 1. Get representative
+    representative = db.query(Representative).filter(Representative.id == representative_id).first()
+    if not representative:
+        raise HTTPException(status_code=404, detail="Representative not found")
     
     # 2. Check if already has wallet
-    if politician.wallet_address and not politician.key_revoked:
+    if representative.wallet_address and not representative.key_revoked:
         raise HTTPException(
             status_code=400, 
-            detail="Politician already has an active wallet. Use key rotation to change."
+            detail="Representative already has an active wallet. Use key rotation to change."
         )
     
     # 3. Generate new key pair
@@ -1855,35 +1856,35 @@ async def generate_politician_wallet(
     keystore = create_encrypted_keystore(private_key, request.passphrase, address)
     
     # 5. Store ONLY public data
-    if politician.wallet_address:
+    if representative.wallet_address:
         # Key rotation: save old address to history
-        old_addresses = politician.previous_wallet_addresses or []
+        old_addresses = representative.previous_wallet_addresses or []
         old_addresses.append({
-            "address": politician.wallet_address,
+            "address": representative.wallet_address,
             "revoked_at": datetime.now(timezone.utc).isoformat(),
-            "version": politician.key_version or 1
+            "version": representative.key_version or 1
         })
-        politician.previous_wallet_addresses = old_addresses
-        politician.key_version = (politician.key_version or 1) + 1
-        politician.key_revoked = False
-        politician.key_revoked_at = None
-        politician.key_revoked_reason = None
+        representative.previous_wallet_addresses = old_addresses
+        representative.key_version = (representative.key_version or 1) + 1
+        representative.key_revoked = False
+        representative.key_revoked_at = None
+        representative.key_revoked_reason = None
     
-    politician.wallet_address = address
-    politician.public_key = public_key
-    politician.wallet_created_at = datetime.now(timezone.utc)
+    representative.wallet_address = address
+    representative.public_key = public_key
+    representative.wallet_created_at = datetime.now(timezone.utc)
     
     db.commit()
     
     # 6. Return encrypted keystore (private key is inside, encrypted)
     return {
-        "politician_id": politician.id,
-        "politician_name": politician.name,
+        "representative_id": representative.id,
+        "representative_name": representative.name,
         "wallet_address": address,
         "wallet_address_short": format_address_short(address),
-        "key_version": politician.key_version or 1,
+        "key_version": representative.key_version or 1,
         "keystore": keystore,
-        "keystore_filename": f"promisethread-{politician.name.lower().replace(' ', '-')}-key.json",
+        "keystore_filename": f"promisethread-{representative.name.lower().replace(' ', '-')}-key.json",
         "warning": "⚠️ SAVE THIS KEYSTORE FILE SECURELY. You will need it and your passphrase to sign manifestos. We cannot recover it.",
         "instructions": [
             "1. Download the keystore file (click the download button)",
@@ -1897,22 +1898,22 @@ async def generate_politician_wallet(
 
 
 class KeyRotationRequest(BaseModel):
-    """Request to rotate (replace) a politician's key."""
-    politician_id: int
+    """Request to rotate (replace) a representative's key."""
+    representative_id: int
     reason: str  # lost, compromised, scheduled
     new_passphrase: str
     admin_token: str  # Simple admin verification
 
 ADMIN_TOKEN = "hackfest2025_admin"  # In production, use proper auth
 
-@app.post("/api/politicians/{politician_id}/rotate-key")
-async def rotate_politician_key(
-    politician_id: int,
+@app.post("/api/representatives/{representative_id}/rotate-key")
+async def rotate_representative_key(
+    representative_id: int,
     request: KeyRotationRequest,
     db: Session = Depends(get_db)
 ):
     """
-    Rotate a politician's key (for lost or compromised keys).
+    Rotate a representative's key (for lost or compromised keys).
     
     This:
     1. Marks the old key as revoked
@@ -1924,49 +1925,49 @@ async def rotate_politician_key(
     if request.admin_token != ADMIN_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid admin token")
     
-    # Get politician
-    politician = db.query(Politician).filter(Politician.id == politician_id).first()
-    if not politician:
-        raise HTTPException(status_code=404, detail="Politician not found")
+    # Get representative
+    representative = db.query(Representative).filter(Representative.id == representative_id).first()
+    if not representative:
+        raise HTTPException(status_code=404, detail="Representative not found")
     
-    if not politician.wallet_address:
-        raise HTTPException(status_code=400, detail="Politician has no wallet to rotate")
+    if not representative.wallet_address:
+        raise HTTPException(status_code=400, detail="Representative has no wallet to rotate")
     
-    old_address = politician.wallet_address
+    old_address = representative.wallet_address
     
     # Generate new key pair
     private_key, public_key, new_address = generate_key_pair()
     keystore = create_encrypted_keystore(private_key, request.new_passphrase, new_address)
     
     # Save old address to history
-    old_addresses = politician.previous_wallet_addresses or []
+    old_addresses = representative.previous_wallet_addresses or []
     old_addresses.append({
         "address": old_address,
         "revoked_at": datetime.now(timezone.utc).isoformat(),
-        "version": politician.key_version or 1,
+        "version": representative.key_version or 1,
         "reason": request.reason
     })
     
-    # Update politician
-    politician.previous_wallet_addresses = old_addresses
-    politician.wallet_address = new_address
-    politician.public_key = public_key
-    politician.wallet_created_at = datetime.now(timezone.utc)
-    politician.key_version = (politician.key_version or 1) + 1
-    politician.key_revoked = False
-    politician.key_revoked_at = None
+    # Update representative
+    representative.previous_wallet_addresses = old_addresses
+    representative.wallet_address = new_address
+    representative.public_key = public_key
+    representative.wallet_created_at = datetime.now(timezone.utc)
+    representative.key_version = (representative.key_version or 1) + 1
+    representative.key_revoked = False
+    representative.key_revoked_at = None
     
     db.commit()
     
     return {
         "success": True,
-        "politician_id": politician.id,
+        "representative_id": representative.id,
         "old_address": format_address_short(old_address),
         "new_address": new_address,
         "new_address_short": format_address_short(new_address),
-        "key_version": politician.key_version,
+        "key_version": representative.key_version,
         "keystore": keystore,
-        "keystore_filename": f"promisethread-{politician.name.lower().replace(' ', '-')}-key-v{politician.key_version}.json",
+        "keystore_filename": f"promisethread-{representative.name.lower().replace(' ', '-')}-key-v{representative.key_version}.json",
         "message": f"Key rotated successfully. Reason: {request.reason}",
         "warning": "Old manifestos remain verifiable with the old key. Only new manifestos will use this key."
     }
@@ -1977,7 +1978,7 @@ class SignedManifestoRequest(BaseModel):
     title: str
     description: str
     category: str
-    politician_id: int
+    representative_id: int
     grace_period_days: int = 7
     manifesto_hash: str  # keccak256 hash computed by frontend (matches Solidity)
     signature: str  # ECDSA signature of the hash
@@ -1995,31 +1996,31 @@ async def submit_signed_manifesto(
     
     Flow:
     1. Frontend computes hash of manifesto text
-    2. Politician signs hash with their private key (client-side)
-    3. Backend verifies signature matches politician's wallet address
+    2. Representative signs hash with their private key (client-side)
+    3. Backend verifies signature matches representative's wallet address
     4. **BLOCKCHAIN WRITE** - Store hash on-chain (must succeed!)
     5. Only if blockchain succeeds → Store in database
     """
     blockchain = get_blockchain_service()
     
-    # 1. Get politician
-    politician = db.query(Politician).filter(
-        Politician.id == request.politician_id
+    # 1. Get representative
+    representative = db.query(Representative).filter(
+        Representative.id == request.representative_id
     ).first()
     
-    if not politician:
-        raise HTTPException(status_code=404, detail="Politician not found")
+    if not representative:
+        raise HTTPException(status_code=404, detail="Representative not found")
     
-    if not politician.wallet_address:
+    if not representative.wallet_address:
         raise HTTPException(
             status_code=400, 
-            detail="Politician must generate a wallet first"
+            detail="Representative must generate a wallet first"
         )
     
-    if politician.key_revoked:
+    if representative.key_revoked:
         raise HTTPException(
             status_code=400,
-            detail="Politician's key has been revoked. Please contact admin for key rotation."
+            detail="Representative's key has been revoked. Please contact admin for key rotation."
         )
     
     # 2. Verify hash is correct
@@ -2034,13 +2035,13 @@ async def submit_signed_manifesto(
     sig_valid, recovered_address = verify_signature(
         request.description,
         request.signature,
-        politician.wallet_address
+        representative.wallet_address
     )
     
     if not sig_valid:
         raise HTTPException(
             status_code=401,
-            detail=f"Invalid signature. Does not match politician's wallet address."
+            detail=f"Invalid signature. Does not match representative's wallet address."
         )
     
     # ============= PHASE 5.2: BLOCKCHAIN WRITE FIRST =============
@@ -2051,24 +2052,24 @@ async def submit_signed_manifesto(
     blockchain_confirmed = False
     
     if blockchain.is_connected():
-        # Step 4A: Ensure politician is registered on-chain
-        onchain_politician = blockchain.get_politician(request.politician_id)
+        # Step 4A: Ensure representative is registered on-chain
+        onchain_representative = blockchain.get_representative(request.representative_id)
         
-        if not onchain_politician or not onchain_politician.get("registered"):
-            # Register politician on-chain first
-            reg_result = blockchain.register_politician(request.politician_id)
+        if not onchain_representative or not onchain_representative.get("registered"):
+            # Register representative on-chain first
+            reg_result = blockchain.register_representative(request.representative_id)
             
             if not reg_result.get("success"):
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Failed to register politician on blockchain: {reg_result.get('error', 'Unknown error')}"
+                    detail=f"Failed to register representative on blockchain: {reg_result.get('error', 'Unknown error')}"
                 )
             
-            print(f"✓ Politician {request.politician_id} registered on blockchain")
+            print(f"✓ Representative {request.representative_id} registered on blockchain")
         
         # Step 4B: Submit manifesto hash to blockchain
         submit_result = blockchain.submit_manifesto(
-            request.politician_id, 
+            request.representative_id, 
             request.manifesto_hash
         )
         
@@ -2100,7 +2101,7 @@ async def submit_signed_manifesto(
     grace_end = datetime.now(timezone.utc) + timedelta(days=request.grace_period_days)
     
     new_manifesto = ManifestoModel(
-        politician_id=request.politician_id,
+        representative_id=request.representative_id,
         title=request.title,
         description=request.description,
         category=request.category,
@@ -2108,8 +2109,8 @@ async def submit_signed_manifesto(
         promise_hash=request.manifesto_hash,
         signature=request.signature,
         signed_at=datetime.now(timezone.utc),
-        signer_address=politician.wallet_address,
-        signer_key_version=politician.key_version or 1,
+        signer_address=representative.wallet_address,
+        signer_key_version=representative.key_version or 1,
         grace_period_end=grace_end,
         legacy_unverified=False,  # This is a properly signed manifesto
         blockchain_confirmed=blockchain_confirmed,
@@ -2129,9 +2130,9 @@ async def submit_signed_manifesto(
         data={
             "manifesto_id": new_manifesto.id,
             "title": new_manifesto.title,
-            "politician_id": new_manifesto.politician_id,
+            "representative_id": new_manifesto.representative_id,
             "manifesto_hash": request.manifesto_hash,
-            "signer_address": politician.wallet_address,
+            "signer_address": representative.wallet_address,
             "signature_verified": True,
             "blockchain_tx": blockchain_tx,
             "blockchain_block": blockchain_block,
@@ -2147,8 +2148,8 @@ async def submit_signed_manifesto(
         "title": new_manifesto.title,
         "manifesto_hash": request.manifesto_hash,
         "signature_verified": True,
-        "signer_address": politician.wallet_address,
-        "signer_address_short": format_address_short(politician.wallet_address),
+        "signer_address": representative.wallet_address,
+        "signer_address_short": format_address_short(representative.wallet_address),
         "grace_period_end": grace_end.isoformat(),
         
         # BLOCKCHAIN CONFIRMATION
@@ -2175,7 +2176,7 @@ async def verify_manifesto(manifesto_id: int, db: Session = Depends(get_db)):
     
     Returns:
     - Hash verification: Does the stored hash match the content?
-    - Signature verification: Was it signed by the claimed politician?
+    - Signature verification: Was it signed by the claimed representative?
     - Overall status: Is this manifesto authentic?
     """
     manifesto = db.query(ManifestoModel).filter(
@@ -2185,14 +2186,14 @@ async def verify_manifesto(manifesto_id: int, db: Session = Depends(get_db)):
     if not manifesto:
         raise HTTPException(status_code=404, detail="Manifesto not found")
     
-    politician = manifesto.politician
+    representative = manifesto.representative
     
     # Check if this is a legacy manifesto
     if manifesto.legacy_unverified or not manifesto.signature:
         return {
             "manifesto_id": manifesto.id,
             "title": manifesto.title,
-            "politician_name": politician.name if politician else "Unknown",
+            "representative_name": representative.name if representative else "Unknown",
             "verification_status": "LEGACY",
             "legacy_unverified": True,
             "message": "This manifesto was created before the signature system was implemented. It cannot be cryptographically verified.",
@@ -2208,16 +2209,16 @@ async def verify_manifesto(manifesto_id: int, db: Session = Depends(get_db)):
         manifesto_text=manifesto.description,
         stored_hash=manifesto.promise_hash,
         signature=manifesto.signature,
-        signer_address=manifesto.signer_address or politician.wallet_address,
+        signer_address=manifesto.signer_address or representative.wallet_address,
         blockchain_tx=manifesto.blockchain_tx
     )
     
     return {
         "manifesto_id": manifesto.id,
         "title": manifesto.title,
-        "politician_name": politician.name if politician else "Unknown",
-        "politician_address": manifesto.signer_address,
-        "politician_address_short": format_address_short(manifesto.signer_address) if manifesto.signer_address else None,
+        "representative_name": representative.name if representative else "Unknown",
+        "representative_address": manifesto.signer_address,
+        "representative_address_short": format_address_short(manifesto.signer_address) if manifesto.signer_address else None,
         "signed_at": manifesto.signed_at.isoformat() if manifesto.signed_at else None,
         "key_version": manifesto.signer_key_version,
         "verification_status": "AUTHENTIC" if bundle["overall_valid"] else "INVALID",
@@ -2277,24 +2278,24 @@ async def verify_manifesto_text(request: ManifestoVerifyRequest, db: Session = D
     }
 
 
-@app.get("/api/politicians/{politician_id}/wallet-status")
-async def get_politician_wallet_status(politician_id: int, db: Session = Depends(get_db)):
-    """Get the wallet/signing status of a politician."""
-    politician = db.query(Politician).filter(Politician.id == politician_id).first()
+@app.get("/api/representatives/{representative_id}/wallet-status")
+async def get_representative_wallet_status(representative_id: int, db: Session = Depends(get_db)):
+    """Get the wallet/signing status of a representative."""
+    representative = db.query(Representative).filter(Representative.id == representative_id).first()
     
-    if not politician:
-        raise HTTPException(status_code=404, detail="Politician not found")
+    if not representative:
+        raise HTTPException(status_code=404, detail="Representative not found")
     
     return {
-        "politician_id": politician.id,
-        "name": politician.name,
-        "has_wallet": bool(politician.wallet_address),
-        "wallet_address": politician.wallet_address,
-        "wallet_address_short": format_address_short(politician.wallet_address) if politician.wallet_address else None,
-        "wallet_created_at": politician.wallet_created_at.isoformat() if politician.wallet_created_at else None,
-        "key_version": politician.key_version if hasattr(politician, 'key_version') else 1,
-        "key_revoked": politician.key_revoked if hasattr(politician, 'key_revoked') else False,
-        "previous_keys_count": len(politician.previous_wallet_addresses or []) if hasattr(politician, 'previous_wallet_addresses') else 0
+        "representative_id": representative.id,
+        "name": representative.name,
+        "has_wallet": bool(representative.wallet_address),
+        "wallet_address": representative.wallet_address,
+        "wallet_address_short": format_address_short(representative.wallet_address) if representative.wallet_address else None,
+        "wallet_created_at": representative.wallet_created_at.isoformat() if representative.wallet_created_at else None,
+        "key_version": representative.key_version if hasattr(representative, 'key_version') else 1,
+        "key_revoked": representative.key_revoked if hasattr(representative, 'key_revoked') else False,
+        "previous_keys_count": len(representative.previous_wallet_addresses or []) if hasattr(representative, 'previous_wallet_addresses') else 0
     }
 
 
@@ -2319,8 +2320,9 @@ def get_blockchain_config():
 
 
 # UNUSED ENDPOINT - Kept for reference but not exposed
-# @app.get("/api/manifesto/{politician_id}/hash")
-async def get_manifesto_onchain_hash_UNUSED(politician_id: int, db: Session = Depends(get_db)):
+# UNUSED ENDPOINT - Kept for reference but not exposed
+# @app.get("/api/manifesto/{representative_id}/hash")
+async def get_manifesto_onchain_hash_UNUSED(representative_id: int, db: Session = Depends(get_db)):
     """
     [DEPRECATED] 🔗 Get On-Chain Hash (REAL BLOCKCHAIN READ)
     
@@ -2345,15 +2347,15 @@ async def get_manifesto_onchain_hash_UNUSED(politician_id: int, db: Session = De
     if not blockchain.is_connected():
         # Fallback to database if blockchain unavailable
         manifesto = db.query(ManifestoModel).filter(
-            ManifestoModel.politician_id == politician_id
+            ManifestoModel.representative_id == representative_id
         ).order_by(ManifestoModel.created_at.desc()).first()
         
         if not manifesto:
             raise HTTPException(status_code=404, detail="Manifesto not found")
         
         return {
-            "politician_id": politician_id,
-            "politician_name": manifesto.politician.name if manifesto.politician else "Unknown",
+            "representative_id": representative_id,
+            "representative_name": manifesto.representative.name if manifesto.representative else "Unknown",
             "hash": manifesto.promise_hash,
             "timestamp": manifesto.created_at.isoformat() if manifesto.created_at else None,
             "source": "database_fallback",
@@ -2362,19 +2364,19 @@ async def get_manifesto_onchain_hash_UNUSED(politician_id: int, db: Session = De
             "chain_id": config["chain_id"]
         }
     
-    # REAL BLOCKCHAIN READ - Get politician's manifestos from chain
-    onchain_manifestos = blockchain.get_politician_manifestos(politician_id)
+    # REAL BLOCKCHAIN READ - Get representative's manifestos from chain
+    onchain_manifestos = blockchain.get_representative_manifestos(representative_id)
     
     if not onchain_manifestos:
         # Check database for legacy manifestos
         manifesto = db.query(ManifestoModel).filter(
-            ManifestoModel.politician_id == politician_id
+            ManifestoModel.representative_id == representative_id
         ).order_by(ManifestoModel.created_at.desc()).first()
         
         if manifesto:
             return {
-                "politician_id": politician_id,
-                "politician_name": manifesto.politician.name if manifesto.politician else "Unknown",
+                "representative_id": representative_id,
+                "representative_name": manifesto.representative.name if manifesto.representative else "Unknown",
                 "hash": manifesto.promise_hash,
                 "timestamp": manifesto.created_at.isoformat() if manifesto.created_at else None,
                 "source": "database_legacy",
@@ -2384,17 +2386,17 @@ async def get_manifesto_onchain_hash_UNUSED(politician_id: int, db: Session = De
                 "chain_id": config["chain_id"]
             }
         
-        raise HTTPException(status_code=404, detail=f"No manifestos found for politician {politician_id}")
+        raise HTTPException(status_code=404, detail=f"No manifestos found for representative {representative_id}")
     
     # Get the latest manifesto from blockchain
     latest = onchain_manifestos[-1]  # Most recent
     
-    # Get politician name from DB (blockchain doesn't store names)
-    politician = db.query(Politician).filter(Politician.id == politician_id).first()
+    # Get representative name from DB (blockchain doesn't store names)
+    representative = db.query(Representative).filter(Representative.id == representative_id).first()
     
     return {
-        "politician_id": politician_id,
-        "politician_name": politician.name if politician else "Unknown",
+        "representative_id": representative_id,
+        "representative_name": representative.name if representative else "Unknown",
         
         # ON-CHAIN DATA (from real blockchain!)
         "hash": latest["content_hash"],
@@ -2414,7 +2416,7 @@ async def get_manifesto_onchain_hash_UNUSED(politician_id: int, db: Session = De
         "independent_verification": {
             "step_1": "Compute keccak256 hash of manifesto text (matches Solidity keccak256)",
             "step_2": f"Query contract {config['contract_address']} on chain {config['chain_id']}",
-            "step_3": "Call getPoliticianManifestos({politician_id}) or verifyManifesto({politician_id}, hash)",
+            "step_3": "Call getRepresentativeManifestos({representative_id}) or verifyManifesto({representative_id}, hash)",
             "step_4": "Compare hashes - they must match exactly"
         }
     }
@@ -2422,7 +2424,7 @@ async def get_manifesto_onchain_hash_UNUSED(politician_id: int, db: Session = De
 
 class PublicVerifyRequest(BaseModel):
     """Request for public verification (convenience API)."""
-    politician_id: int
+    representative_id: int
     manifesto_text: str
 
 
@@ -2455,13 +2457,13 @@ async def verify_manifesto_public_UNUSED(request: PublicVerifyRequest, db: Sessi
     
     # Step 2: REAL BLOCKCHAIN CALL - verify on-chain
     if blockchain.is_connected():
-        verification = blockchain.verify_manifesto(request.politician_id, computed_hash)
+        verification = blockchain.verify_manifesto(request.representative_id, computed_hash)
         
         return {
             "verification_result": {
                 "valid": verification["verified"],
                 "status": "AUTHENTIC" if verification["verified"] else "NOT_FOUND_ON_CHAIN",
-                "message": "✅ Manifesto is AUTHENTIC - verified on blockchain" if verification["verified"] else "❌ Hash not found on blockchain for this politician"
+                "message": "✅ Manifesto is AUTHENTIC - verified on blockchain" if verification["verified"] else "❌ Hash not found on blockchain for this representative"
             },
             
             # HASHES
@@ -2484,11 +2486,11 @@ async def verify_manifesto_public_UNUSED(request: PublicVerifyRequest, db: Sessi
     
     # Fallback to database if blockchain unavailable
     manifesto = db.query(ManifestoModel).filter(
-        ManifestoModel.politician_id == request.politician_id
+        ManifestoModel.representative_id == request.representative_id
     ).order_by(ManifestoModel.created_at.desc()).first()
     
     if not manifesto:
-        raise HTTPException(status_code=404, detail=f"No manifesto found for politician {request.politician_id}")
+        raise HTTPException(status_code=404, detail=f"No manifesto found for representative {request.representative_id}")
     
     blockchain_hash = manifesto.promise_hash
     hashes_match = computed_hash == blockchain_hash
@@ -2512,8 +2514,8 @@ async def verify_manifesto_public_UNUSED(request: PublicVerifyRequest, db: Sessi
 
 
 # UNUSED ENDPOINT - Kept for reference but not exposed
-# @app.get("/api/manifesto/{politician_id}/proof")
-async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session = Depends(get_db)):
+# @app.get("/api/manifesto/{representative_id}/proof")
+async def get_verification_proof_bundle_UNUSED(representative_id: int, db: Session = Depends(get_db)):
     """
     [DEPRECATED] 📦 Get Verification Proof Bundle (COMPLETE EVIDENCE PACKAGE)
     
@@ -2537,15 +2539,15 @@ async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session =
     blockchain = get_blockchain_service()
     config = get_blockchain_config()
     
-    # Get politician data from database
-    politician = db.query(Politician).filter(Politician.id == politician_id).first()
+    # Get representative data from database
+    representative = db.query(Representative).filter(Representative.id == representative_id).first()
     
-    if not politician:
-        raise HTTPException(status_code=404, detail=f"Politician {politician_id} not found")
+    if not representative:
+        raise HTTPException(status_code=404, detail=f"Representative {representative_id} not found")
     
     # Get latest manifesto from database (for text content)
     manifesto = db.query(ManifestoModel).filter(
-        ManifestoModel.politician_id == politician_id
+        ManifestoModel.representative_id == representative_id
     ).order_by(ManifestoModel.created_at.desc()).first()
     
     # Compute hash if we have text
@@ -2557,7 +2559,7 @@ async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session =
     
     if blockchain.is_connected():
         # Get manifestos from blockchain
-        onchain_manifestos = blockchain.get_politician_manifestos(politician_id)
+        onchain_manifestos = blockchain.get_representative_manifestos(representative_id)
         
         if onchain_manifestos:
             latest = onchain_manifestos[-1]
@@ -2566,7 +2568,7 @@ async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session =
             
             # Verify hash matches if we have both
             if computed_hash:
-                verification = blockchain.verify_manifesto(politician_id, computed_hash)
+                verification = blockchain.verify_manifesto(representative_id, computed_hash)
                 hash_valid = verification["verified"]
             else:
                 hash_valid = None
@@ -2582,7 +2584,7 @@ async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session =
         
         # MANIFESTO DATA (from database cache)
         "manifesto": {
-            "politician_id": politician_id,
+            "representative_id": representative_id,
             "title": manifesto.title if manifesto else None,
             "text": manifesto.description if manifesto else None,
             "category": manifesto.category if manifesto else None,
@@ -2591,12 +2593,12 @@ async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session =
             "source": "database_cache"
         },
         
-        # POLITICIAN DATA
-        "politician": {
-            "id": politician.id,
-            "name": politician.name,
-            "party": politician.party,
-            "wallet_address": politician.wallet_address
+        # Representative DATA
+        "representative": {
+            "id": representative.id,
+            "name": representative.name,
+            "party": representative.party,
+            "wallet_address": representative.wallet_address
         },
         
         # BLOCKCHAIN PROOF (REAL on-chain data!)
@@ -2611,16 +2613,16 @@ async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session =
             "block_number": onchain_data["block_number"] if onchain_data else None,
             "timestamp_unix": onchain_data["timestamp"] if onchain_data else None,
             "timestamp_iso": onchain_data["timestamp_iso"] if onchain_data else None,
-            "total_manifestos_onchain": len(blockchain.get_politician_manifestos(politician_id)) if blockchain.is_connected() else 0,
+            "total_manifestos_onchain": len(blockchain.get_representative_manifestos(representative_id)) if blockchain.is_connected() else 0,
             "source": "blockchain" if blockchain_status == "connected" else "unavailable"
         },
         
         # AUTHORSHIP PROOF
         "authorship_proof": {
-            "registered_wallet": politician.wallet_address,
+            "registered_wallet": representative.wallet_address,
             "signer_address": manifesto.signer_address if manifesto else None,
             "signed_at": manifesto.signed_at.isoformat() if manifesto and manifesto.signed_at else None,
-            "note": "Authorship is proven via blockchain transaction signer. The address that submitted must be registered to this politician."
+            "note": "Authorship is proven via blockchain transaction signer. The address that submitted must be registered to this representative."
         },
         
         # VERIFICATION STATUS
@@ -2648,7 +2650,7 @@ async def get_verification_proof_bundle_UNUSED(politician_id: int, db: Session =
                     "description": f"Query the ManifestoRegistry contract",
                     "contract": config["contract_address"],
                     "chain_id": config["chain_id"],
-                    "code": f"contract.verifyManifesto({politician_id}, hash) or contract.getPoliticianManifestos({politician_id})"
+                    "code": f"contract.verifyManifesto({representative_id}, hash) or contract.getRepresentativeManifestos({representative_id})"
                 },
                 {
                     "step": 3,
@@ -2693,11 +2695,11 @@ async def get_verification_config_UNUSED():
         "hash_algorithm": "keccak256",
         "hash_format": "0x + hex string (64 chars for keccak256)",
         "contract_functions": {
-            "verifyManifesto": "verifyManifesto(uint256 politicianId, bytes32 contentHash) → (bool verified, uint256 timestamp, uint256 index)",
-            "getPoliticianManifestos": "getPoliticianManifestos(uint256 politicianId) → Manifesto[]",
-            "lookupHash": "lookupHash(bytes32 contentHash) → (uint256 politicianId, bool exists, uint256 timestamp)",
-            "submitManifesto": "submitManifesto(uint256 politicianId, bytes32 contentHash) [WRITE]",
-            "registerPolitician": "registerPolitician(uint256 politicianId, address wallet) [WRITE]"
+            "verifyManifesto": "verifyManifesto(uint256 representativeId, bytes32 contentHash) → (bool verified, uint256 timestamp, uint256 index)",
+            "getRepresentativeManifestos": "getRepresentativeManifestos(uint256 representativeId) → Manifesto[]",
+            "lookupHash": "lookupHash(bytes32 contentHash) → (uint256 representativeId, bool exists, uint256 timestamp)",
+            "submitManifesto": "submitManifesto(uint256 representativeId, bytes32 contentHash) [WRITE]",
+            "registerRepresentative": "registerRepresentative(uint256 representativeId, address wallet) [WRITE]"
         },
         "rpc_endpoint": config["rpc_url"],
         "verification_note": "All verification can be done independently by querying the blockchain directly. This backend reads from blockchain via Web3 - it is a convenience layer, not a trust requirement."
@@ -2745,22 +2747,22 @@ async def startup_event():
     print("✓ Database initialized")
     
     # Check if database needs seeding
-    from seed_data import seed_politicians, seed_manifestos, seed_audit_logs
+    from seed_data import seed_representatives, seed_manifestos, seed_audit_logs
     db = next(get_db())
     
     try:
-        existing_politicians = db.query(Politician).count()
+        existing_representatives = db.query(Representative).count()
         existing_manifestos = db.query(ManifestoModel).count()
         
-        if existing_politicians == 0 and existing_manifestos == 0:
+        if existing_representatives == 0 and existing_manifestos == 0:
             print("📊 Seeding initial data...")
-            politicians = seed_politicians(db)
-            manifestos = seed_manifestos(db, politicians)
+            representatives = seed_representatives(db)
+            manifestos = seed_manifestos(db, representatives)
             seed_audit_logs(db, manifestos)
             db.commit()
-            print(f"✓ Seeded {len(politicians)} politicians and {len(manifestos)} manifestos")
+            print(f"✓ Seeded {len(representatives)} representatives and {len(manifestos)} manifestos")
         else:
-            print(f"✓ Database already has data ({existing_politicians} politicians, {existing_manifestos} manifestos)")
+            print(f"✓ Database already has data ({existing_representatives} representatives, {existing_manifestos} manifestos)")
     except Exception as e:
         print(f"⚠️  Seeding error: {e}")
         db.rollback()

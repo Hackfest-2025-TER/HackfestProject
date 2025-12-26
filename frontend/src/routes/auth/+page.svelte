@@ -72,19 +72,19 @@
         localStorage.setItem("user_votes", JSON.stringify(localVotes));
       }
 
-      let politicianData = null;
+      let representativeData = null;
       try {
-        const politicianCheck = await fetch(
-          `http://localhost:8000/api/politicians/check-status?nullifier=${encodeURIComponent(result.nullifier!)}`,
+        const representativeCheck = await fetch(
+          `http://localhost:8000/api/representatives/check-status?nullifier=${encodeURIComponent(result.nullifier!)}`,
         );
-        if (politicianCheck.ok) {
-          const data = await politicianCheck.json();
-          if (data.is_politician) {
-            politicianData = data.politician;
+        if (representativeCheck.ok) {
+          const data = await representativeCheck.json();
+          if (data.is_representative) {
+            representativeData = data.representative;
           }
         }
       } catch (e) {
-        console.warn("Failed to check politician status:", e);
+        console.warn("Failed to check representative status:", e);
       }
 
       authStore.setCredential({
@@ -94,9 +94,9 @@
         createdAt: new Date().toISOString(),
         usedVotes: usedVotes,
         verified: true,
-        isPolitician: !!politicianData,
-        politicianId: politicianData?.id,
-        politicianSlug: politicianData?.slug,
+        isRepresentative: !!representativeData,
+        representativeId: representativeData?.id,
+        representativeSlug: representativeData?.slug,
       });
 
       // Redirect to citizen portal

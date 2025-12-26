@@ -10,7 +10,7 @@
   interface VerificationResult {
     verified: boolean;
     is_legacy: boolean;
-    politician_name?: string;
+    representative_name?: string;
     signer_address?: string;
     signature_preview?: string;
     signed_at?: string;
@@ -98,14 +98,14 @@
           <CheckCircle size={24} />
           <div>
             <strong>Signature Verified ✓</strong>
-            <p>This manifesto was cryptographically signed by the politician.</p>
+            <p>This manifesto was cryptographically signed by the representative.</p>
           </div>
         </div>
         
         <div class="details-grid">
           <div class="detail-item">
             <span class="label">Signed By</span>
-            <span class="value">{verificationResult.politician_name || 'Unknown'}</span>
+            <span class="value">{verificationResult.representative_name || 'Unknown'}</span>
           </div>
           <div class="detail-item">
             <span class="label">Wallet Address</span>

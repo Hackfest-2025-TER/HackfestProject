@@ -162,6 +162,15 @@ compile:
 # Testing
 # =============================================================================
 
+test-frontend:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Running Frontend Static Analysis (Svelte Check)"
+	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
+	cd frontend && pnpm run check
+	@echo ""
+	@echo "  ✓ Frontend checks completed"
+
 test-backend:
 	@echo "════════════════════════════════════════════════════════════"
 	@echo "  Running Backend API Tests"
@@ -264,6 +273,8 @@ test-all:
 	@echo "════════════════════════════════════════════════════════════"
 	@echo "  Running All Tests"
 	@echo "════════════════════════════════════════════════════════════"
+	@echo ""
+	@make test-frontend
 	@echo ""
 	@make test-crypto
 	@echo ""

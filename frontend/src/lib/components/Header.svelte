@@ -20,7 +20,7 @@
   // Reactive auth state
   $: isAuthenticated = $authStore.isAuthenticated;
   $: nullifierShort = $authStore.credential?.nullifierShort || "";
-  $: isPolitician = $authStore.credential?.isPolitician;
+  $: isRepresentative = $authStore.credential?.isRepresentative;
 
   // Logo destination: authenticated users go to citizen portal, others to landing
   $: logoHref = isAuthenticated ? "/citizen" : "/";
@@ -37,7 +37,7 @@
         { href: "/representatives", label: "Representatives", icon: Users },
         { href: "/audit-trail", label: "Audit Trail", icon: Activity },
         { href: "/citizen/votes", label: "My Votes", icon: History },
-        ...(isPolitician
+        ...(isRepresentative
           ? [
               {
                 href: "/representative/dashboard",

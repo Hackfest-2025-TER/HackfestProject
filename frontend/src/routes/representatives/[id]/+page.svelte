@@ -17,17 +17,18 @@
 
   $: id = $page.params.id;
 
-  let politician: any = null;
+  let representative: any = null;
   let loading = true;
   let error = "";
 
-  $: stats = politician
+  $: stats = representative
     ? {
-        kept: politician.manifestos.filter((m: any) => m.status === "kept")
+        kept: representative.manifestos.filter((m: any) => m.status === "kept")
           .length,
-        broken: politician.manifestos.filter((m: any) => m.status === "broken")
-          .length,
-        pending: politician.manifestos.filter(
+        broken: representative.manifestos.filter(
+          (m: any) => m.status === "broken",
+        ).length,
+        pending: representative.manifestos.filter(
           (m: any) => m.status === "pending",
         ).length,
       }
@@ -35,15 +36,13 @@
 
   onMount(async () => {
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/politicians/${id}`,
-      );
-      if (!response.ok) throw new Error("Politician not found");
+      const response = await fetch(`/api/representatives/${id}`);
+      if (!response.ok) throw new Error("Representative not found");
       const data = await response.json();
-      politician = data;
+      representative = data;
       loading = false;
     } catch (err: any) {
-      error = err.message || "Failed to load politician data";
+      error = err.message || "Failed to load representative data";
       loading = false;
     }
   });
@@ -75,48 +74,52 @@
 </script>
 
 <svelte:head>
-  <title>{politician?.name || "Loading..."} - PromiseThread</title>
+  <title>{representative?.name || "Loading..."} - PromiseThread</title>
 </svelte:head>
 
 {#if loading}
-  <main class="politician-profile">
+  <main class="representative-profile">
     <div class="container">
-      <div class="loading-state">Loading politician profile...</div>
+      <div class="loading-state">Loading representative profile...</div>
     </div>
   </main>
 {:else if error}
-  <main class="politician-profile">
+  <main class="representative-profile">
     <div class="container">
       <div class="error-state">
-        <h2>Politician Not Found</h2>
+        <h2>Representative Not Found</h2>
         <p>{error}</p>
-        <a href="/representatives" class="btn-secondary">← Back to Politicians</a>
+        <a href="/representatives" class="btn-secondary"
+          >← Back to Representatives</a
+        >
       </div>
     </div>
   </main>
-{:else if politician}
-  <main class="politician-profile">
+{:else if representative}
+  <main class="representative-profile">
     <div class="container">
       <!-- Back Navigation -->
-      <a href="/representatives" class="back-link"> ← Back to Representatives </a>
+      <a href="/representatives" class="back-link">
+        ← Back to Representatives
+      </a>
 
       <!-- Profile Header -->
       <div class="profile-header card">
         <div class="profile-top">
           <div class="profile-avatar-section">
-            {#if politician.image_url}
+            {#if representative.image_url}
               <img
-                src={politician.image_url}
-                alt={politician.name}
+                src={representative.image_url}
+                alt={representative.name}
                 class="avatar-img"
                 on:error={handleImageError}
               />
             {/if}
             <div
               class="avatar"
-              style={politician.image_url ? "display: none;" : ""}
+              style={representative.image_url ? "display: none;" : ""}
             >
-              {politician.name
+              {representative.name
                 .split(" ")
                 .map((n) => n[0])
                 .join("")}
@@ -125,16 +128,16 @@
 
           <div class="profile-info">
             <div class="name-row">
-              <h1>{politician.name}</h1>
-              {#if politician.verified}
+              <h1>{representative.name}</h1>
+              {#if representative.verified}
                 <span class="verified-badge">
                   <Shield size={16} />
                   Verified
                 </span>
               {/if}
             </div>
-            <p class="title">{politician.title}</p>
-            <p class="party">{politician.party}</p>
+            <p class="title">{representative.title}</p>
+            <p class="party">{representative.party}</p>
           </div>
         </div>
 
@@ -169,7 +172,9 @@
           </div>
           <div class="stat-item score-item">
             <div class="integrity-display">
-              <div class="integrity-number">{politician.integrity_score}%</div>
+              <div class="integrity-number">
+                {representative.integrity_score}%
+              </div>
               <div class="integrity-label">Integrity</div>
             </div>
           </div>
@@ -180,12 +185,14 @@
       <div class="manifestos-section">
         <div class="section-header">
           <h2>Promise Records</h2>
-          <span class="count-badge">{politician.manifestos.length} total</span>
+          <span class="count-badge"
+            >{representative.manifestos.length} total</span
+          >
         </div>
 
-        {#if politician.manifestos.length > 0}
+        {#if representative.manifestos.length > 0}
           <div class="manifestos-list">
-            {#each politician.manifestos as manifesto}
+            {#each representative.manifestos as manifesto}
               {@const badge = getStatusBadge(manifesto.status)}
               <a href="/manifestos/{manifesto.id}" class="manifesto-item card">
                 <div class="manifesto-main">
@@ -224,7 +231,7 @@
 {/if}
 
 <style>
-  .politician-profile {
+  .representative-profile {
     min-height: 100vh;
     background: var(--gray-50);
     padding-bottom: var(--space-16);

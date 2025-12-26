@@ -25,13 +25,13 @@
   import HashDisplay from "$lib/components/HashDisplay.svelte";
   import ManifestoCard from "$lib/components/ManifestoCard.svelte";
   import {
-    generatePoliticianWallet,
-    getPoliticianWalletStatus,
+    generateRepresentativeWallet,
+    getRepresentativeWalletStatus,
   } from "$lib/api";
   import { downloadKeystore } from "$lib/utils/crypto";
 
-  // Politician data - will be loaded from auth and API
-  let politician: any = null;
+  // Representative data - will be loaded from auth and API
+  let representative: any = null;
 
   // Dynamic data from API
   let manifestos: any[] = [];
@@ -51,28 +51,28 @@
   let walletError = "";
 
   onMount(async () => {
-    // Check if user is authenticated and is a politician
+    // Check if user is authenticated and is a representative
     const cred = get(credential);
-    if (!cred || !cred.isPolitician) {
-      error = "Access denied. Please register as a politician first.";
+    if (!cred || !cred.isRepresentative) {
+      error = "Access denied. Please register as a representative first.";
       setTimeout(() => goto("/representative/register"), 2000);
       return;
     }
 
-    await loadPoliticianData(cred.politicianId!);
+    await loadRepresentativeData(cred.representativeId!);
   });
 
-  async function loadPoliticianData(politicianId: number) {
+  async function loadRepresentativeData(representativeId: number) {
     try {
-      // Load politician profile
+      // Load representative profile
       const profileResponse = await fetch(
-        `http://localhost:8000/api/politicians/${politicianId}`,
+        `http://localhost:8000/api/representatives/${representativeId}`,
       );
       if (profileResponse.ok) {
         const profileData = await profileResponse.json();
-        politician = {
+        representative = {
           name: profileData.name,
-          id: politicianId,
+          id: representativeId,
           slug: profileData.slug,
           party: profileData.party,
           position: profileData.position,
@@ -86,9 +86,9 @@
         };
       }
 
-      // Load politician's manifestos
+      // Load representative's manifestos
       const manifestoResponse = await fetch(
-        `http://localhost:8000/api/manifestos?politician_id=${politicianId}`,
+        `http://localhost:8000/api/manifestos?representative_id=${representativeId}`,
       );
       if (manifestoResponse.ok) {
         const data = await manifestoResponse.json();
@@ -109,7 +109,7 @@
         }
       }
     } catch (err) {
-      console.error("Failed to load politician data:", err);
+      console.error("Failed to load representative data:", err);
       error = "Failed to load dashboard data. Please check your connection.";
     }
     loading = false;
@@ -126,26 +126,26 @@
   $: canGenerateWallet =
     passphrase.length >= 8 &&
     passphrasesMatch &&
-    politician &&
-    !politician.hasWallet;
+    representative &&
+    !representative.hasWallet;
 
   async function handleGenerateWallet() {
-    if (!canGenerateWallet || !politician) return;
+    if (!canGenerateWallet || !representative) return;
     try {
       isGeneratingWallet = true;
       walletError = "";
-      const result = await generatePoliticianWallet(politician.id, passphrase);
+      const result = await generateRepresentativeWallet(representative.id, passphrase);
       generatedKeystore = result;
       if (generatedKeystore?.keystore) {
         downloadKeystore(
           generatedKeystore.keystore,
           generatedKeystore.keystore_filename ||
-            `politician-${politician.id}-key.json`,
+            `representative-${representative.id}-key.json`,
         );
         keystoreDownloaded = true;
       }
-      // Reload politician data to update hasWallet status
-      await loadPoliticianData(politician.id);
+      // Reload representative data to update hasWallet status
+      await loadRepresentativeData(representative.id);
     } catch (e: any) {
       walletError = e.message;
     } finally {
@@ -155,7 +155,7 @@
 </script>
 
 <svelte:head>
-  <title>Politician Dashboard - PromiseThread</title>
+  <title>Representative Dashboard - PromiseThread</title>
 </svelte:head>
 
 {#if error}
@@ -168,7 +168,7 @@
       <p class="text-gray-600">{error}</p>
     </div>
   </div>
-{:else if loading || !politician}
+{:else if loading || !representative}
   <div class="min-h-screen bg-gray-50 flex items-center justify-center">
     <div class="text-center">
       <div
@@ -184,11 +184,11 @@
       <div class="sidebar-header">
         <div class="user-info">
           <div class="avatar">
-            {politician.name[0]}
+            {representative.name[0]}
           </div>
           <div class="user-details">
-            <span class="user-name">{politician.name}</span>
-            <span class="user-id">ID: {politician.id}</span>
+            <span class="user-name">{representative.name}</span>
+            <span class="user-id">ID: {representative.id}</span>
           </div>
         </div>
       </div>
@@ -234,7 +234,7 @@
       <header class="content-header">
         <div class="header-left">
           <Shield size={24} />
-          <h1>Politician Audit Portal</h1>
+          <h1>Representative Audit Portal</h1>
         </div>
         <div class="header-right">
           <span class="node-status">
@@ -263,11 +263,11 @@
               <a href="/representative/profile" class="edit-link">Edit</a>
             </div>
             <div class="profile-info">
-              <div class="profile-avatar">{politician?.name?.[0] || "P"}</div>
+              <div class="profile-avatar">{representative?.name?.[0] || "P"}</div>
               <div class="profile-details">
-                <h4>{politician?.name || "Politician"}</h4>
+                <h4>{representative?.name || "Representative"}</h4>
                 <p class="profile-meta">
-                  {politician?.party || "Independent"} • {politician?.position ||
+                  {representative?.party || "Independent"} • {representative?.position ||
                     "Representative"}
                 </p>
               </div>
@@ -278,7 +278,7 @@
                 <span class="stat-desc">Promises</span>
               </div>
               <div class="profile-stat">
-                <span class="stat-num">{politician?.integrityScore || 0}%</span>
+                <span class="stat-num">{representative?.integrityScore || 0}%</span>
                 <span class="stat-desc">Integrity</span>
               </div>
             </div>
@@ -289,7 +289,7 @@
             <div class="card-header">
               <h3>Wallet & Signing</h3>
             </div>
-            {#if politician?.hasWallet}
+            {#if representative?.hasWallet}
               <div class="wallet-active">
                 <div class="wallet-status-badge">
                   <CheckCircle class="w-5 h-5 text-success-600" />
@@ -298,7 +298,7 @@
                 <div class="wallet-address">
                   <span class="text-xs text-gray-500 uppercase">Address</span>
                   <code class="text-sm font-mono text-gray-700 truncate"
-                    >{politician?.walletAddress?.slice(0, 20)}...</code
+                    >{representative?.walletAddress?.slice(0, 20)}...</code
                   >
                 </div>
               </div>
@@ -359,7 +359,7 @@
               <a
                 href="/representative/new-manifesto"
                 class="action-btn primary"
-                class:disabled={!politician?.hasWallet}
+                class:disabled={!representative?.hasWallet}
               >
                 <Plus class="w-5 h-5" />
                 <span>New Promise</span>
@@ -405,7 +405,7 @@
               <div class="empty-manifestos">
                 <FileText class="w-10 h-10 text-gray-300 mx-auto mb-2" />
                 <p class="text-gray-500 text-sm">No promises yet.</p>
-                {#if politician?.hasWallet}
+                {#if representative?.hasWallet}
                   <a
                     href="/representative/new-manifesto"
                     class="text-primary-600 text-sm font-medium mt-2 inline-block"

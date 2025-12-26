@@ -240,7 +240,7 @@
                 <h4 class="text-primary-700 font-medium mb-1">Fair Timing</h4>
                 <p class="text-gray-600 text-sm">
                   Grace periods prevent premature judgment. Voting only opens
-                  after politicians have time to deliver.
+                  after representatives have time to deliver.
                 </p>
               </div>
             </div>
@@ -357,7 +357,7 @@
                 </li>
                 <li class="flex items-start gap-2">
                   <span class="text-emerald-600 mt-1">•</span>
-                  Politician's digital signature
+                  Representative's digital signature
                 </li>
                 <li class="flex items-start gap-2">
                   <span class="text-emerald-600 mt-1">•</span>
@@ -666,7 +666,7 @@
                 <span class="text-white font-medium">Promise Kept</span>
               </div>
               <p class="text-slate-400 text-sm">
-                The politician has fulfilled this promise as stated, or made
+                The representative has fulfilled this promise as stated, or made
                 significant verifiable progress.
               </p>
             </div>
@@ -733,11 +733,11 @@
               </div>
               <div>
                 <h4 class="text-white font-medium">
-                  Politician gets a unique wallet
+                  Representative gets a unique wallet
                 </h4>
                 <p class="text-slate-400 text-sm">
                   A cryptographic key pair is generated. The private key is
-                  given ONLY to the politician.
+                  given ONLY to the representative.
                 </p>
               </div>
             </div>
@@ -764,7 +764,7 @@
               </div>
               <div>
                 <h4 class="text-white font-medium">
-                  Politician signs the hash
+                  Representative signs the hash
                 </h4>
                 <p class="text-slate-400 text-sm">
                   Using their private key (in their browser), they create a
@@ -783,7 +783,7 @@
                 <h4 class="text-white font-medium">Anyone can verify</h4>
                 <p class="text-slate-400 text-sm">
                   The public key verifies the signature. Proof: only the
-                  politician could have signed this promise.
+                  representative could have signed this promise.
                 </p>
               </div>
             </div>
@@ -800,7 +800,7 @@
                 <h4 class="text-amber-600 font-medium">Security Note</h4>
                 <p class="text-slate-300 text-sm">
                   The private key NEVER touches our servers. Signing happens
-                  entirely in the politician's browser. Even if our database is
+                  entirely in the representative's browser. Even if our database is
                   compromised, no one can forge signatures.
                 </p>
               </div>
@@ -867,7 +867,7 @@
                 3. Verify Signatures
               </h4>
               <p class="text-slate-400 text-sm">
-                Use any ECDSA verification tool to confirm the politician's
+                Use any ECDSA verification tool to confirm the representative's
                 address signed the hash.
               </p>
             </div>
@@ -894,7 +894,7 @@
         </h2>
         <p class="text-slate-300 mb-6 max-w-xl mx-auto">
           Browse election promises, verify their authenticity, and cast your
-          anonymous vote to help determine if politicians keep their word.
+          anonymous vote to help determine if representatives keep their word.
         </p>
         <div class="flex flex-wrap justify-center gap-4">
           <a

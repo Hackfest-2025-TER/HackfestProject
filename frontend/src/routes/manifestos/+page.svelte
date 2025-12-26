@@ -111,7 +111,7 @@
       !searchQuery ||
       m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.politician_name?.toLowerCase().includes(searchQuery.toLowerCase());
+      m.representative_name?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || m.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -180,7 +180,7 @@
         <Search class="w-5 h-5 text-gray-400" />
         <input
           type="text"
-          placeholder="Search promises, politicians, or topics..."
+          placeholder="Search promises, representatives, or topics..."
           bind:value={searchQuery}
         />
         {#if searchQuery}

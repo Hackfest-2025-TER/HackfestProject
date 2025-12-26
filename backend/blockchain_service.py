@@ -43,7 +43,7 @@ PROMISE_REGISTRY_ADDRESS = os.getenv(
 )
 
 # Demo signer key (Hardhat account #0 - NEVER use in production!)
-# This is for demonstration only - in production, politicians sign client-side
+# This is for demonstration only - in production, representatives sign client-side
 DEMO_SIGNER_KEY = os.getenv(
     "DEMO_SIGNER_KEY",
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
@@ -65,11 +65,11 @@ class BlockchainService:
         blockchain = BlockchainService()
         
         # Read
-        result = blockchain.verify_manifesto(politician_id=1, content_hash="0x...")
-        manifestos = blockchain.get_politician_manifestos(politician_id=1)
+        result = blockchain.verify_manifesto(representative_id=1, content_hash="0x...")
+        manifestos = blockchain.get_representative_manifestos(representative_id=1)
         
         # Write
-        tx_hash = blockchain.submit_manifesto(politician_id=1, content_hash="0x...", signer_key="0x...")
+        tx_hash = blockchain.submit_manifesto(representative_id=1, content_hash="0x...", signer_key="0x...")
     """
     
     def __init__(self, rpc_url: str = RPC_URL):
@@ -146,36 +146,39 @@ class BlockchainService:
     # READ OPERATIONS (ManifestoRegistry)
     # =========================================================================
     
-    def is_politician_registered(self, politician_id: int, wallet_address: str) -> bool:
+    def is_representative_registered(self, representative_id: int, wallet_address: str) -> bool:
         """
-        Check if a politician is registered with a specific wallet.
+        Check if a representative is registered with a specific wallet.
         
         Args:
-            politician_id: The politician's ID
+            representative_id: The representative's ID
             wallet_address: The wallet address to check
             
         Returns:
-            True if the wallet is registered for this politician
+            True if the wallet is registered for this representative
         """
         if not self.manifesto_registry:
             return False
         
         try:
-            return self.manifesto_registry.functions.isPoliticianWallet(
-                politician_id,
+            return self.manifesto_registry.functions.isRepresentativeWallet(
+                representative_id,
                 Web3.to_checksum_address(wallet_address)
             ).call()
         except ContractLogicError as e:
             print(f"Contract error: {e}")
             return False
         except Exception as e:
-            print(f"Error checking politician registration: {e}")
+            print(f"Error checking representative registration: {e}")
             return False
     
-    def get_politician(self, politician_id: int) -> Optional[Dict[str, Any]]:
+    def get_representative(self, representative_id: int) -> Optional[Dict[str, Any]]:
         """
-        Get politician info from blockchain.
+        Get representative info from blockchain.
         
+        Args:
+            representative_id: The representative's ID
+            
         Returns:
             Dict with wallet, manifestoCount, isRegistered
         """
@@ -183,7 +186,7 @@ class BlockchainService:
             return None
         
         try:
-            result = self.manifesto_registry.functions.getPolitician(politician_id).call()
+            result = self.manifesto_registry.functions.getRepresentative(representative_id).call()
             return {
                 "wallet": result[0],
                 "manifesto_count": result[1],
@@ -192,17 +195,17 @@ class BlockchainService:
         except ContractLogicError:
             return None
         except Exception as e:
-            print(f"Error getting politician: {e}")
+            print(f"Error getting representative: {e}")
             return None
     
-    def verify_manifesto(self, politician_id: int, content_hash: str) -> Dict[str, Any]:
+    def verify_manifesto(self, representative_id: int, content_hash: str) -> Dict[str, Any]:
         """
         Verify a manifesto hash on-chain.
         
         This is the KEY verification function - reads directly from blockchain!
         
         Args:
-            politician_id: The politician's ID
+            representative_id: The representative's ID
             content_hash: The SHA256 hash of manifesto text (0x prefixed)
             
         Returns:
@@ -219,7 +222,7 @@ class BlockchainService:
                 hash_bytes = bytes.fromhex(content_hash.ljust(64, '0'))
             
             result = self.manifesto_registry.functions.verifyManifesto(
-                politician_id,
+                representative_id,
                 hash_bytes
             ).call()
             
@@ -240,13 +243,13 @@ class BlockchainService:
     
     def lookup_hash(self, content_hash: str) -> Dict[str, Any]:
         """
-        Reverse lookup: find politician by manifesto hash.
+        Reverse lookup: find representative by manifesto hash.
         
         Args:
             content_hash: The SHA256 hash to look up
             
         Returns:
-            Dict with politician_id, exists, timestamp
+            Dict with representative_id, exists, timestamp
         """
         if not self.manifesto_registry:
             return {"exists": False, "error": "Contract not loaded"}
@@ -260,7 +263,7 @@ class BlockchainService:
             result = self.manifesto_registry.functions.lookupHash(hash_bytes).call()
             
             return {
-                "politician_id": result[0],
+                "representative_id": result[0],
                 "exists": result[1],
                 "timestamp": result[2],
                 "timestamp_iso": datetime.fromtimestamp(result[2], tz=timezone.utc).isoformat() if result[2] > 0 else None,
@@ -278,7 +281,7 @@ class BlockchainService:
             content_hash: The manifesto hash
             
         Returns:
-            Dict with contentHash, politicianId, timestamp, blockNumber
+            Dict with contentHash, representativeId, timestamp, blockNumber
         """
         if not self.manifesto_registry:
             return None
@@ -293,7 +296,7 @@ class BlockchainService:
             
             return {
                 "content_hash": "0x" + result[0].hex(),
-                "politician_id": result[1],
+                "representative_id": result[1],
                 "timestamp": result[2],
                 "timestamp_iso": datetime.fromtimestamp(result[2], tz=timezone.utc).isoformat() if result[2] > 0 else None,
                 "block_number": result[3],
@@ -305,12 +308,12 @@ class BlockchainService:
             print(f"Error getting manifesto: {e}")
             return None
     
-    def get_politician_manifestos(self, politician_id: int) -> List[Dict[str, Any]]:
+    def get_representative_manifestos(self, representative_id: int) -> List[Dict[str, Any]]:
         """
-        Get all manifesto hashes for a politician.
+        Get all manifesto hashes for a representative.
         
         Args:
-            politician_id: The politician's ID
+            representative_id: The representative's ID
             
         Returns:
             List of manifesto data dicts
@@ -319,7 +322,7 @@ class BlockchainService:
             return []
         
         try:
-            result = self.manifesto_registry.functions.getPoliticianManifestos(politician_id).call()
+            result = self.manifesto_registry.functions.getRepresentativeManifestos(representative_id).call()
             
             # Contract returns [hashes[], timestamps[]] - two parallel arrays
             if len(result) != 2:
@@ -335,7 +338,7 @@ class BlockchainService:
                 
                 manifestos.append({
                     "content_hash": "0x" + content_hash.hex(),
-                    "politician_id": politician_id,
+                    "representative_id": representative_id,
                     "timestamp": timestamp,
                     "timestamp_iso": datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat() if timestamp > 0 else None,
                     "block_number": None  # Not returned by this function
@@ -345,23 +348,23 @@ class BlockchainService:
         except ContractLogicError:
             return []
         except Exception as e:
-            print(f"Error getting politician manifestos: {e}")
+            print(f"Error getting representative manifestos: {e}")
             return []
     
     # =========================================================================
     # WRITE OPERATIONS (ManifestoRegistry)
     # =========================================================================
     
-    def register_politician(
+    def register_representative(
         self,
-        politician_id: int,
+        representative_id: int,
         signer_key: str = DEMO_SIGNER_KEY
     ) -> Dict[str, Any]:
         """
-        Register a politician on-chain.
+        Register a representative on-chain.
         
         Args:
-            politician_id: The politician's ID
+            representative_id: The representative's ID
             signer_key: Private key to sign transaction
             
         Returns:
@@ -374,8 +377,8 @@ class BlockchainService:
             account = Account.from_key(signer_key)
             
             # Build transaction
-            tx = self.manifesto_registry.functions.registerPolitician(
-                politician_id
+            tx = self.manifesto_registry.functions.registerRepresentative(
+                representative_id
             ).build_transaction({
                 'from': account.address,
                 'nonce': self.w3.eth.get_transaction_count(account.address),
@@ -405,7 +408,7 @@ class BlockchainService:
     
     def submit_manifesto(
         self,
-        politician_id: int,
+        representative_id: int,
         content_hash: str,
         signer_key: str = DEMO_SIGNER_KEY
     ) -> Dict[str, Any]:
@@ -416,15 +419,15 @@ class BlockchainService:
         
         Flow:
         1. Build transaction
-        2. Sign with politician's key (or demo key)
+        2. Sign with representative's key (or demo key)
         3. Send to blockchain
         4. Wait for confirmation
         5. Return tx details for DB storage
         
         Args:
-            politician_id: The politician's ID
+            representative_id: The representative's ID
             content_hash: SHA256 hash of manifesto text
-            signer_key: Private key to sign (politician's or demo)
+            signer_key: Private key to sign (representative's or demo)
             
         Returns:
             Dict with success, tx_hash, block_number, timestamp
@@ -443,7 +446,7 @@ class BlockchainService:
             
             # Build transaction
             tx = self.manifesto_registry.functions.submitManifesto(
-                politician_id,
+                representative_id,
                 hash_bytes
             ).build_transaction({
                 'from': account.address,
@@ -481,31 +484,31 @@ class BlockchainService:
                 "gas_used": receipt.gasUsed,
                 "signer": account.address,
                 "content_hash": content_hash,
-                "politician_id": politician_id,
+                "representative_id": representative_id,
                 "source": "blockchain"
             }
             
         except ContractLogicError as e:
             error_msg = str(e)
             if "Not authorized" in error_msg:
-                return {"success": False, "error": "Wallet not registered for this politician"}
+                return {"success": False, "error": "Wallet not registered for this representative"}
             elif "already exists" in error_msg or "Duplicate" in error_msg:
                 return {"success": False, "error": "Manifesto hash already submitted"}
             return {"success": False, "error": f"Contract error: {e}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def update_politician_wallet(
+    def update_representative_wallet(
         self,
-        politician_id: int,
+        representative_id: int,
         new_wallet: str,
         current_signer_key: str
     ) -> Dict[str, Any]:
         """
-        Update a politician's wallet address (key rotation).
+        Update a representative's wallet address (key rotation).
         
         Args:
-            politician_id: The politician's ID
+            representative_id: The representative's ID
             new_wallet: New wallet address
             current_signer_key: Current private key
             
@@ -519,7 +522,7 @@ class BlockchainService:
             account = Account.from_key(current_signer_key)
             
             tx = self.manifesto_registry.functions.updateWallet(
-                politician_id,
+                representative_id,
                 Web3.to_checksum_address(new_wallet)
             ).build_transaction({
                 'from': account.address,
@@ -640,8 +643,8 @@ if __name__ == "__main__":
         result = service.lookup_hash(test_hash)
         print(f"  lookupHash({test_hash[:20]}...): {result}")
         
-        # Test get politician
-        result = service.get_politician(1)
-        print(f"  getPolitician(1): {result}")
+        # Test get representative
+        result = service.get_representative(1)
+        print(f"  getRepresentative(1): {result}")
     
     print("\n✅ Test complete!")

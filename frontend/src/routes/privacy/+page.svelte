@@ -221,7 +221,7 @@
             </div>
             <ul class="space-y-1 text-gray-600 text-sm">
               <li>• Promise text and commitments</li>
-              <li>• Politician signatures</li>
+              <li>• Representative signatures</li>
               <li>• Feedback aggregates (totals)</li>
               <li>• Discussion comments</li>
               <li>• Verification records</li>
@@ -393,10 +393,12 @@
           We're happy to explain our privacy architecture in more detail.
         </p>
         <a
-          href="/feedback"
+          href="https://twitter.com/promisethread"
+          target="_blank"
+          rel="noopener"
           class="inline-flex items-center gap-2 bg-primary-700 hover:bg-primary-800 text-white px-6 py-3 rounded-lg transition-colors"
         >
-          Contact Us
+          Contact Us on Twitter
         </a>
       </div>
 

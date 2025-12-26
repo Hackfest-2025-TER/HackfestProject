@@ -203,7 +203,7 @@
           <h3 class="font-bold text-lg mb-2 text-white">How it works</h3>
           <p class="text-primary-100 text-sm mb-4 leading-relaxed">
             Every action is permanently recorded in a public log. This ensures
-            politicians cannot delete promises or change their history.
+            representatives cannot delete promises or change their history.
           </p>
           <button
             class="w-full bg-white text-primary-700 font-bold py-2 px-4 rounded-lg text-sm hover:bg-primary-50 transition-colors"

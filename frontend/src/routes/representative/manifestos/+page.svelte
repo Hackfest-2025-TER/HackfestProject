@@ -21,8 +21,8 @@
   import { goto } from "$app/navigation";
   import { getManifestos } from "$lib/api";
 
-  // Politician session (in production, get from auth)
-  let politicianSession: any = null;
+  // Representative session (in production, get from auth)
+  let representativeSession: any = null;
   let manifestos: any[] = [];
   let isLoading = true;
   let error = "";
@@ -33,12 +33,12 @@
 
   onMount(async () => {
     // Check if logged in
-    const session = localStorage.getItem("politician_session");
+    const session = localStorage.getItem("representative_session");
     if (!session) {
       goto("/representative/login");
       return;
     }
-    politicianSession = JSON.parse(session);
+    representativeSession = JSON.parse(session);
 
     await loadManifestos();
   });
@@ -47,7 +47,7 @@
     try {
       isLoading = true;
       const data = await getManifestos({
-        politician_id: politicianSession?.id,
+        representative_id: representativeSession?.id,
       });
       manifestos = data.manifestos || [];
     } catch (e: any) {
@@ -119,8 +119,8 @@
       <div class="hero-text">
         <h1>My Promises</h1>
         <p>
-          {#if politicianSession}
-            Manage your commitments as {politicianSession.name}
+          {#if representativeSession}
+            Manage your commitments as {representativeSession.name}
           {:else}
             Loading...
           {/if}

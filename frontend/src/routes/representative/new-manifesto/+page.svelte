@@ -7,7 +7,7 @@
   import { goto } from '$app/navigation';
   import { credential } from '$lib/stores';
   import { get } from 'svelte/store';
-  import { getPoliticianWalletStatus, submitSignedManifesto } from '$lib/api';
+  import { getRepresentativeWalletStatus, submitSignedManifesto } from '$lib/api';
   import { computeSHA256, parseKeystore, signMessage, decryptKeystore, formatAddress } from '$lib/utils/crypto';
   
   // Form state
@@ -31,8 +31,8 @@
   let manifestoHash = '';
   let signature = '';
   
-  // Get politician ID from auth
-  let politicianId: number | null = null;
+  // Get representative ID from auth
+  let representativeId: number | null = null;
   
   const categories = [
     { value: 'economy', label: 'Economy' },
@@ -45,19 +45,19 @@
   
   onMount(async () => {
     const cred = get(credential);
-    if (!cred || !cred.isPolitician || !cred.politicianId) {
-      submitError = 'You must be a registered politician to create manifestos';
+    if (!cred || !cred.isRepresentative || !cred.representativeId) {
+      submitError = 'You must be a registered representative to create manifestos';
       setTimeout(() => goto('/representative/register'), 2000);
       return;
     }
-    politicianId = cred.politicianId;
+    representativeId = cred.representativeId;
     await checkWalletStatus();
   });
   
   async function checkWalletStatus() {
-    if (!politicianId) return;
+    if (!representativeId) return;
     try {
-      walletStatus = await getPoliticianWalletStatus(politicianId);
+      walletStatus = await getRepresentativeWalletStatus(representativeId);
       if (walletStatus?.has_wallet) {
         signingStep = 'upload-keystore';
       }
@@ -143,7 +143,7 @@
       
       // Submit to backend
       const result = await submitSignedManifesto({
-        politician_id: politicianId,
+        representative_id: representativeId,
         title: manifestoTitle,
         description: executiveSummary,  // Backend expects 'description'
         category: promises[0]?.category || 'general',
@@ -174,7 +174,7 @@
 </script>
 
 <svelte:head>
-  <title>Draft New Manifesto - Politician Portal</title>
+  <title>Draft New Manifesto - Representative Portal</title>
 </svelte:head>
 
 <main class="draft-page">

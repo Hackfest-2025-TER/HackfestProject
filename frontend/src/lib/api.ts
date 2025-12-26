@@ -23,12 +23,12 @@ async function fetchWithErrorHandling(url: string, options?: RequestInit) {
 // Manifestos
 export async function getManifestos(filters?: {
   status?: string;
-  politician_id?: number;
+  representative_id?: number;
   category?: string;
 }) {
   const params = new URLSearchParams();
   if (filters?.status) params.append('status', filters.status);
-  if (filters?.politician_id) params.append('politician_id', filters.politician_id.toString());
+  if (filters?.representative_id) params.append('representative_id', filters.representative_id.toString());
   if (filters?.category) params.append('category', filters.category);
 
   const url = `${API_BASE_URL}/manifestos?${params.toString()}`;
@@ -80,7 +80,7 @@ export async function verifyZKProof(proof: {
   proof?: string;
   nullifier: string;
   voter_id_hash?: string;
-  merkle_proof?: Array<{hash: string, position: string}>;
+  merkle_proof?: Array<{ hash: string, position: string }>;
 }): Promise<ZKVerifyResult> {
   const response = await fetch(`${API_BASE_URL}/zk/verify`, {
     method: 'POST',
@@ -139,9 +139,9 @@ export async function checkCredential(nullifier: string): Promise<{
   used_votes: string[];
   can_vote: boolean;
   created_at?: string;
-  is_politician?: boolean;
-  politician_id?: number;
-  politician_slug?: string;
+  is_representative?: boolean;
+  representative_id?: number;
+  representative_slug?: string;
 }> {
   const response = await fetch(`${API_BASE_URL}/zk/credential/${encodeURIComponent(nullifier)}`);
   if (!response.ok) {
@@ -207,23 +207,23 @@ export async function getNetworkStats() {
   return response.json();
 }
 
-// Politicians
-export async function getPoliticians() {
-  const response = await fetch(`${API_BASE_URL}/politicians`);
-  if (!response.ok) throw new Error('Failed to fetch politicians');
+// Representatives
+export async function getRepresentatives() {
+  const response = await fetch(`${API_BASE_URL}/representatives`);
+  if (!response.ok) throw new Error('Failed to fetch representatives');
   return response.json();
 }
 
-export async function getPolitician(id: string) {
-  const response = await fetch(`${API_BASE_URL}/politicians/${id}`);
-  if (!response.ok) throw new Error('Failed to fetch politician');
+export async function getRepresentative(id: string) {
+  const response = await fetch(`${API_BASE_URL}/representatives/${id}`);
+  if (!response.ok) throw new Error('Failed to fetch representative');
   return response.json();
 }
 
 // ============= Digital Signature APIs =============
 
-export async function generatePoliticianWallet(politicianId: number, passphrase: string) {
-  const response = await fetch(`${API_BASE_URL}/politicians/${politicianId}/generate-wallet`, {
+export async function generateRepresentativeWallet(representativeId: number, passphrase: string) {
+  const response = await fetch(`${API_BASE_URL}/representatives/${representativeId}/generate-wallet`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ passphrase }),
@@ -235,18 +235,18 @@ export async function generatePoliticianWallet(politicianId: number, passphrase:
   return response.json();
 }
 
-export async function getPoliticianWalletStatus(politicianId: number) {
-  const response = await fetch(`${API_BASE_URL}/politicians/${politicianId}/wallet-status`);
+export async function getRepresentativeWalletStatus(representativeId: number) {
+  const response = await fetch(`${API_BASE_URL}/representatives/${representativeId}/wallet-status`);
   if (!response.ok) throw new Error('Failed to fetch wallet status');
   return response.json();
 }
 
-export async function rotateKey(politicianId: number, reason: string, newPassphrase: string, adminToken: string) {
-  const response = await fetch(`${API_BASE_URL}/politicians/${politicianId}/rotate-key`, {
+export async function rotateKey(representativeId: number, reason: string, newPassphrase: string, adminToken: string) {
+  const response = await fetch(`${API_BASE_URL}/representatives/${representativeId}/rotate-key`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      politician_id: politicianId,
+      representative_id: representativeId,
       reason,
       new_passphrase: newPassphrase,
       admin_token: adminToken,
@@ -263,7 +263,7 @@ export async function submitSignedManifesto(data: {
   title: string;
   description: string;
   category: string;
-  politician_id: number;
+  representative_id: number;
   grace_period_days?: number;
   manifesto_hash: string;
   signature: string;
@@ -298,3 +298,5 @@ export async function verifyManifestoText(manifestoId: number, manifestoText: st
   if (!response.ok) throw new Error('Failed to verify manifesto text');
   return response.json();
 }
+
+

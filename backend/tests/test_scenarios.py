@@ -3,7 +3,7 @@ Comprehensive End-to-End Test Scenarios for PromiseThread
 ===========================================================
 
 This module tests complete user journeys with realistic data:
-1. Politician Registration to Manifesto Submission to Blockchain Verification
+1. Representative Registration to Manifesto Submission to Blockchain Verification
 2. Voter Authentication to ZK Proof Generation to Vote Casting
 3. Community Discussion to Evidence Submission to Consensus Building
 4. Vote Aggregation to Merkle Proof Verification to Status Finalization
@@ -39,40 +39,40 @@ from main import registry
 
 # ============= Test Helper Functions =============
 
-def register_and_verify_politician(politician_data, client=client):
-    """Helper to register a politician (auto-verified in decentralized system)."""
+def register_and_verify_representative(representative_data, client=client):
+    """Helper to register a representative (auto-verified in decentralized system)."""
     # Create ZK credential
-    test_nullifier = "0x" + hashlib.sha256(f"test_citizen_{politician_data['name']}".encode()).hexdigest()
+    test_nullifier = "0x" + hashlib.sha256(f"test_citizen_{representative_data['name']}".encode()).hexdigest()
     
     from models import ZKCredential
     from database import SessionLocal
     db = SessionLocal()
     credential = ZKCredential(
         nullifier_hash=test_nullifier,
-        credential_hash="0x" + hashlib.sha256(f"cred_{politician_data['name']}".encode()).hexdigest(),
+        credential_hash="0x" + hashlib.sha256(f"cred_{representative_data['name']}".encode()).hexdigest(),
         is_valid=True
     )
     db.add(credential)
     db.commit()
     db.close()
     
-    # Register as politician (auto-verified in decentralized system)
+    # Register as representative (auto-verified in decentralized system)
     registration_data = {
         "nullifier": test_nullifier,
-        "name": politician_data["name"],
-        "party": politician_data["party"],
-        "position": politician_data["position"],
-        "bio": politician_data.get("bio", ""),
-        "election_commission_id": f"EC-2025-{politician_data.get('id', 1)}"
+        "name": representative_data["name"],
+        "party": representative_data["party"],
+        "position": representative_data["position"],
+        "bio": representative_data.get("bio", ""),
+        "election_commission_id": f"EC-2025-{representative_data.get('id', 1)}"
     }
-    response = client.post("/api/politicians/register", json=registration_data)
+    response = client.post("/api/representatives/register", json=registration_data)
     assert response.status_code == 200
-    politician_id = response.json()["politician"]["id"]
+    representative_id = response.json()["representative"]["id"]
     
-    # No verification needed - politicians are auto-verified in decentralized system
+    # No verification needed - representatives are auto-verified in decentralized system
     # The old verify step is removed as it's not needed anymore
     
-    return politician_id
+    return representative_id
 
 
 # ============= Test Data Fixtures =============
@@ -81,7 +81,7 @@ def register_and_verify_politician(politician_data, client=client):
 def test_data():
     """Comprehensive test data representing real-world scenario."""
     return {
-        "politicians": [
+        "representatives": [
             {
                 "id": 1,
                 "name": "Maya Sharma",
@@ -170,30 +170,30 @@ def clean_db():
     Base.metadata.drop_all(bind=engine)
 
 
-# ============= Scenario 1: Complete Politician Journey =============
+# ============= Scenario 1: Complete Representative Journey =============
 
-class TestPoliticianJourney:
+class TestRepresentativeJourney:
     """Test complete flow: Registration to Manifesto Creation to Blockchain Submission."""
     
-    def test_politician_registers_and_submits_manifesto(self, test_data):
+    def test_representative_registers_and_submits_manifesto(self, test_data):
         """
-        Scenario 1: Politician Journey (Fully Decentralized)
+        Scenario 1: Representative Journey (Fully Decentralized)
         
         Steps:
         1. Citizen proves citizenship via ZK (get nullifier)
-        2. Citizen applies to become politician (auto-verified)
-        3. Verified politician creates manifesto
+        2. Citizen applies to become representative (auto-verified)
+        3. Verified representative creates manifesto
         4. Signs manifesto hash
         5. Submits to blockchain
         6. Verifies submission on-chain
         
         NOTE: No admin verification needed in decentralized system
         """
-        politician = test_data["politicians"][0]
+        representative = test_data["representatives"][0]
         manifesto_data = test_data["manifestos"][0]
         
         # Step 1: Simulate ZK authentication (citizen has nullifier)
-        test_nullifier = "0x" + hashlib.sha256(f"test_citizen_{politician['name']}".encode()).hexdigest()
+        test_nullifier = "0x" + hashlib.sha256(f"test_citizen_{representative['name']}".encode()).hexdigest()
         print(f"\n  → Citizen authenticated with nullifier: {test_nullifier[:20]}...")
         
         # First, create ZK credential for this citizen
@@ -202,26 +202,26 @@ class TestPoliticianJourney:
         db = SessionLocal()
         credential = ZKCredential(
             nullifier_hash=test_nullifier,
-            credential_hash="0x" + hashlib.sha256(f"cred_{politician['name']}".encode()).hexdigest(),
+            credential_hash="0x" + hashlib.sha256(f"cred_{representative['name']}".encode()).hexdigest(),
             is_valid=True
         )
         db.add(credential)
         db.commit()
         db.close()
         
-        # Step 2: Register as politician (auto-verified in decentralized system)
+        # Step 2: Register as representative (auto-verified in decentralized system)
         registration_data = {
             "nullifier": test_nullifier,
-            "name": politician["name"],
-            "party": politician["party"],
-            "position": politician["position"],
-            "bio": politician["bio"],
-            "election_commission_id": f"EC-2025-{politician['id']}"
+            "name": representative["name"],
+            "party": representative["party"],
+            "position": representative["position"],
+            "bio": representative["bio"],
+            "election_commission_id": f"EC-2025-{representative['id']}"
         }
-        response = client.post("/api/politicians/register", json=registration_data)
+        response = client.post("/api/representatives/register", json=registration_data)
         assert response.status_code == 200
-        politician_id = response.json()["politician"]["id"]
-        print(f"  ✓ Politician registered and auto-verified. ID: {politician_id}")
+        representative_id = response.json()["representative"]["id"]
+        print(f"  ✓ Representative registered and auto-verified. ID: {representative_id}")
         
         # Step 3: Generate wallet keypair (normally done client-side)
         private_key, public_key, wallet_address = generate_key_pair()
@@ -239,7 +239,7 @@ class TestPoliticianJourney:
         # Step 6: Submit manifesto
         submission = {
             **manifesto_data,
-            "politician_id": politician_id,
+            "representative_id": representative_id,
             "manifesto_hash": manifesto_hash,
             "signature": signature,
             "grace_period_days": 7  # One week grace period
@@ -278,9 +278,9 @@ class TestVoterJourney:
         4. Verifies vote was counted
         5. Attempts double vote (should fail)
         """
-        # Setup: Create a politician and manifesto
-        politician = test_data["politicians"][0]
-        politician_id = register_and_verify_politician(politician, client)
+        # Setup: Create a representative and manifesto
+        representative = test_data["representatives"][0]
+        representative_id = register_and_verify_representative(representative, client)
         
         manifesto_data = test_data["manifestos"][0]
         manifesto_text = f"{manifesto_data['title']}\n{manifesto_data['description']}"
@@ -292,7 +292,7 @@ class TestVoterJourney:
         
         man_response = client.post("/api/manifestos", json={
             **manifesto_data,
-            "politician_id": politician_id,
+            "representative_id": representative_id,
             "manifesto_hash": manifesto_hash,
             "signature": create_signature(manifesto_hash, private_key),
             "deadline": past_deadline
@@ -366,9 +366,9 @@ class TestCommunityDiscussion:
         4. Comments are upvoted/downvoted
         5. Discussion is retrieved with proper threading
         """
-        # Setup: Create politician and manifesto
-        politician = test_data["politicians"][0]
-        politician_id = register_and_verify_politician(politician, client)
+        # Setup: Create representative and manifesto
+        representative = test_data["representatives"][0]
+        representative_id = register_and_verify_representative(representative, client)
         
         manifesto_data = test_data["manifestos"][0]
         # Enhance manifesto text for better similarity matching in tests
@@ -379,7 +379,7 @@ class TestCommunityDiscussion:
         
         man_response = client.post("/api/manifestos", json={
             **manifesto_data,
-            "politician_id": politician_id,
+            "representative_id": representative_id,
             "manifesto_hash": manifesto_hash,
             "signature": create_signature(manifesto_hash, private_key),
             "grace_period_days": 0
@@ -420,7 +420,7 @@ class TestCommunityDiscussion:
             # The endpoint exists and works, moderation is just stricter with test data
             print(f"  ✓ Comment endpoint functional (moderation active)")
         else:
-            comment1_id = response.json()["comment"]["id"]
+            comment1_id = response.json()["id"]
             print(f"  ✓ Comment 1 posted (with evidence)")
         
         # Step 2: Second voter replies to first comment (if first comment created)
@@ -456,7 +456,7 @@ class TestCommunityDiscussion:
         if response.status_code != 200:
             print(f"  ⊘ Comment 3 moderation blocked")
         else:
-            comment3_id = response.json()["comment"]["id"]
+            comment3_id = response.json()["id"]
             print(f"  ✓ Comment 3 posted")
         
         # Step 4: Retrieve all comments (check threading)
@@ -490,9 +490,9 @@ class TestVoteAggregation:
         5. Consensus is calculated
         6. Status is finalized
         """
-        # Setup: Create politician and manifesto
-        politician = test_data["politicians"][0]
-        politician_id = register_and_verify_politician(politician, client)
+        # Setup: Create representative and manifesto
+        representative = test_data["representatives"][0]
+        representative_id = register_and_verify_representative(representative, client)
         
         manifesto_data = test_data["manifestos"][0]
         # Set grace period to past so voting is allowed
@@ -500,7 +500,7 @@ class TestVoteAggregation:
         
         response = client.post("/api/manifestos", json={
             **manifesto_data,
-            "politician_id": politician_id
+            "representative_id": representative_id
         })
         manifesto_id = response.json()["id"]
         
@@ -588,7 +588,7 @@ class TestFullPlatformIntegration:
         Scenario 5: Full Platform Integration
         
         Complete lifecycle:
-        1. Politician registers and submits promise
+        1. Representative registers and submits promise
         2. Grace period passes (simulated)
         3. Multiple voters authenticate
         4. Discussion happens (comments + evidence)
@@ -603,11 +603,11 @@ class TestFullPlatformIntegration:
         
         # Phase 1: Promise Registration
         print("\n[PHASE 1] Promise Registration")
-        politician = test_data["politicians"][0]
+        representative = test_data["representatives"][0]
         manifesto_data = test_data["manifestos"][1]  # Healthcare promise
         
-        politician_id = register_and_verify_politician(politician, client)
-        print(f"  ✓ Politician '{politician['name']}' registered and verified")
+        representative_id = register_and_verify_representative(representative, client)
+        print(f"  ✓ Representative '{representative['name']}' registered and verified")
         
         manifesto_text = f"{manifesto_data['title']}\n{manifesto_data['description']}"
         manifesto_hash = compute_manifesto_hash(manifesto_text)
@@ -615,7 +615,7 @@ class TestFullPlatformIntegration:
         
         man_response = client.post("/api/manifestos", json={
             **manifesto_data,
-            "politician_id": politician_id,
+            "representative_id": representative_id,
             "manifesto_hash": manifesto_hash,
             "signature": create_signature(manifesto_hash, private_key),
             "grace_period_days": 0  # No grace period for testing

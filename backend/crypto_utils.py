@@ -342,8 +342,8 @@ def get_verification_bundle(
     Args:
         manifesto_text: Full manifesto text
         stored_hash: Hash stored in database/blockchain
-        signature: Politician's signature
-        signer_address: Politician's wallet address
+        signature: Representative's signature
+        signer_address: Representative's wallet address
         blockchain_tx: Optional blockchain transaction hash
         
     Returns:

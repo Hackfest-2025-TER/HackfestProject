@@ -12,14 +12,14 @@ from sqlalchemy.orm import Session
 # Import the FastAPI app and database
 from main import app
 from database import get_db, engine
-from models import Base, Voter, ZKCredential, Politician, Manifesto, ManifestoVote, Comment
+from models import Base, Voter, ZKCredential, Representative, Manifesto, ManifestoVote, Comment
 
 client = TestClient(app)
 
 
 # ============= Test Fixtures =============
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="function", autouse=True)
 def db_session():
     """Create a fresh database session for each test."""
     Base.metadata.create_all(bind=engine)
@@ -32,28 +32,28 @@ def db_session():
 
 
 @pytest.fixture
-def sample_politician(db_session: Session):
-    """Create a sample politician for testing."""
-    politician = Politician(
-        name="Test Politician",
+def sample_representative(db_session: Session):
+    """Create a sample representative for testing."""
+    representative = Representative(
+        name="Test Representative",
         party="Independent",
         position="Mayor",
         bio="Test bio"
     )
-    db_session.add(politician)
+    db_session.add(representative)
     db_session.commit()
-    db_session.refresh(politician)
-    return politician
+    db_session.refresh(representative)
+    return representative
 
 
 @pytest.fixture
-def sample_manifesto(db_session: Session, sample_politician):
+def sample_manifesto(db_session: Session, sample_representative):
     """Create a sample manifesto for testing."""
     manifesto = Manifesto(
         title="Universal Healthcare Initiative",
         description="Provide healthcare to all citizens",
         category="Healthcare",
-        politician_id=sample_politician.id,
+        representative_id=sample_representative.id,
         grace_period_end=datetime.now(timezone.utc) - timedelta(days=1),  # Open for voting
         status="pending",
         promise_hash=hashlib.sha256(b"healthcare initiative").hexdigest()
@@ -173,38 +173,38 @@ class TestManifestoEndpoints:
         assert response.status_code == 404
 
 
-# ============= Politician Endpoints Tests =============
+# ============= Representative Endpoints Tests =============
 
-class TestPoliticianEndpoints:
-    """Test politician-related endpoints."""
+class TestRepresentativeEndpoints:
+    """Test representative-related endpoints."""
     
-    def test_get_all_politicians(self, sample_politician):
-        """Test getting list of all politicians."""
-        response = client.get("/api/politicians")
+    def test_get_all_representatives(self, sample_representative):
+        """Test getting list of all representatives."""
+        response = client.get("/api/representatives")
         assert response.status_code == 200
         data = response.json()
         
-        assert "politicians" in data
-        assert isinstance(data["politicians"], list)
+        assert "representatives" in data
+        assert isinstance(data["representatives"], list)
     
-    def test_get_politician_not_found(self):
-        """Test getting non-existent politician."""
-        response = client.get("/api/politicians/999999")
+    def test_get_representative_not_found(self):
+        """Test getting non-existent representative."""
+        response = client.get("/api/representatives/999999")
         assert response.status_code == 404
     
-    def test_politician_registration_flow(self, db_session: Session):
-        """Test complete politician registration flow (auto-verified in decentralized system)."""
+    def test_representative_registration_flow(self, db_session: Session):
+        """Test complete representative registration flow (auto-verified in decentralized system)."""
         # Step 1: Create ZK credential (citizen authentication)
-        test_nullifier = "0x" + hashlib.sha256(b"test_citizen_politician").hexdigest()
+        test_nullifier = "0x" + hashlib.sha256(b"test_citizen_representative").hexdigest()
         credential = ZKCredential(
             nullifier_hash=test_nullifier,
-            credential_hash="0x" + hashlib.sha256(b"cred_politician").hexdigest(),
+            credential_hash="0x" + hashlib.sha256(b"cred_representative").hexdigest(),
             is_valid=True
         )
         db_session.add(credential)
         db_session.commit()
         
-        # Step 2: Register as politician (auto-verified in decentralized system)
+        # Step 2: Register as representative (auto-verified in decentralized system)
         registration_data = {
             "nullifier": test_nullifier,
             "name": "राम बहादुर श्रेष्ठ",
@@ -214,16 +214,16 @@ class TestPoliticianEndpoints:
             "election_commission_id": "EC-2025-TEST-001"
         }
         
-        response = client.post("/api/politicians/register", json=registration_data)
+        response = client.post("/api/representatives/register", json=registration_data)
         assert response.status_code == 200
         data = response.json()
         
         assert data["success"] == True
-        assert "politician" in data
-        # In decentralized system, politicians are auto-approved
-        assert data["politician"]["application_status"] == "approved"
-        assert data["politician"]["is_verified"] == True
-        politician_id = data["politician"]["id"]
+        assert "representative" in data
+        # In decentralized system, representatives are auto-approved
+        assert data["representative"]["application_status"] == "approved"
+        assert data["representative"]["is_verified"] == True
+        representative_id = data["representative"]["id"]
         
         # Verify endpoint is still available but optional (for backwards compatibility)
         # In true decentralized system, this step would not be needed
@@ -234,32 +234,32 @@ class TestPoliticianEndpoints:
         }
         
         # This should work but not change the status (already approved)
-        response = client.post(f"/api/politicians/{politician_id}/verify", json=verify_data)
+        response = client.post(f"/api/representatives/{representative_id}/verify", json=verify_data)
         # Should fail because already approved
         assert response.status_code == 400
     
-    def test_politician_registration_without_credential(self):
+    def test_representative_registration_without_credential(self):
         """Test that registration fails without valid ZK credential."""
         registration_data = {
             "nullifier": "0x" + hashlib.sha256(b"invalid_nullifier").hexdigest(),
-            "name": "Invalid Politician",
+            "name": "Invalid Representative",
             "party": "Test Party",
             "position": "Test Position"
         }
         
-        response = client.post("/api/politicians/register", json=registration_data)
+        response = client.post("/api/representatives/register", json=registration_data)
         assert response.status_code == 401
         assert "Invalid credential" in response.json()["detail"]
     
-    def test_politician_rejection_flow(self, db_session: Session):
-        """Test that politicians are auto-approved in decentralized system.
+    def test_representative_rejection_flow(self, db_session: Session):
+        """Test that representatives are auto-approved in decentralized system.
         
         In a truly decentralized system, there is no rejection mechanism.
-        All verified citizens can register as politicians.
+        All verified citizens can register as representatives.
         This test now verifies auto-approval instead of rejection.
         """
         # Create credential
-        test_nullifier = "0x" + hashlib.sha256(b"test_rejected_politician").hexdigest()
+        test_nullifier = "0x" + hashlib.sha256(b"test_rejected_representative").hexdigest()
         credential = ZKCredential(
             nullifier_hash=test_nullifier,
             credential_hash="0x" + hashlib.sha256(b"cred_rejected").hexdigest(),
@@ -276,18 +276,18 @@ class TestPoliticianEndpoints:
             "position": "Test Position"
         }
         
-        response = client.post("/api/politicians/register", json=registration_data)
+        response = client.post("/api/representatives/register", json=registration_data)
         assert response.status_code == 200
         data = response.json()
         
         # Verify auto-approval
-        assert data["politician"]["application_status"] == "approved"
-        assert data["politician"]["is_verified"] == True
+        assert data["representative"]["application_status"] == "approved"
+        assert data["representative"]["is_verified"] == True
     
-    def test_unverified_politician_cannot_post_manifesto(self, db_session: Session):
-        """Test manifesto creation (in decentralized system, all registered politicians are verified)."""
+    def test_unverified_representative_cannot_post_manifesto(self, db_session: Session):
+        """Test manifesto creation (in decentralized system, all registered representatives are verified)."""
         # Create credential
-        test_nullifier = "0x" + hashlib.sha256(b"unverified_politician").hexdigest()
+        test_nullifier = "0x" + hashlib.sha256(b"unverified_representative").hexdigest()
         credential = ZKCredential(
             nullifier_hash=test_nullifier,
             credential_hash="0x" + hashlib.sha256(b"cred_unverified").hexdigest(),
@@ -298,35 +298,35 @@ class TestPoliticianEndpoints:
         
         registration_data = {
             "nullifier": test_nullifier,
-            "name": "Verified Politician",
+            "name": "Verified Representative",
             "party": "Test Party",
             "position": "Test Position"
         }
         
-        response = client.post("/api/politicians/register", json=registration_data)
-        politician_id = response.json()["politician"]["id"]
+        response = client.post("/api/representatives/register", json=registration_data)
+        representative_id = response.json()["representative"]["id"]
         
-        # In decentralized system, politician is auto-verified, so manifesto should succeed
+        # In decentralized system, representative is auto-verified, so manifesto should succeed
         manifesto_data = {
             "title": "Test Promise",
             "description": "This should succeed",
             "category": "infrastructure",
-            "politician_id": politician_id,
+            "representative_id": representative_id,
             "deadline": (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
         }
         
         response = client.post("/api/manifestos", json=manifesto_data)
-        # Should now succeed because politician is auto-verified
+        # Should now succeed because representative is auto-verified
         assert response.status_code == 200
     
-    def test_get_pending_politicians(self, db_session: Session):
-        """Test getting list of pending politician applications.
+    def test_get_pending_representatives(self, db_session: Session):
+        """Test getting list of pending representative applications.
         
         In decentralized system, this should return empty list since all
-        politicians are auto-verified on registration.
+        representatives are auto-verified on registration.
         """
-        # Create credential and register politician
-        test_nullifier = "0x" + hashlib.sha256(b"pending_politician").hexdigest()
+        # Create credential and register representative
+        test_nullifier = "0x" + hashlib.sha256(b"pending_representative").hexdigest()
         credential = ZKCredential(
             nullifier_hash=test_nullifier,
             credential_hash="0x" + hashlib.sha256(b"cred_pending").hexdigest(),
@@ -337,20 +337,20 @@ class TestPoliticianEndpoints:
         
         registration_data = {
             "nullifier": test_nullifier,
-            "name": "Auto-Verified Politician",
+            "name": "Auto-Verified Representative",
             "party": "Test Party",
             "position": "Test Position"
         }
         
-        client.post("/api/politicians/register", json=registration_data)
+        client.post("/api/representatives/register", json=registration_data)
         
         # Get pending applications (should be empty in decentralized system)
-        response = client.get("/api/politicians/pending")
+        response = client.get("/api/representatives/pending")
         assert response.status_code == 200
         data = response.json()
         
         assert "pending_count" in data
-        # Should be 0 since politicians are auto-approved
+        # Should be 0 since representatives are auto-approved
         assert data["pending_count"] == 0
         assert isinstance(data["applications"], list)
     
@@ -373,19 +373,19 @@ class TestPoliticianEndpoints:
         }
         
         # First registration should succeed
-        response = client.post("/api/politicians/register", json=registration_data)
+        response = client.post("/api/representatives/register", json=registration_data)
         assert response.status_code == 200
         
         # Second registration should fail
         registration_data["name"] = "Second Registration"
-        response = client.post("/api/politicians/register", json=registration_data)
+        response = client.post("/api/representatives/register", json=registration_data)
         assert response.status_code == 400
         assert "already registered" in response.json()["detail"].lower()
     
     def test_invalid_admin_key(self, db_session: Session):
-        """Test that invalid admin key cannot verify politicians."""
-        # Create politician application
-        test_nullifier = "0x" + hashlib.sha256(b"admin_test_politician").hexdigest()
+        """Test that invalid admin key cannot verify representatives."""
+        # Create representative application
+        test_nullifier = "0x" + hashlib.sha256(b"admin_test_representative").hexdigest()
         credential = ZKCredential(
             nullifier_hash=test_nullifier,
             credential_hash="0x" + hashlib.sha256(b"cred_admin_test").hexdigest(),
@@ -396,13 +396,13 @@ class TestPoliticianEndpoints:
         
         registration_data = {
             "nullifier": test_nullifier,
-            "name": "Admin Test Politician",
+            "name": "Admin Test Representative",
             "party": "Test Party",
             "position": "Test Position"
         }
         
-        response = client.post("/api/politicians/register", json=registration_data)
-        politician_id = response.json()["politician"]["id"]
+        response = client.post("/api/representatives/register", json=registration_data)
+        representative_id = response.json()["representative"]["id"]
         
         # Try to verify with invalid admin key
         verify_data = {
@@ -411,7 +411,7 @@ class TestPoliticianEndpoints:
             "verified_by": "Fake Officer"
         }
         
-        response = client.post(f"/api/politicians/{politician_id}/verify", json=verify_data)
+        response = client.post(f"/api/representatives/{representative_id}/verify", json=verify_data)
         assert response.status_code == 403
         assert "Unauthorized" in response.json()["detail"]
 

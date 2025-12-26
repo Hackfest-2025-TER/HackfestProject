@@ -9,7 +9,7 @@ pragma solidity ^0.8.19;
  * 
  * Architecture:
  * - Frontend hashes manifesto content (SHA256)
- * - Politician submits hash to blockchain (commitment)
+ * - Representative submits hash to blockchain (commitment)
  * - Anyone can verify a manifesto by hashing and comparing
  * - Backend stores full text but has NO authority over blockchain state
  * 
@@ -30,39 +30,39 @@ contract ManifestoRegistry {
         bool exists;              // Whether this manifesto exists
     }
     
-    struct Politician {
-        address wallet;           // Politician's signing wallet
+    struct Representative {
+        address wallet;           // Representative's signing wallet
         uint256 manifestoCount;   // Number of manifestos submitted
-        bool registered;          // Whether politician is registered
+        bool registered;          // Whether representative is registered
     }
     
     // ============= State Variables =============
     
-    // Politician ID => Politician data
-    mapping(uint256 => Politician) public politicians;
+    // Representative ID => Representative data
+    mapping(uint256 => Representative) public representatives;
     
-    // Politician ID => Manifesto Index => Manifesto data
+    // Representative ID => Manifesto Index => Manifesto data
     mapping(uint256 => mapping(uint256 => Manifesto)) public manifestos;
     
-    // Quick lookup: hash => (politicianId, manifestoIndex)
-    mapping(bytes32 => uint256) public hashToPolitician;
+    // Quick lookup: hash => (representativeId, manifestoIndex)
+    mapping(bytes32 => uint256) public hashToRepresentative;
     mapping(bytes32 => uint256) public hashToIndex;
     mapping(bytes32 => bool) public hashExists;
     
     // Global stats
     uint256 public totalManifestos;
-    uint256 public totalPoliticians;
+    uint256 public totalRepresentatives;
     
     // ============= Events =============
     
-    event PoliticianRegistered(
-        uint256 indexed politicianId,
+    event RepresentativeRegistered(
+        uint256 indexed representativeId,
         address indexed wallet,
         uint256 timestamp
     );
     
     event ManifestoSubmitted(
-        uint256 indexed politicianId,
+        uint256 indexed representativeId,
         uint256 indexed manifestoIndex,
         bytes32 indexed contentHash,
         uint256 timestamp,
@@ -70,7 +70,7 @@ contract ManifestoRegistry {
     );
     
     event WalletUpdated(
-        uint256 indexed politicianId,
+        uint256 indexed representativeId,
         address indexed oldWallet,
         address indexed newWallet,
         uint256 timestamp
@@ -78,22 +78,22 @@ contract ManifestoRegistry {
     
     // ============= Errors =============
     
-    error PoliticianNotRegistered(uint256 politicianId);
-    error PoliticianAlreadyRegistered(uint256 politicianId);
-    error NotPoliticianWallet(uint256 politicianId, address caller);
+    error RepresentativeNotRegistered(uint256 representativeId);
+    error RepresentativeAlreadyRegistered(uint256 representativeId);
+    error NotRepresentativeWallet(uint256 representativeId, address caller);
     error ManifestoAlreadyExists(bytes32 contentHash);
-    error ManifestoNotFound(uint256 politicianId, uint256 index);
+    error ManifestoNotFound(uint256 representativeId, uint256 index);
     error InvalidHash();
     error InvalidAddress();
     
     // ============= Modifiers =============
     
-    modifier onlyPolitician(uint256 politicianId) {
-        if (!politicians[politicianId].registered) {
-            revert PoliticianNotRegistered(politicianId);
+    modifier onlyRepresentative(uint256 representativeId) {
+        if (!representatives[representativeId].registered) {
+            revert RepresentativeNotRegistered(representativeId);
         }
-        if (politicians[politicianId].wallet != msg.sender) {
-            revert NotPoliticianWallet(politicianId, msg.sender);
+        if (representatives[representativeId].wallet != msg.sender) {
+            revert NotRepresentativeWallet(representativeId, msg.sender);
         }
         _;
     }
@@ -101,58 +101,59 @@ contract ManifestoRegistry {
     // ============= Registration =============
     
     /**
-     * @notice Register a new politician with their wallet address
-     * @param politicianId Unique identifier for the politician (from off-chain DB)
-     * @dev Anyone can register once - the msg.sender becomes the politician's wallet
+     * @notice Register a new representative with their wallet address
+     * @param representativeId Unique identifier for the representative (from off-chain DB)
+     * @dev Anyone can register once - the msg.sender becomes the representative's wallet
      */
-    function registerPolitician(uint256 politicianId) external {
-        if (politicians[politicianId].registered) {
-            revert PoliticianAlreadyRegistered(politicianId);
+    function registerRepresentative(uint256 representativeId) external {
+        if (representatives[representativeId].registered) {
+            revert RepresentativeAlreadyRegistered(representativeId);
         }
         
-        politicians[politicianId] = Politician({
+        representatives[representativeId] = Representative({
             wallet: msg.sender,
             manifestoCount: 0,
             registered: true
         });
         
-        totalPoliticians++;
+        totalRepresentatives++;
         
-        emit PoliticianRegistered(politicianId, msg.sender, block.timestamp);
+        emit RepresentativeRegistered(representativeId, msg.sender, block.timestamp);
     }
     
     /**
-     * @notice Update politician's wallet address (key rotation)
-     * @param politicianId The politician's ID
+     * @notice Update representative's wallet address (key rotation)
+     * @param representativeId The representative's ID
      * @param newWallet The new wallet address
      * @dev Only the current wallet can update to a new one
      */
-    function updateWallet(uint256 politicianId, address newWallet) 
+    function updateWallet(uint256 representativeId, address newWallet) 
         external 
-        onlyPolitician(politicianId) 
+        onlyRepresentative(representativeId) 
     {
         if (newWallet == address(0)) {
             revert InvalidAddress();
         }
         
-        address oldWallet = politicians[politicianId].wallet;
-        politicians[politicianId].wallet = newWallet;
+        address oldWallet = representatives[representativeId].wallet;
+        representatives[representativeId].wallet = newWallet;
         
-        emit WalletUpdated(politicianId, oldWallet, newWallet, block.timestamp);
+        emit WalletUpdated(representativeId, oldWallet, newWallet, block.timestamp);
     }
     
     // ============= Manifesto Submission =============
     
     /**
      * @notice Submit a manifesto hash commitment
-     * @param politicianId The politician's ID
+     * @notice Submit a manifesto hash commitment
+     * @param representativeId The representative's ID
      * @param contentHash SHA256 hash of the manifesto content
      * @dev Hash is computed off-chain: keccak256(abi.encodePacked(manifestoText))
-     * @return manifestoIndex The index of this manifesto for the politician
+     * @return manifestoIndex The index of this manifesto for the representative
      */
-    function submitManifesto(uint256 politicianId, bytes32 contentHash) 
+    function submitManifesto(uint256 representativeId, bytes32 contentHash) 
         external 
-        onlyPolitician(politicianId) 
+        onlyRepresentative(representativeId) 
         returns (uint256 manifestoIndex)
     {
         if (contentHash == bytes32(0)) {
@@ -163,9 +164,9 @@ contract ManifestoRegistry {
             revert ManifestoAlreadyExists(contentHash);
         }
         
-        manifestoIndex = politicians[politicianId].manifestoCount;
+        manifestoIndex = representatives[representativeId].manifestoCount;
         
-        manifestos[politicianId][manifestoIndex] = Manifesto({
+        manifestos[representativeId][manifestoIndex] = Manifesto({
             contentHash: contentHash,
             submittedAt: block.timestamp,
             blockNumber: block.number,
@@ -173,16 +174,16 @@ contract ManifestoRegistry {
         });
         
         // Update lookup mappings
-        hashToPolitician[contentHash] = politicianId;
+        hashToRepresentative[contentHash] = representativeId;
         hashToIndex[contentHash] = manifestoIndex;
         hashExists[contentHash] = true;
         
         // Update counts
-        politicians[politicianId].manifestoCount++;
+        representatives[representativeId].manifestoCount++;
         totalManifestos++;
         
         emit ManifestoSubmitted(
-            politicianId,
+            representativeId,
             manifestoIndex,
             contentHash,
             block.timestamp,
@@ -195,14 +196,14 @@ contract ManifestoRegistry {
     // ============= Verification Functions =============
     
     /**
-     * @notice Verify if a manifesto hash was submitted by a politician
-     * @param politicianId The politician's ID
+     * @notice Verify if a manifesto hash was submitted by a representative
+     * @param representativeId The representative's ID
      * @param contentHash The hash to verify
      * @return valid True if the hash matches a submitted manifesto
      * @return submittedAt Timestamp when the manifesto was submitted (0 if not found)
      * @return blockNumber Block number when submitted (0 if not found)
      */
-    function verifyManifesto(uint256 politicianId, bytes32 contentHash) 
+    function verifyManifesto(uint256 representativeId, bytes32 contentHash) 
         external 
         view 
         returns (bool valid, uint256 submittedAt, uint256 blockNumber) 
@@ -211,12 +212,12 @@ contract ManifestoRegistry {
             return (false, 0, 0);
         }
         
-        if (hashToPolitician[contentHash] != politicianId) {
+        if (hashToRepresentative[contentHash] != representativeId) {
             return (false, 0, 0);
         }
         
         uint256 index = hashToIndex[contentHash];
-        Manifesto storage m = manifestos[politicianId][index];
+        Manifesto storage m = manifestos[representativeId][index];
         
         return (true, m.submittedAt, m.blockNumber);
     }
@@ -225,100 +226,100 @@ contract ManifestoRegistry {
      * @notice Verify a hash exists and get its author
      * @param contentHash The hash to look up
      * @return exists True if hash exists in registry
-     * @return politicianId The politician who submitted it
+     * @return representativeId The representative who submitted it
      * @return submittedAt Timestamp when submitted
      */
     function lookupHash(bytes32 contentHash) 
         external 
         view 
-        returns (bool exists, uint256 politicianId, uint256 submittedAt) 
+        returns (bool exists, uint256 representativeId, uint256 submittedAt) 
     {
         if (!hashExists[contentHash]) {
             return (false, 0, 0);
         }
         
-        politicianId = hashToPolitician[contentHash];
+        representativeId = hashToRepresentative[contentHash];
         uint256 index = hashToIndex[contentHash];
-        submittedAt = manifestos[politicianId][index].submittedAt;
+        submittedAt = manifestos[representativeId][index].submittedAt;
         
-        return (true, politicianId, submittedAt);
+        return (true, representativeId, submittedAt);
     }
     
     // ============= View Functions =============
     
     /**
-     * @notice Get manifesto details by politician ID and index
-     * @param politicianId The politician's ID
+     * @notice Get manifesto details by representative ID and index
+     * @param representativeId The representative's ID
      * @param index The manifesto index
      * @return contentHash The manifesto's content hash
      * @return submittedAt Timestamp when submitted
      * @return blockNumber Block number when submitted
      */
-    function getManifesto(uint256 politicianId, uint256 index) 
+    function getManifesto(uint256 representativeId, uint256 index) 
         external 
         view 
         returns (bytes32 contentHash, uint256 submittedAt, uint256 blockNumber) 
     {
-        if (!manifestos[politicianId][index].exists) {
-            revert ManifestoNotFound(politicianId, index);
+        if (!manifestos[representativeId][index].exists) {
+            revert ManifestoNotFound(representativeId, index);
         }
         
-        Manifesto storage m = manifestos[politicianId][index];
+        Manifesto storage m = manifestos[representativeId][index];
         return (m.contentHash, m.submittedAt, m.blockNumber);
     }
     
     /**
-     * @notice Get all manifesto hashes for a politician
-     * @param politicianId The politician's ID
+     * @notice Get all manifesto hashes for a representative
+     * @param representativeId The representative's ID
      * @return hashes Array of content hashes
      * @return timestamps Array of submission timestamps
      */
-    function getPoliticianManifestos(uint256 politicianId) 
+    function getRepresentativeManifestos(uint256 representativeId) 
         external 
         view 
         returns (bytes32[] memory hashes, uint256[] memory timestamps) 
     {
-        uint256 count = politicians[politicianId].manifestoCount;
+        uint256 count = representatives[representativeId].manifestoCount;
         hashes = new bytes32[](count);
         timestamps = new uint256[](count);
         
         for (uint256 i = 0; i < count; i++) {
-            hashes[i] = manifestos[politicianId][i].contentHash;
-            timestamps[i] = manifestos[politicianId][i].submittedAt;
+            hashes[i] = manifestos[representativeId][i].contentHash;
+            timestamps[i] = manifestos[representativeId][i].submittedAt;
         }
         
         return (hashes, timestamps);
     }
     
     /**
-     * @notice Get politician info
-     * @param politicianId The politician's ID
-     * @return wallet The politician's wallet address
+     * @notice Get representative info
+     * @param representativeId The representative's ID
+     * @return wallet The representative's wallet address
      * @return manifestoCount Number of manifestos submitted
-     * @return registered Whether the politician is registered
+     * @return registered Whether the representative is registered
      */
-    function getPolitician(uint256 politicianId) 
+    function getRepresentative(uint256 representativeId) 
         external 
         view 
         returns (address wallet, uint256 manifestoCount, bool registered) 
     {
-        Politician storage p = politicians[politicianId];
+        Representative storage p = representatives[representativeId];
         return (p.wallet, p.manifestoCount, p.registered);
     }
     
     /**
-     * @notice Check if an address is the wallet for a politician
-     * @param politicianId The politician's ID
+     * @notice Check if an address is the wallet for a representative
+     * @param representativeId The representative's ID
      * @param wallet The address to check
-     * @return True if the address is the politician's wallet
+     * @return True if the address is the representative's wallet
      */
-    function isPoliticianWallet(uint256 politicianId, address wallet) 
+    function isRepresentativeWallet(uint256 representativeId, address wallet) 
         external 
         view 
         returns (bool) 
     {
-        return politicians[politicianId].registered && 
-               politicians[politicianId].wallet == wallet;
+        return representatives[representativeId].registered && 
+               representatives[representativeId].wallet == wallet;
     }
     
     // ============= Helper Functions =============

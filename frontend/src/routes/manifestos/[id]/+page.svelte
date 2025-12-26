@@ -4,6 +4,7 @@
   import CommentThread from "$lib/components/CommentThread.svelte";
   import VoteBox from "$lib/components/VoteBox.svelte";
   import HashDisplay from "$lib/components/HashDisplay.svelte";
+  import { getManifesto } from "$lib/api";
   import {
     Shield,
     ThumbsUp,
@@ -33,36 +34,16 @@
   });
 
   async function loadManifesto() {
-    // Mock data for verification
-    await new Promise((r) => setTimeout(r, 500));
-    manifesto = {
-      id: 123,
-      title: "Implement Universal Basic Income Pilot",
-      description:
-        "A proposal to implement a UBI pilot program in the downtown district to assess economic impact on small businesses and resident well-being. This pilot will run for 12 months with a monthly stipend of $1000 for 500 randomly selected residents.",
-      status: "voting",
-      hash: "0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
-      postedAgo: "2 days ago",
-      vote_kept: 156,
-      vote_broken: 42,
-      grace_period_end: new Date(Date.now() + 86400000 * 5).toISOString(),
-      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    };
-    isLoading = false;
-  }
-  /*
     try {
-      const response = await fetch(
-        `http://localhost:8000/api/manifestos/${manifestoId}`,
-      );
-      if (!response.ok) throw new Error("Manifesto not found");
-      manifesto = await response.json();
+      if (!manifestoId) return;
+      manifesto = await getManifesto(manifestoId.toString());
     } catch (err: any) {
+      console.error(err);
       error = err.message || "Failed to load manifesto";
     } finally {
       isLoading = false;
     }
-*/
+  }
 
   function formatDate(dateStr: string) {
     if (!dateStr) return "N/A";

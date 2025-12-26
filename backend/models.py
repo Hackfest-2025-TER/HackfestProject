@@ -73,19 +73,19 @@ class ZKCredential(Base):
 
 
 # =============================================================================
-# POLITICIANS
+# REPRESENTATIVES
 # =============================================================================
 
-class Politician(Base):
+class Representative(Base):
     """
-    Politicians who make promises. Will be seeded with sample data.
+    Representatives who make promises. Will be seeded with sample data.
     
     Digital Signature Architecture:
     - wallet_address: Public Ethereum address (stored)
-    - private key: NEVER stored - given to politician once
+    - private key: NEVER stored - given to representative once
     - Signatures prove authorship without backend involvement
     """
-    __tablename__ = 'politicians'
+    __tablename__ = 'representatives'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
@@ -101,7 +101,7 @@ class Politician(Base):
     citizen_voter_id = Column(String(50), nullable=True)  # Original voter ID (for audit, not displayed)
     citizenship_verified_at = Column(DateTime, nullable=True)  # When they proved citizenship
     
-    # ========= Politician Verification Status =========
+    # ========= Representative Verification Status =========
     application_status = Column(String(20), default='pending')  # pending, approved, rejected
     is_verified = Column(Boolean, default=False)  # True if approved by election commission
     verified_by = Column(String(100), nullable=True)  # Admin/commission who verified
@@ -124,10 +124,10 @@ class Politician(Base):
     previous_wallet_addresses = Column(JSONB, default=list)  # List of {address, revoked_at, version}
     
     # Relationships
-    manifestos = relationship("Manifesto", back_populates="politician")
+    manifestos = relationship("Manifesto", back_populates="representative")
     
     def __repr__(self):
-        return f"<Politician {self.name} ({self.party})>"
+        return f"<Representative {self.name} ({self.party})>"
 
 
 # =============================================================================
@@ -144,14 +144,14 @@ class Manifesto(Base):
     - vote_kept/vote_broken are cached aggregates
     
     Signature Architecture:
-    - signature: ECDSA signature of promise_hash by politician
-    - Proves politician authored this manifesto
+    - signature: ECDSA signature of promise_hash by representative
+    - Proves representative authored this manifesto
     - Cannot be forged (backend never has private key)
     """
     __tablename__ = 'manifestos'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    politician_id = Column(Integer, ForeignKey('politicians.id'), nullable=False)
+    representative_id = Column(Integer, ForeignKey('representatives.id'), nullable=False)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=False)
     category = Column(String(50), nullable=False)  # infrastructure, economy, education, etc.
@@ -184,7 +184,7 @@ class Manifesto(Base):
     )
     
     # Relationships
-    politician = relationship("Politician", back_populates="manifestos")
+    representative = relationship("Representative", back_populates="manifestos")
     votes = relationship("ManifestoVote", back_populates="manifesto", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="manifesto", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="manifesto", cascade="all, delete-orphan")

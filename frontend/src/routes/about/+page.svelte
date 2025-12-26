@@ -133,7 +133,7 @@
           </div>
           <h3 class="text-xl font-semibold text-gray-900 mb-2">Non-Partisan</h3>
           <p class="text-gray-600">
-            We don't take sides. Every politician's promises are treated
+            We don't take sides. Every representative's promises are treated
             equally. The platform is a neutral ground for accountability.
           </p>
         </div>
@@ -279,13 +279,6 @@
           you.
         </p>
         <div class="flex flex-wrap justify-center gap-6">
-          <a
-            href="/feedback"
-            class="flex items-center gap-2 text-gray-600 hover:text-primary-700 transition-colors"
-          >
-            <Mail class="w-5 h-5" />
-            Send Feedback
-          </a>
           <a
             href="https://github.com/promisethread"
             target="_blank"

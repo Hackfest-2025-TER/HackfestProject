@@ -176,8 +176,8 @@
             
             <div class="promise-meta">
               <div class="meta-item">
-                <span class="meta-label">Politician</span>
-                <span class="meta-value">{manifesto.politician_name}</span>
+                <span class="meta-label">Representative</span>
+                <span class="meta-value">{manifesto.representative_name}</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Deadline</span>

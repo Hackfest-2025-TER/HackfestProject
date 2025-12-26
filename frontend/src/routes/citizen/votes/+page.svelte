@@ -282,7 +282,7 @@
                     class="flex flex-wrap items-center gap-4 text-xs text-gray-500"
                   >
                     <div class="flex items-center gap-1">
-                      <span>By {manifesto.politician_name}</span>
+                      <span>By {manifesto.representative_name}</span>
                     </div>
                     <div class="flex items-center gap-1">
                       <Calendar class="w-3.5 h-3.5" />

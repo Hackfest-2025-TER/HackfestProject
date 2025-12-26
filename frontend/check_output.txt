@@ -1,0 +1,101 @@
+
+> promisethread-frontend@1.0.0 check
+> svelte-kit sync && svelte-check --tsconfig ./tsconfig.json
+
+
+====================================
+Loading svelte-check in workspace: /run/media/sapiens/Development/HackfestProject/frontend
+Getting Svelte diagnostics...
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/lib/zk/proof.worker.js:1:25
+Error: Cannot find module 'snarkjs' or its corresponding type declarations. 
+import { groth16 } from 'snarkjs';
+
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/lib/zk/zkProver.ts:73:38
+Error: Cannot find module 'snarkjs' or its corresponding type declarations. 
+    try {
+        const snarkjs = await import('snarkjs');
+        // Generate the proof using snarkjs
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/lib/zk/zkProver.ts:113:38
+Error: Cannot find module 'snarkjs' or its corresponding type declarations. 
+        
+        const snarkjs = await import('snarkjs');
+        const isValid = await snarkjs.groth16.verify(vkey, publicSignals, proof);
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/lib/components/Header.svelte:16:14
+Warn: Component has unused export property 'variant'. If it is for external reference only, please consider using `export const variant` (svelte)
+
+  export let variant: string = "default";
+
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/lib/components/ManifestoCard.svelte:164:5
+Warn: Also define the standard property 'line-clamp' for compatibility (css)
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/routes/citizen/attestation/+page.svelte:368:8
+Warn: Unused CSS selector ".receipt-row span" (svelte)
+
+<style>
+  .attestation-page {
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/routes/citizen/attestation/+page.svelte:368:8
+Warn: Unused CSS selector ".receipt-row code" (svelte)
+
+<style>
+  .attestation-page {
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/routes/representative/new-manifesto/+page.svelte:204:9
+Warn: A11y: A form label must be associated with a control. (svelte)
+      <div class="form-section">
+        <label class="form-label">Manifesto Title / Campaign Slogan</label>
+        <input 
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/routes/representative/new-manifesto/+page.svelte:215:9
+Warn: A11y: A form label must be associated with a control. (svelte)
+      <div class="form-section">
+        <label class="form-label">Executive Summary / Vision</label>
+        <textarea 
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/routes/representative/new-manifesto/+page.svelte:226:9
+Warn: A11y: A form label must be associated with a control. (svelte)
+      <div class="form-section">
+        <label class="form-label">Full Manifesto Document (PDF)</label>
+        <div class="upload-zone">
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/routes/representative/new-manifesto/+page.svelte:243:15
+Warn: A11y: A form label must be associated with a control. (svelte)
+            <div class="form-group flex-2">
+              <label class="form-label small">PROMISE TITLE</label>
+              <input 
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/routes/representative/new-manifesto/+page.svelte:252:15
+Warn: A11y: A form label must be associated with a control. (svelte)
+            <div class="form-group flex-1">
+              <label class="form-label small">CATEGORY</label>
+              <select class="form-select" bind:value={newPromiseCategory}>
+
+
+/run/media/sapiens/Development/HackfestProject/frontend/src/routes/representative/new-manifesto/+page.svelte:262:13
+Warn: A11y: A form label must be associated with a control. (svelte)
+          <div class="form-group">
+            <label class="form-label small">DESCRIPTION & SUCCESS METRICS</label>
+            <textarea 
+
+
+====================================
+svelte-check found 3 errors and 10 warnings in 6 files

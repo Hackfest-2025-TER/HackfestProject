@@ -15,7 +15,7 @@
       : $page.url.pathname.startsWith("/citizen")
         ? "citizen"
         : $page.url.pathname.startsWith("/representative")
-          ? "politician"
+          ? "representative"
           : "default";
 
   // Validate and sync auth state from backend on mount
@@ -47,17 +47,17 @@
           });
           localStorage.setItem("user_votes", JSON.stringify(localVotes));
 
-          // Update auth store if votes changed or politician status updated
+          // Update auth store if votes changed or representative status updated
           if (
             mergedVotes.length !== currentVotes.length ||
-            result.is_politician !== storedAuth.credential.isPolitician
+            result.is_representative !== storedAuth.credential.isRepresentative
           ) {
             authStore.setCredential({
               ...storedAuth.credential,
               usedVotes: mergedVotes,
-              isPolitician: result.is_politician,
-              politicianId: result.politician_id,
-              politicianSlug: result.politician_slug,
+              isRepresentative: result.is_representative,
+              representativeId: result.representative_id,
+              representativeSlug: result.representative_slug,
             });
           }
         } else {

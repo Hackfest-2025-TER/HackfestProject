@@ -69,7 +69,7 @@
           >
         </h1>
         <p class="text-lg opacity-90 max-w-2xl">
-          Hold politicians accountable without compromising your privacy. Every
+          Hold representatives accountable without compromising your privacy. Every
           vote is verified on the blockchain, yet your identity remains hidden.
         </p>
       </div>

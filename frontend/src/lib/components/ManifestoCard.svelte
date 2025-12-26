@@ -12,7 +12,7 @@
     id: 1,
     title: "Promise Title",
     description: "Promise description",
-    politician_name: "Politician Name",
+    representative_name: "Representative Name",
     category: "General",
     status: "pending",
     vote_kept: 0,
@@ -79,7 +79,7 @@
       </div>
     </div>
 
-    <!-- Title & Politician -->
+    <!-- Title & Representative -->
     <div class="mb-4">
       <h3
         class="text-xl font-bold font-serif text-gray-900 group-hover:text-primary-700 transition-colors mb-2 leading-tight"
@@ -88,7 +88,7 @@
       </h3>
       <p class="text-sm font-medium text-gray-500">
         Promised by <span class="text-gray-900"
-          >{manifesto.politician_name}</span
+          >{manifesto.representative_name}</span
         >
       </p>
     </div>
@@ -162,6 +162,7 @@
   .line-clamp-3 {
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }

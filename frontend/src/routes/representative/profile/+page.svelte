@@ -19,8 +19,8 @@
   import { onMount } from "svelte";
   import { goto } from "$app/navigation";
 
-  // Politician session
-  let politicianSession: any = null;
+  // Representative session
+  let representativeSession: any = null;
   let isLoading = true;
   let isSaving = false;
   let error = "";
@@ -77,17 +77,17 @@
   ];
 
   onMount(async () => {
-    const session = localStorage.getItem("politician_session");
+    const session = localStorage.getItem("representative_session");
     if (!session) {
       goto("/representative/login");
       return;
     }
-    politicianSession = JSON.parse(session);
+    representativeSession = JSON.parse(session);
 
     // Load profile data (in production, fetch from API)
-    profile.name = politicianSession.name || "";
-    profile.party = politicianSession.party || "";
-    profile.email = politicianSession.email || "";
+    profile.name = representativeSession.name || "";
+    profile.party = representativeSession.party || "";
+    profile.email = representativeSession.email || "";
 
     isLoading = false;
   });
@@ -99,15 +99,15 @@
 
     try {
       // In production, save to API
-      // await updatePoliticianProfile(politicianSession.id, profile);
+      // await updateRepresentativeProfile(representativeSession.id, profile);
 
       // Update local session
-      const updatedSession = { ...politicianSession, ...profile };
+      const updatedSession = { ...representativeSession, ...profile };
       localStorage.setItem(
-        "politician_session",
+        "representative_session",
         JSON.stringify(updatedSession),
       );
-      politicianSession = updatedSession;
+      representativeSession = updatedSession;
 
       success = "Profile updated successfully!";
       setTimeout(() => (success = ""), 3000);

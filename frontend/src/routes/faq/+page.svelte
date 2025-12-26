@@ -83,7 +83,7 @@
       category: "Feedback",
       question: "What is a grace period?",
       answer:
-        "A grace period is the time between when a promise is made and when feedback opens. This gives politicians time to work on their promises before being evaluated. Typically 6-12 months depending on the promise.",
+        "A grace period is the time between when a promise is made and when feedback opens. This gives representatives time to work on their promises before being evaluated. Typically 6-12 months depending on the promise.",
     },
     {
       category: "Feedback",
@@ -101,13 +101,13 @@
     // Representatives
     {
       category: "Representatives",
-      question: "How do politicians post promises?",
+      question: "How do representatives post promises?",
       answer:
         "Representatives receive a secure account with digital signing capability. They write their promise, sign it digitally (in their browser), and submit it. The signature proves authorship without exposing any private credentials.",
     },
     {
       category: "Representatives",
-      question: "Can politicians edit their promises after posting?",
+      question: "Can representatives edit their promises after posting?",
       answer:
         "No. Once a promise is signed and recorded, it cannot be edited. The digital fingerprint of the promise is permanently stored. Any alteration would produce a different fingerprint, immediately exposing the tampering.",
     },
@@ -234,15 +234,6 @@
       </div>
 
       <!-- Contact CTA -->
-      <div class="mt-12 text-center">
-        <p class="text-gray-500 mb-4">Still have questions?</p>
-        <a
-          href="/feedback"
-          class="inline-flex items-center gap-2 bg-primary-700 hover:bg-primary-800 text-white px-6 py-3 rounded-lg transition-colors"
-        >
-          Send us a message
-        </a>
-      </div>
     </div>
   </section>
 </main>

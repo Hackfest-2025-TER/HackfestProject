@@ -35,7 +35,7 @@
 	let loading = false;
 	let error = "";
 	let success = false;
-	let politicianId: number | null = null;
+	let representativeId: number | null = null;
 	let applicationStatus = "";
 	let credentialVerified = false;
 
@@ -64,7 +64,7 @@
 
 		try {
 			const response = await fetch(
-				"http://localhost:8000/api/politicians/register",
+				"http://localhost:8000/api/representatives/register",
 				{
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
@@ -85,17 +85,17 @@
 
 			if (response.ok) {
 				success = true;
-				politicianId = data.politician.id;
-				applicationStatus = data.politician.application_status;
+				representativeId = data.representative.id;
+				applicationStatus = data.representative.application_status;
 
-				// Update auth store to mark user as politician
+				// Update auth store to mark user as representative
 				const currentCred = get(credential);
 				if (currentCred) {
 					authStore.setCredential({
 						...currentCred,
-						isPolitician: true,
-						politicianId: data.politician.id,
-						politicianSlug: data.politician.slug,
+						isRepresentative: true,
+						representativeId: data.representative.id,
+						representativeSlug: data.representative.slug,
 					});
 				}
 			} else {
@@ -126,7 +126,7 @@
 </script>
 
 <svelte:head>
-	<title>Register as Politician - PromiseThread</title>
+	<title>Register as Representative - PromiseThread</title>
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50 py-12 px-4">
@@ -141,7 +141,7 @@
 			<h1
 				class="text-4xl md:text-5xl font-bold font-serif text-gray-900 mb-3"
 			>
-				Register as Politician
+				Register as Representative
 			</h1>
 			<p class="text-lg text-gray-600 mb-4 max-w-2xl mx-auto">
 				Join PromiseThread and make your political commitments
@@ -171,7 +171,7 @@
 					</p>
 					<p class="text-sm text-success-700 mt-1">
 						Your citizenship has been verified securely. You can now
-						register as a politician.
+						register as a representative.
 					</p>
 				</div>
 			</div>
@@ -195,11 +195,11 @@
 						🎉 Registration Complete!
 					</h2>
 					<p class="text-gray-600 mb-8 text-lg">
-						You are now a verified politician in the PromiseThread
+						You are now a verified representative in the PromiseThread
 						network.
 					</p>
 
-					<!-- Politician Details Card -->
+					<!-- Representative Details Card -->
 					<div
 						class="bg-gray-50 rounded-xl p-6 mb-8 text-left max-w-md mx-auto border border-gray-200"
 					>
@@ -207,12 +207,12 @@
 							<p
 								class="text-xs uppercase tracking-wide text-gray-500 font-semibold"
 							>
-								Politician ID
+								Representative ID
 							</p>
 							<p
 								class="text-3xl font-bold text-primary-700 font-mono mt-1"
 							>
-								#{politicianId}
+								#{representativeId}
 							</p>
 						</div>
 						<div class="border-t border-gray-200 pt-4">
@@ -500,7 +500,7 @@
 										Registering & Verifying...
 									{:else}
 										<CheckCircle class="w-5 h-5" />
-										Register as Politician
+										Register as Representative
 									{/if}
 								</button>
 							</div>

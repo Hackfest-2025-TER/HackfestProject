@@ -1,7 +1,7 @@
 """
 Seed Data Script for PromiseThread
 ===================================
-Seeds initial data for politicians and sample manifestos.
+Seeds initial data for representatives and sample manifestos.
 """
 
 from datetime import datetime, timedelta
@@ -10,17 +10,17 @@ import re
 from sqlalchemy.orm import Session
 
 from database import get_db_context, init_db
-from models import Politician, Manifesto, AuditLog
+from models import Representative, Manifesto, AuditLog
 
 
-def generate_promise_hash(title: str, description: str, politician_id: int) -> str:
+def generate_promise_hash(title: str, description: str, representative_id: int) -> str:
     """Generate a hash for a promise (simulating blockchain hash)."""
-    data = f"{title}:{description}:{politician_id}".encode('utf-8')
+    data = f"{title}:{description}:{representative_id}".encode('utf-8')
     return '0x' + hashlib.sha256(data).hexdigest()
 
 
 def generate_slug(name: str) -> str:
-    """Generate URL-friendly slug from politician name."""
+    """Generate URL-friendly slug from representative name."""
     # Remove special characters, lowercase, replace spaces with hyphens
     slug = name.lower()
     slug = re.sub(r'[^\w\s-]', '', slug)
@@ -35,10 +35,10 @@ def generate_block_hash(data: str, prev_hash: str) -> str:
 
 
 # =============================================================================
-# SAMPLE POLITICIANS DATA
+# SAMPLE REPRESENTATIVES DATA
 # =============================================================================
 
-POLITICIANS = [
+REPRESENTATIVES = [
     {
         "name": "कृष्ण प्रसाद सिटौला",
         "party": "नेपाली कांग्रेस",
@@ -90,7 +90,7 @@ def get_manifestos_data() -> list:
         # PENDING - Grace period NOT ended (cannot vote yet)
         # =====================================================================
         {
-            "politician_id": 1,
+            "representative_id": 1,
             "title": "धुलिखेल-काभ्रे सडक विस्तार",
             "description": "धुलिखेलदेखि काभ्रेसम्मको सडकलाई चार लेन बनाउने। यो परियोजनाले यातायात सुधार गर्नेछ र आर्थिक विकासमा योगदान पुर्याउनेछ।",
             "category": "infrastructure",
@@ -100,7 +100,7 @@ def get_manifestos_data() -> list:
             "vote_broken": 0
         },
         {
-            "politician_id": 2,
+            "representative_id": 2,
             "title": "प्रत्येक गाउँमा स्वास्थ्य चौकी",
             "description": "हरेक गाउँमा कम्तीमा एक स्वास्थ्य चौकी स्थापना गर्ने र आधारभूत स्वास्थ्य सेवा सुनिश्चित गर्ने।",
             "category": "healthcare",
@@ -110,7 +110,7 @@ def get_manifestos_data() -> list:
             "vote_broken": 0
         },
         {
-            "politician_id": 3,
+            "representative_id": 3,
             "title": "युवा रोजगारी कार्यक्रम",
             "description": "५ वर्षभित्र ५ लाख युवालाई रोजगारी दिने कार्यक्रम। सीप विकास र उद्यमशीलता प्रवर्द्धनमा जोड दिइनेछ।",
             "category": "economy",
@@ -124,7 +124,7 @@ def get_manifestos_data() -> list:
         # PENDING - Grace period ENDED (can vote now)
         # =====================================================================
         {
-            "politician_id": 4,
+            "representative_id": 4,
             "title": "सबै विद्यालयमा इन्टरनेट",
             "description": "देशका सबै सरकारी विद्यालयहरूमा निःशुल्क इन्टरनेट सेवा उपलब्ध गराउने।",
             "category": "education",
@@ -134,7 +134,7 @@ def get_manifestos_data() -> list:
             "vote_broken": 89
         },
         {
-            "politician_id": 5,
+            "representative_id": 5,
             "title": "किसान ऋण माफी",
             "description": "साना किसानहरूको १ लाखसम्मको ऋण माफी गर्ने।",
             "category": "agriculture",
@@ -144,7 +144,7 @@ def get_manifestos_data() -> list:
             "vote_broken": 234
         },
         {
-            "politician_id": 1,
+            "representative_id": 1,
             "title": "भ्रष्टाचार नियन्त्रण",
             "description": "भ्रष्टाचार विरुद्ध कडा कानून बनाउने र दोषीलाई कठोर सजाय दिने।",
             "category": "governance",
@@ -158,7 +158,7 @@ def get_manifestos_data() -> list:
         # KEPT - Promise fulfilled
         # =====================================================================
         {
-            "politician_id": 2,
+            "representative_id": 2,
             "title": "नयाँ संविधान जारी",
             "description": "नेपालको नयाँ संविधान जारी गर्ने - २०७२ सालमा पूरा भयो।",
             "category": "governance",
@@ -168,7 +168,7 @@ def get_manifestos_data() -> list:
             "vote_broken": 1234
         },
         {
-            "politician_id": 3,
+            "representative_id": 3,
             "title": "लोकतान्त्रिक गणतन्त्र घोषणा",
             "description": "नेपाललाई संघीय लोकतान्त्रिक गणतन्त्र घोषणा गर्ने।",
             "category": "governance",
@@ -182,7 +182,7 @@ def get_manifestos_data() -> list:
         # BROKEN - Promise not fulfilled
         # =====================================================================
         {
-            "politician_id": 4,
+            "representative_id": 4,
             "title": "५ वर्षमा समृद्ध नेपाल",
             "description": "५ वर्षभित्र नेपाललाई समृद्ध देश बनाउने - पूरा भएन।",
             "category": "economy",
@@ -192,7 +192,7 @@ def get_manifestos_data() -> list:
             "vote_broken": 4567
         },
         {
-            "politician_id": 5,
+            "representative_id": 5,
             "title": "बेरोजगारी शून्य",
             "description": "३ वर्षभित्र बेरोजगारी शून्य गर्ने - असफल।",
             "category": "economy",
@@ -208,44 +208,44 @@ def get_manifestos_data() -> list:
 # SEED FUNCTIONS
 # =============================================================================
 
-def seed_politicians(db: Session) -> list[Politician]:
-    """Seed politicians into database."""
-    print("\n📥 Seeding politicians...")
+def seed_representatives(db: Session) -> list[Representative]:
+    """Seed representatives into database."""
+    print("\n📥 Seeding representatives...")
     
-    politicians = []
-    for data in POLITICIANS:
+    representatives = []
+    for data in REPRESENTATIVES:
         # Generate slug from name
         data_with_slug = data.copy()
         data_with_slug['slug'] = generate_slug(data['name'])
         
-        politician = Politician(**data_with_slug)
-        db.add(politician)
-        politicians.append(politician)
+        representative = Representative(**data_with_slug)
+        db.add(representative)
+        representatives.append(representative)
     
     db.flush()  # Get IDs
-    print(f"  ✓ Created {len(politicians)} politicians")
-    return politicians
+    print(f"  ✓ Created {len(representatives)} representatives")
+    return representatives
 
 
-def seed_manifestos(db: Session, politicians: list[Politician]) -> list[Manifesto]:
+def seed_manifestos(db: Session, representatives: list[Representative]) -> list[Manifesto]:
     """Seed manifestos into database."""
     print("\n📥 Seeding manifestos...")
     
-    # Create mapping of old IDs (1-5) to actual politician IDs
-    politician_id_map = {i + 1: politician.id for i, politician in enumerate(politicians)}
+    # Create mapping of old IDs (1-5) to actual representative IDs
+    representative_id_map = {i + 1: representative.id for i, representative in enumerate(representatives)}
     
     manifestos = []
     for data in get_manifestos_data():
-        # Map the hardcoded politician_id to the actual one
-        original_id = data["politician_id"]
-        data["politician_id"] = politician_id_map[original_id]
+        # Map the hardcoded representative_id to the actual one
+        original_id = data["representative_id"]
+        data["representative_id"] = representative_id_map[original_id]
         
         manifesto = Manifesto(**data)
         # Generate promise hash
         manifesto.promise_hash = generate_promise_hash(
             manifesto.title,
             manifesto.description,
-            manifesto.politician_id
+            manifesto.representative_id
         )
         db.add(manifesto)
         manifestos.append(manifesto)
@@ -277,7 +277,7 @@ def seed_audit_logs(db: Session, manifestos: list[Manifesto]):
         block_data = {
             "manifesto_id": manifesto.id,
             "title": manifesto.title,
-            "politician_id": manifesto.politician_id,
+            "representative_id": manifesto.representative_id,
             "promise_hash": manifesto.promise_hash,
             "action": "PROMISE_CREATED",
             "timestamp": manifesto.created_at.isoformat() if manifesto.created_at else datetime.utcnow().isoformat()
@@ -301,7 +301,7 @@ def clear_seed_data(db: Session):
     """Clear all seeded data."""
     db.query(AuditLog).delete()
     db.query(Manifesto).delete()
-    db.query(Politician).delete()
+    db.query(Representative).delete()
     db.commit()
     print("  ✓ Cleared existing seed data")
 
@@ -316,13 +316,13 @@ def main():
     
     with get_db_context() as db:
         # Check existing data
-        existing_politicians = db.query(Politician).count()
+        existing_representatives = db.query(Representative).count()
         existing_manifestos = db.query(Manifesto).count()
         
-        if existing_politicians > 0 or existing_manifestos > 0:
+        if existing_representatives > 0 or existing_manifestos > 0:
             print(f"\n⚠️  Found existing data:")
-            print(f"   Politicians: {existing_politicians}")
-            print(f"   Manifestos:  {existing_manifestos}")
+            print(f"   Representatives: {existing_representatives}")
+            print(f"   Manifestos:      {existing_manifestos}")
             response = input("  Clear and reseed? (y/N): ").strip().lower()
             if response != 'y':
                 print("  Aborted.")
@@ -330,8 +330,8 @@ def main():
             clear_seed_data(db)
         
         # Seed data
-        politicians = seed_politicians(db)
-        manifestos = seed_manifestos(db, politicians)
+        representatives = seed_representatives(db)
+        manifestos = seed_manifestos(db, representatives)
         seed_audit_logs(db, manifestos)
         
         db.commit()
@@ -339,9 +339,9 @@ def main():
         print("\n" + "=" * 60)
         print("  SEEDING COMPLETE")
         print("=" * 60)
-        print(f"  Politicians: {len(politicians)}")
-        print(f"  Manifestos:  {len(manifestos)}")
-        print(f"  Audit logs:  {len(manifestos) + 1}")
+        print(f"  Representatives: {len(representatives)}")
+        print(f"  Manifestos:      {len(manifestos)}")
+        print(f"  Audit logs:      {len(manifestos) + 1}")
         print("=" * 60)
 
 

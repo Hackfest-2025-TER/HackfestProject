@@ -16,14 +16,14 @@
   import { credential } from "$lib/stores";
   import { get } from "svelte/store";
   import {
-    generatePoliticianWallet,
-    getPoliticianWalletStatus,
+    generateRepresentativeWallet,
+    getRepresentativeWalletStatus,
   } from "$lib/api";
   import { downloadKeystore, formatAddress } from "$lib/utils/crypto";
 
   // Get from auth
-  let politicianId: number | null = null;
-  let politicianName = "";
+  let representativeId: number | null = null;
+  let representativeName = "";
 
   // State
   let walletStatus: any = null;
@@ -73,21 +73,21 @@
 
   onMount(async () => {
     const cred = get(credential);
-    if (!cred || !cred.isPolitician || !cred.politicianId) {
-      error = "You must be a registered politician to access wallet features";
+    if (!cred || !cred.isRepresentative || !cred.representativeId) {
+      error = "You must be a registered representative to access wallet features";
       setTimeout(() => goto("/representative/register"), 2000);
       return;
     }
-    politicianId = cred.politicianId;
-    // Fetch politician name from backend or use from cred if available
+    representativeId = cred.representativeId;
+    // Fetch representative name from backend or use from cred if available
     await loadWalletStatus();
   });
 
   async function loadWalletStatus() {
-    if (!politicianId) return;
+    if (!representativeId) return;
     try {
       isLoading = true;
-      walletStatus = await getPoliticianWalletStatus(politicianId);
+      walletStatus = await getRepresentativeWalletStatus(representativeId);
     } catch (e: any) {
       error = e.message;
     } finally {
@@ -96,13 +96,13 @@
   }
 
   async function generateWallet() {
-    if (!canGenerate || !politicianId) return;
+    if (!canGenerate || !representativeId) return;
 
     try {
       isGenerating = true;
       error = "";
 
-      const result = await generatePoliticianWallet(politicianId, passphrase);
+      const result = await generateRepresentativeWallet(representativeId, passphrase);
       generatedKeystore = result;
 
       // Auto-download keystore immediately
@@ -110,7 +110,7 @@
         downloadKeystore(
           generatedKeystore.keystore,
           generatedKeystore.keystore_filename ||
-            `politician-${politicianId}-key.json`,
+            `representative-${representativeId}-key.json`,
         );
         keystoreDownloaded = true;
       }
@@ -130,7 +130,7 @@
     downloadKeystore(
       generatedKeystore.keystore,
       generatedKeystore.keystore_filename ||
-        `politician-${politicianId}-key.json`,
+        `representative-${representativeId}-key.json`,
     );
     keystoreDownloaded = true;
   }
@@ -151,7 +151,7 @@
 </script>
 
 <svelte:head>
-  <title>Wallet Management - Politician Portal</title>
+  <title>Wallet Management - Representative Portal</title>
 </svelte:head>
 
 <main class="wallet-page">

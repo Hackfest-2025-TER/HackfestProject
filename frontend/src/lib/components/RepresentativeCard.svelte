@@ -1,9 +1,9 @@
 <script>
     import { FileText, ChevronRight, Shield } from "lucide-svelte";
 
-    export let politician = {
+    export let representative = {
         id: 1,
-        name: "Politician Name",
+        name: "Representative Name",
         title: "Member of Parliament",
         party: "Independent",
         image_url: "",
@@ -32,7 +32,7 @@
 </script>
 
 <a
-    href="/representatives/{politician.slug || politician.id}"
+    href="/representatives/{representative.slug || representative.id}"
     class="group relative flex flex-col bg-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 border border-gray-200 hover:border-primary-200 overflow-hidden"
 >
     <div class="p-6 flex flex-col gap-4">
@@ -42,27 +42,27 @@
                 <div
                     class="w-full h-full rounded-full overflow-hidden border border-gray-100 bg-gray-50"
                 >
-                    {#if politician.image_url}
+                    {#if representative.image_url}
                         <img
-                            src={politician.image_url}
-                            alt={politician.name}
+                            src={representative.image_url}
+                            alt={representative.name}
                             class="w-full h-full object-cover"
                             on:error={handleImageError}
                         />
                         <div
                             class="hidden w-full h-full items-center justify-center bg-primary-100 text-primary-700 font-bold"
                         >
-                            {politician.name.charAt(0)}
+                            {representative.name.charAt(0)}
                         </div>
                     {:else}
                         <div
                             class="w-full h-full flex items-center justify-center bg-primary-100 text-primary-700 font-bold"
                         >
-                            {politician.name.charAt(0)}
+                            {representative.name.charAt(0)}
                         </div>
                     {/if}
                 </div>
-                {#if politician.verified}
+                {#if representative.verified}
                     <div
                         class="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm text-primary-600"
                     >
@@ -74,10 +74,10 @@
             <div class="text-right">
                 <div
                     class="text-2xl font-bold {getScoreColor(
-                        politician.integrity_score,
+                        representative.integrity_score,
                     )}"
                 >
-                    {politician.integrity_score}%
+                    {representative.integrity_score}%
                 </div>
                 <div
                     class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider"
@@ -92,14 +92,16 @@
             <h3
                 class="text-lg font-bold text-gray-900 group-hover:text-primary-700 transition-colors line-clamp-1"
             >
-                {politician.name}
+                {representative.name}
             </h3>
-            <p class="text-sm text-gray-500 line-clamp-1">{politician.title}</p>
+            <p class="text-sm text-gray-500 line-clamp-1">
+                {representative.title}
+            </p>
             <div class="mt-2">
                 <span
                     class="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-xs font-medium text-gray-600 border border-gray-100"
                 >
-                    {politician.party}
+                    {representative.party}
                 </span>
             </div>
         </div>
@@ -112,7 +114,7 @@
                 class="flex items-center gap-1.5 text-xs font-medium text-gray-500"
             >
                 <FileText class="w-3.5 h-3.5" />
-                <span>{politician.manifestos} Promises</span>
+                <span>{representative.manifestos} Promises</span>
             </div>
             <span
                 class="text-primary-600 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center"
@@ -125,8 +127,8 @@
     <!-- Bottom Integrity Bar -->
     <div class="absolute bottom-0 left-0 w-full h-1 bg-gray-100">
         <div
-            class="h-full {getBarColor(politician.integrity_score)}"
-            style="width: {politician.integrity_score}%"
+            class="h-full {getBarColor(representative.integrity_score)}"
+            style="width: {representative.integrity_score}%"
         ></div>
     </div>
 </a>

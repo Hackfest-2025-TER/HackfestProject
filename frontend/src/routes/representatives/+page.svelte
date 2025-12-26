@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import PoliticianCard from "$lib/components/PoliticianCard.svelte";
+  import RepresentativeCard from "$lib/components/RepresentativeCard.svelte";
   import {
     Search,
     Filter,
@@ -16,30 +16,31 @@
   } from "lucide-svelte";
   import { authStore } from "$lib/stores";
 
-  // Fetch politicians from API
-  let politicians: any[] = [];
+  // Fetch representatives from API
+  let representatives: any[] = [];
   let loading = true;
   let error = "";
   let searchQuery = "";
   let selectedParty = "all";
 
   // Get unique parties for filter
-  $: parties = [...new Set(politicians.map((p) => p.party))];
+  $: parties = [...new Set(representatives.map((p) => p.party))];
 
   onMount(async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/politicians");
+      // Use relative path which is proxied in dev/prod
+      const response = await fetch("/api/representatives");
       const data = await response.json();
-      politicians = data.politicians || [];
+      representatives = data.representatives || [];
       loading = false;
     } catch (err) {
-      error = "Failed to load politicians data";
+      error = "Failed to load representatives data";
       loading = false;
-      console.error("Error fetching politicians:", err);
+      console.error("Error fetching representatives:", err);
     }
   });
 
-  $: filteredPoliticians = politicians.filter((p) => {
+  $: filteredRepresentatives = representatives.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -52,7 +53,7 @@
   <title>Elected Representatives - PromiseThread</title>
 </svelte:head>
 
-<main class="politicians-page">
+<main class="representatives-page">
   <!-- Hero Section -->
   <section class="hero-section">
     <div class="container text-center">
@@ -66,13 +67,13 @@
         based on their promise fulfillment.
       </p>
 
-      {#if $authStore.isAuthenticated && !$authStore.credential?.isPolitician}
+      {#if $authStore.isAuthenticated && !$authStore.credential?.isRepresentative}
         <a
           href="/representative/register"
           class="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-full font-semibold shadow-md hover:bg-primary-700 transition-all hover:-translate-y-1"
         >
           <UserPlus class="w-5 h-5" />
-          Register as Politician
+          Register as Representative
         </a>
       {/if}
     </div>
@@ -149,7 +150,7 @@
           on:click={() => location.reload()}>Retry</button
         >
       </div>
-    {:else if filteredPoliticians.length === 0}
+    {:else if filteredRepresentatives.length === 0}
       <div
         class="flex flex-col items-center justify-center py-20 text-gray-500 bg-white rounded-xl border border-gray-200 shadow-sm"
       >
@@ -162,7 +163,7 @@
           No representatives found
         </h3>
         <p class="mb-6 text-center max-w-md">
-          We couldn't find any politicians matching "{searchQuery}" or the
+          We couldn't find any representatives matching "{searchQuery}" or the
           selected filters.
         </p>
         <button
@@ -176,21 +177,24 @@
         </button>
       </div>
     {:else}
-      <!-- Politicians Grid -->
+      <!-- Representatives Grid -->
       <div
         class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
       >
-        {#each filteredPoliticians as politician (politician.id)}
-          <PoliticianCard {politician} />
+        {#each filteredRepresentatives as representative (representative.id)}
+          <RepresentativeCard {representative} />
         {/each}
       </div>
 
       <div class="text-center mt-12 text-gray-400 text-sm">
-        Showing {filteredPoliticians.length} representatives
+        Showing {filteredRepresentatives.length} representatives
       </div>
     {/if}
   </div>
 </main>
 
 <style>
+  .representatives-page {
+    min-height: 100vh;
+  }
 </style>

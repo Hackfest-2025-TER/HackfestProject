@@ -11,9 +11,9 @@ interface Credential {
   voterIdHash?: string;
   merkleProof?: string[];
   createdAt?: string;
-  isPolitician?: boolean;
-  politicianId?: number;
-  politicianSlug?: string;
+  isRepresentative?: boolean;
+  representativeId?: number;
+  representativeSlug?: string;
 }
 
 // Auth store type
