@@ -1,32 +1,43 @@
 # WaachaPatra - Makefile
 # =========================
 
-.PHONY: help install server frontend backend blockchain stop deploy clean test compile
+.PHONY: help install dev up down logs restart status clean test compile
 
 # Default target
 help:
 	@echo ""
-	@echo "  WaachaPatra - Commands"
-	@echo "  ════════════════════════════════════════════════════════════"
+	@echo "  ╔════════════════════════════════════════════════════════╗"
+	@echo "  ║          WaachaPatra - Development Commands            ║"
+	@echo "  ╚════════════════════════════════════════════════════════╝"
 	@echo ""
-	@echo "  Development:"
+	@echo "  🚀 Quick Start:"
 	@echo "    make install     - Install all dependencies"
-	@echo "    make server      - Start backend + blockchain"
-	@echo "    make frontend    - Start frontend (port 3000)"
-	@echo "    make stop        - Stop all services"
+	@echo "    make up          - Start all services (Docker)"
+	@echo "    make dev         - Start in development mode (local)"
 	@echo ""
-	@echo "  Testing:"
-	@echo "    make test-backend     - Run backend API tests"
-	@echo "    make test-blockchain  - Run blockchain tests"
-	@echo "    make test-crypto      - Test cryptographic components"
-	@echo "    make test-zk          - Test ZK proof components"
-	@echo "    make test-integration - Test running services"
-	@echo "    make test-scenarios   - Run end-to-end scenarios with data"
-	@echo "    make test-all         - Run all tests"
-	@echo "    make test             - Alias for test-all"
+	@echo "  🐳 Docker Commands:"
+	@echo "    make up          - Start all services with Docker"
+	@echo "    make down        - Stop all Docker services"
+	@echo "    make restart     - Restart all services"
+	@echo "    make logs        - View logs (Ctrl+C to exit)"
+	@echo "    make status      - Show container status"
+	@echo "    make rebuild     - Rebuild and restart containers"
+	@echo "    make clean       - Stop and remove all containers/volumes"
 	@echo ""
-	@echo "  Production:"
-	@echo "    make deploy      - Build & run with Docker"
+	@echo "  🧪 Testing:"
+	@echo "    make test        - Run all tests"
+	@echo "    make test-quick  - Run quick tests (no integration)"
+	@echo "    make test-api    - Test backend API"
+	@echo "    make test-contracts - Test smart contracts"
+	@echo "    make test-e2e    - Run end-to-end scenarios"
+	@echo ""
+	@echo "  🛠️  Development (Local without Docker):"
+	@echo "    make dev         - Start backend + blockchain locally"
+	@echo "    make dev-full    - Start all services locally"
+	@echo ""
+	@echo "  📦 Build:"
+	@echo "    make compile     - Compile smart contracts"
+	@echo "    make build       - Build Docker images"
 	@echo ""
 
 # =============================================================================
@@ -47,7 +58,7 @@ install:
 # =============================================================================
 
 # Start backend + blockchain together (run frontend separately in another terminal)
-server:
+server: database
 	@echo "════════════════════════════════════════════════════════════"
 	@echo "  Starting WaachaPatra Development Server"
 	@echo "════════════════════════════════════════════════════════════"
@@ -67,6 +78,7 @@ server:
 	@echo "  Backend API:      http://localhost:8000"
 	@echo "  API Docs:         http://localhost:8000/docs"
 	@echo "  Blockchain RPC:   http://localhost:8545"
+	@echo "  PostgreSQL:       localhost:5432"
 	@echo ""
 	@echo "  Run in another terminal:"
 	@echo "  → make frontend   (http://localhost:3000)"
@@ -76,6 +88,37 @@ server:
 	cd backend && ./venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 # Individual services
+database:
+	@echo "════════════════════════════════════════════════════════════"
+	@echo "  Starting PostgreSQL Database"
+	@echo "════════════════════════════════════════════════════════════"
+	@if ! docker info > /dev/null 2>&1; then \
+		echo ""; \
+		echo "  ⚠️  Docker is not running!"; \
+		echo "  Please start Docker:"; \
+		echo "    sudo systemctl start docker"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@if docker ps --format '{{.Names}}' | grep -q promisethread-db; then \
+		echo "  ✓ Database already running"; \
+	else \
+		echo "  → Starting PostgreSQL container..."; \
+		docker-compose up -d postgres; \
+		echo "  → Waiting for database to be ready..."; \
+		sleep 3; \
+		echo ""; \
+		echo "  ✓ Database started"; \
+	fi
+	@echo ""
+	@echo "  PostgreSQL:  localhost:5432"
+	@echo "  Database:    promisethread"
+	@echo "  Username:    promisethread"
+	@echo "  Password:    hackfest2025"
+	@echo ""
+
+db: database
+
 frontend:
 	@echo "════════════════════════════════════════════════════════════"
 	@echo "  Starting Frontend"
@@ -86,7 +129,9 @@ frontend:
 	@echo ""
 	cd frontend && pnpm run dev
 
-backend:
+backend: database backend-only
+
+backend-only:cd 
 	@echo "════════════════════════════════════════════════════════════"
 	@echo "  Starting Backend"
 	@echo "════════════════════════════════════════════════════════════"
@@ -112,6 +157,7 @@ stop:
 	@-lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 	@-lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 	@-lsof -ti:8545 | xargs kill -9 2>/dev/null || true
+	@-docker-compose stop postgres 2>/dev/null || true
 	@echo "✓ All services stopped"
 
 # =============================================================================

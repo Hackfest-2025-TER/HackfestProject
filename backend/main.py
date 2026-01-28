@@ -130,6 +130,8 @@ class ManifestoCreate(BaseModel):
     representative_id: int
     deadline: str
     promises: List[str] = []
+    signature: Optional[str] = None
+    signed_content: Optional[str] = None # The content that was signed (usually the hash)
 
 class VoteRequest(BaseModel):
     manifesto_id: int
@@ -852,21 +854,48 @@ async def create_manifesto(manifesto: ManifestoCreate, db: Session = Depends(get
     db.add(new_manifesto)
     db.commit()
     db.refresh(new_manifesto)
+
+    # Submit to Blockchain (Real Interaction)
+    blockchain_tx_data = None
+    if manifesto.signature:
+        try:
+            bs = get_blockchain_service()
+            # We submit the hash of the manifesto to the blockchain
+            # The backend acts as a relayer, paying the gas
+            # logic: submit_manifesto(representative_id, content_hash)
+            tx_result = bs.submit_manifesto(
+                representative_id=new_manifesto.representative_id,
+                content_hash=new_manifesto.promise_hash
+            )
+            blockchain_tx_data = tx_result
+            print(f"Blockchain submission successful: {tx_result['tx_hash']}")
+        except Exception as e:
+            print(f"Blockchain submission failed: {str(e)}")
+            # For now we log but don't fail the request, to keep the app usable if local chain is down
+            # In production, this might be a critical failure
+            pass
     
     # Create audit log
     last_audit = db.query(AuditLog).order_by(AuditLog.id.desc()).first()
     prev_hash = last_audit.block_hash if last_audit else "0x0"
+    
+    audit_data = {
+        "manifesto_id": new_manifesto.id,
+        "title": new_manifesto.title,
+        "representative_id": new_manifesto.representative_id
+    }
+    
+    if blockchain_tx_data:
+        audit_data["blockchain_tx"] = blockchain_tx_data["tx_hash"]
+        audit_data["blockchain_block"] = blockchain_tx_data["block_number"]
+        audit_data["signature"] = manifesto.signature
     
     audit = AuditLog(
         manifesto_id=new_manifesto.id,
         action="PROMISE_CREATED",
         block_hash=generate_block_hash(str(new_manifesto.id), prev_hash),
         prev_hash=prev_hash,
-        data={
-            "manifesto_id": new_manifesto.id,
-            "title": new_manifesto.title,
-            "representative_id": new_manifesto.representative_id
-        }
+        data=audit_data
     )
     db.add(audit)
     db.commit()
@@ -875,7 +904,8 @@ async def create_manifesto(manifesto: ManifestoCreate, db: Session = Depends(get
         "id": new_manifesto.id,
         "title": new_manifesto.title,
         "status": "created",
-        "hash": new_manifesto.promise_hash
+        "hash": new_manifesto.promise_hash,
+        "blockchain_tx": blockchain_tx_data["tx_hash"] if blockchain_tx_data else None
     }
 
 @app.get("/api/manifestos/{manifesto_id}/votes")
